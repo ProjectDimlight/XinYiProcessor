@@ -2,6 +2,7 @@ package xinyi_s5i4_bc.stages
 
 import chisel3._
 import wrap._
+import xinyi_s5i4_bc.parts._
 
 class IFIn extends Bundle with XinYiConfig {
   val pc = Input(UInt(addrw.W))
@@ -42,7 +43,7 @@ class IDIn extends Bundle with XinYiConfig {
 class IDOut extends Bundle with XinYiConfig {
   val pc   = Output(UInt(addrw.W))
   val inst = Output(UInt(instw.W))
-  val dec  = Output(new InstControlSignalSet)
+  val dec  = Output(new ControlSet)
 }
 
 // Decode 2 instructions
@@ -54,9 +55,12 @@ class IDStage extends Module with XinYiConfig {
     val out   = new IDOut
   })
 
-  val decoder = Module(new Decoder)
-  
-  decoder.
+  val decoder = Module(new MIPSDecoder)
+  decoder.io.inst := io.in.inst
+
+  io.out.pc   := io.in.pc
+  io.out.inst := io.in.inst
+  io.out.dec  := decoder.io.ctrl
 }
 
 // 

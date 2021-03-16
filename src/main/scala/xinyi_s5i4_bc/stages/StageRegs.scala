@@ -21,5 +21,5 @@ class IFIDReg extends Module with XinYiConfig {
 
   val reg = RegNext(io.if_out)
   
-  id_in := reg
+  io.id_in := reg
 }

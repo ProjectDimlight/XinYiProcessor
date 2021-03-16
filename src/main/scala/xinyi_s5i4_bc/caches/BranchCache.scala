@@ -19,7 +19,6 @@ class BranchCache extends Module with XinYiConfig {
   io.inst_if.inst := 0.U(instw.W)
   io.inst_if.branch_cache_overwrite := 0.B
 
-
   io.inst_id.pc := 0.U(addrw.W)
   io.inst_id.inst := 0.U(instw.W)
   io.inst_id.branch_cache_overwrite := 0.B
