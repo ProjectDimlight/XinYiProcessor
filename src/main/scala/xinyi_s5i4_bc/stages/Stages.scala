@@ -3,6 +3,7 @@ package xinyi_s5i4_bc.stages
 import chisel3._
 import wrap._
 import xinyi_s5i4_bc.parts._
+import xinyi_s5i4_bc.caches._
 
 class IFIn extends Bundle with XinYiConfig {
   val pc = Input(UInt(addrw.W))
@@ -19,12 +20,12 @@ class IFStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in    = new IFIn
     val bc    = Flipped(new BranchCacheOut)
-    val cache = Flipped(new CacheInterface)
+    val cache = Flipped(new RAMInterface)
     val out   = new IFOut
   })
 
-  io.cache.din  := 0.U(32.W)
   io.cache.addr := io.in.pc
+  io.cache.din  := 0.U(32.W)
 
   when (io.bc.branch_cache_overwrite) {
     io.out.pc := io.bc.pc

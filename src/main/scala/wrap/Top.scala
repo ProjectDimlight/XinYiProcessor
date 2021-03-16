@@ -3,7 +3,6 @@ package wrap
 import chisel3._
 import xinyi_s5i4_bc._
 import xinyi_s5i4_bc.stages._
-//import xinyi_s5i4_bc.parts._
 
 trait XinYiConfig {
   val addrw      = 32
