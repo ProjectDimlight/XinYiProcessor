@@ -37,4 +37,5 @@ class DataPath extends Module with XinYiConfig {
   }
 
   // TODO: Add these decoded results to the issue queue
+  // TODO: Learn how FIFO works, and decide how we implement Branch Cache
 }
