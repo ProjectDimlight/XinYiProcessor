@@ -6,44 +6,40 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
 
 class IFIn extends Bundle with XinYiConfig {
-  val pc = Input(UInt(addrw.W))
+  val pc = Input(UInt(lgc_addr_w.W))
 }
 
 class IFOut extends Bundle with XinYiConfig {
-  val pc   = Output(UInt(addrw.W))
-  val inst = Output(UInt(instw.W))
+  val pc   = Output(UInt(lgc_addr_w.W))
+  val inst = Output(UInt(l1_w.W))
 }
 
-// Load 2 instructions
+// Load load_num instructions at a time
 // Branch Cache
 class IFStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in    = new IFIn
-    val bc    = Flipped(new BranchCacheOut)
-    val cache = Flipped(new RAMInterface)
+    val cache = Flipped(new RAMInterface(lgc_addr_w, l1_w))
     val out   = new IFOut
   })
 
   io.cache.addr := io.in.pc
+  // If Cache instructions are supported, we might have to write into ICache
+  // I don't know
   io.cache.din  := 0.U(32.W)
-
-  when (io.bc.branch_cache_overwrite) {
-    io.out.pc := io.bc.pc
-    io.out.inst := io.bc.inst
-  } .otherwise {
-    io.out.pc := io.in.pc
-    io.out.inst := io.cache.dout
-  }
+  
+  io.out.pc := io.in.pc
+  io.out.inst := io.cache.dout
 }
 
 class IDIn extends Bundle with XinYiConfig {
-  val pc   = Input(UInt(addrw.W))
-  val inst = Input(UInt(instw.W))
+  val pc   = Input(UInt(lgc_addr_w.W))
+  val inst = Input(UInt(data_w.W))
 }
 
 class IDOut extends Bundle with XinYiConfig {
-  val pc   = Output(UInt(addrw.W))
-  val inst = Output(UInt(instw.W))
+  val pc   = Output(UInt(lgc_addr_w.W))
+  val inst = Output(UInt(data_w.W))
   val dec  = Output(new ControlSet)
 }
 
@@ -52,7 +48,6 @@ class IDOut extends Bundle with XinYiConfig {
 class IDStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in    = new IDIn
-    val bc    = Flipped(new BranchCacheOut)
     val out   = new IDOut
   })
 

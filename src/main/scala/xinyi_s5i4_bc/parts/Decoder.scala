@@ -120,7 +120,7 @@ class ControlSet extends Bundle with XinYiConfig {
 
 class MIPSDecoder extends Module with XinYiConfig {
   val io = IO(new Bundle{
-    val inst = Input(UInt(instw.W))
+    val inst = Input(UInt(data_w.W))
     val ctrl = Output(new ControlSet)
   })
 
