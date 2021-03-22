@@ -3,15 +3,15 @@ package experiments
 import chisel3._
 
 trait TestConfig {
-  val queue_len  = 4
+  val queue_len  = 3
 
   val fetch_num   = 2
   val issue_num   = 2
   val issue_cnt_w = 4
 
-  val alu_path_num  = 3
-  val mdu_path_num  = 3
-  val lsu_path_num  = 3
+  val alu_path_num  = 4
+  val mdu_path_num  = 4
+  val lsu_path_num  = 4
   val queue_len_w   = 4
 }
 
@@ -53,32 +53,44 @@ class Test extends Module with TestConfig {
   val path = Wire(Vec(queue_len, Bool()))
   for (i <- 0 until queue_len) {
     queue(i) := (i + 100).U(32.W)
-    path(i) := (i & 1).B
+    path(i) := ~(i & 1).B
   }
 
-  val id = Wire(Vec(alu_path_num, UInt(2.W)))
+  val id = Wire(Vec(alu_path_num, UInt(4.W)))
+  // for each path
   for (j <- 0 until alu_path_num) {
-    id(j) := 0.U(32.W)
+    id(j) := queue_len.U(4.W)
 
+    // for each instruciton in the queue
+    // pre-decide whether it is available
     val available      = Wire(Vec(queue_len, Bool()))
     val available_pass = Wire(Vec(queue_len, Bool()))
-    available(0) := path(0)
-    available_pass(0) := false.B
-    for (i <- 1 until queue_len) {
+    for (i <- 0 until queue_len) {
       if (j != 0)
-        available(i)      := (path(i) & i.U(2.W) > id(j-1))
+        // It's id must greater than the last issued instruction
+        // That is, it must havn not yet been issued
+        available(i)      := (path(i) & i.U(4.W) > id(j-1))
       else
         available(i)      :=  path(i)
-      available_pass(i) := available_pass(i-1) & available(i-1)
     }
 
+    available_pass(0) := false.B
+    for (i <- 1 until queue_len)
+      available_pass(i) := available_pass(i-1) | available(i-1)
+
+    // find the FIRST available instruction (which hasn't been issued yet)
     for (i <- 0 until queue_len) {
       when (available(i) & ~available_pass(i)) {
-        id(j) := i.U(2.W)
+        id(j) := i.U(4.W)
       }
     }
 
-    io.out(j) := queue(id(j))
+    when (id(j) < queue_len.U(4.W)) {
+      io.out(j) := queue(id(j))
+    }
+    .otherwise {
+      io.out(j) := 0.U(32.W)
+    }
   }
 
   // io.cnt := item
