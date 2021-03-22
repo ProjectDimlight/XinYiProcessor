@@ -49,7 +49,11 @@ class Test extends Module with TestConfig {
   }
   */
 
+  // This queue simulates the instructions to be issued
   val queue = Wire(Vec(queue_len, UInt(32.W)))
+  // The path declares the set of FUs (ALU, MDU, LSU) it requires
+  // In this simulation we may suppose there are only 2 type of FUs
+  // And we only issue instructions with Type #1
   val path = Wire(Vec(queue_len, Bool()))
   for (i <- 0 until queue_len) {
     queue(i) := (i + 100).U(32.W)
@@ -61,13 +65,14 @@ class Test extends Module with TestConfig {
   for (j <- 0 until alu_path_num) {
     id(j) := queue_len.U(4.W)
 
-    // for each instruciton in the queue
+    // For each instruciton in the queue
     // pre-decide whether it is available
     val available      = Wire(Vec(queue_len, Bool()))
     val available_pass = Wire(Vec(queue_len, Bool()))
     for (i <- 0 until queue_len) {
       if (j != 0)
-        // It's id must greater than the last issued instruction
+        // It must have the correct type
+        // And it's id must be greater than the last issued instruction with the same type
         // That is, it must havn not yet been issued
         available(i)      := (path(i) & i.U(4.W) > id(j-1))
       else
@@ -78,7 +83,7 @@ class Test extends Module with TestConfig {
     for (i <- 1 until queue_len)
       available_pass(i) := available_pass(i-1) | available(i-1)
 
-    // find the FIRST available instruction (which hasn't been issued yet)
+    // find the FIRST fitting instruction (which hasn't been issued yet)
     for (i <- 0 until queue_len) {
       when (available(i) & ~available_pass(i)) {
         id(j) := i.U(4.W)
