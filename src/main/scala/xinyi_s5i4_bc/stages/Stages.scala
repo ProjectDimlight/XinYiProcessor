@@ -65,6 +65,7 @@ class Instruction extends Bundle with XinYiConfig {
   val dec  = new ControlSet
 }
 
+/*
 // Issue Queue
 class ISStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
@@ -127,35 +128,13 @@ class ISStage extends Module with XinYiConfig {
     
     when (io.available(i)) {
       issue_cnt := i.U(queue_len.W)
-      
-      // Instruction type
-      // Mem
-      when (inst(i).dec.mem_width != MemXXX) {
-        for (j <- 0 until lsu_paths) {
-          when (!lsu_used(i)) {
-            lsu_used(i) 
-          }
-        }
-      }
-      // Mult / Div
-      .elsewhen (inst(i).dec.mdu) {
-        io.out(2) := inst(i)
-        used(3) := 1.U(1.W)
-      }
-      // ALU1
-      .elsewhen () {
-        io.out(1) := inst(i)
-        used(3) := 1.U(1.W)
-      }
-      // ALU0
-      .otherwise {
-        io.out(0) := inst(i)
-        used(3) := 1.U(1.W)
-      }
     }
   }
 
-  // TODO: Put instructions into paths
-   
+  // Put instructions into paths
+  // Parameterized issuing
   
+  // Item
+  for (i <- 0 until )
 }
+*/

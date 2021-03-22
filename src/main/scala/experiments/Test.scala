@@ -3,12 +3,16 @@ package experiments
 import chisel3._
 
 trait TestConfig {
-  val queue_size  = 4
+  val queue_len  = 4
 
   val fetch_num   = 2
   val issue_num   = 2
-  val path_num    = 4
   val issue_cnt_w = 4
+
+  val alu_path_num  = 3
+  val mdu_path_num  = 3
+  val lsu_path_num  = 3
+  val queue_len_w   = 4
 }
 
 class ISIn extends Bundle {
@@ -18,8 +22,8 @@ class ISIn extends Bundle {
 
 class Test extends Module with TestConfig {
   val io = IO(new Bundle{
-    //val in  = Input(Vec(5, Bool()))
-    val out = Output(Vec(3, UInt(32.W)))
+    val in  = Input(Vec(queue_len, Bool()))
+    val out = Output(Vec(alu_path_num, UInt(32.W)))
     //val out = Output(Vec(issue_num, new ISIn()))
     //val cnt = Output(UInt(32.W))
   })
@@ -45,14 +49,37 @@ class Test extends Module with TestConfig {
   }
   */
 
-  val used = Wire(UInt(3.W))
-  used := 0.U(3.W)
-
-  for (i <- 101 until 103) {
-    for (j <- 0 until 3) {
-      used(j) := 1.U(1.W)
-      io.out(j) := i.U(32.W)
-    }
+  val queue = Wire(Vec(queue_len, UInt(32.W)))
+  val path = Wire(Vec(queue_len, Bool()))
+  for (i <- 0 until queue_len) {
+    queue(i) := (i + 100).U(32.W)
+    path(i) := (i & 1).B
   }
+
+  val id = Wire(Vec(alu_path_num, UInt(2.W)))
+  for (j <- 0 until alu_path_num) {
+    id(j) := 0.U(32.W)
+
+    val available      = Wire(Vec(queue_len, Bool()))
+    val available_pass = Wire(Vec(queue_len, Bool()))
+    available(0) := path(0)
+    available_pass(0) := false.B
+    for (i <- 1 until queue_len) {
+      if (j != 0)
+        available(i)      := (path(i) & i.U(2.W) > id(j-1))
+      else
+        available(i)      :=  path(i)
+      available_pass(i) := available_pass(i-1) & available(i-1)
+    }
+
+    for (i <- 0 until queue_len) {
+      when (available(i) & ~available_pass(i)) {
+        id(j) := i.U(2.W)
+      }
+    }
+
+    io.out(j) := queue(id(j))
+  }
+
   // io.cnt := item
 }
