@@ -3,17 +3,19 @@ package xinyi_s5i4_bc.parts
 import chisel3._
 import wrap._
 
-/*
+class BranchCacheOut extends Bundle with XinYiConfig {
+  val inst = Output(Vec(2, new Instruction))
+  val branch_cache_overwrite = Output(new Bool)
+}
+
 class BranchCache extends Module with XinYiConfig {
   val io = IO(new Bundle{
-    val target = new Vec(2, new ISIn)
-    val branch_cache_overwrite = new Bool
+    val out = new BranchCacheOut
   })
 
   for (i <- 0 until issue_num) {
-    io.target(i).pc := 0.U(32.W)
-    io.target(i).inst := 0.U(32.W)
+    io.out.inst(i).pc := 0.U(32.W)
+    io.out.inst(i).inst := 0.U(32.W)
   }
-  io.branch_cache_overwrite := false.B
+  io.out.branch_cache_overwrite := false.B
 }
-*/
