@@ -4,22 +4,18 @@ import chisel3._
 import wrap._
 
 class BranchCacheOut extends Bundle with XinYiConfig {
-  val pc   = Output(UInt(lgc_addr_w.W))
-  val inst = Output(UInt(data_w.W))
-  val branch_cache_overwrite = Output(Bool())
+  val inst = Output(Vec(2, new Instruction))
+  val branch_cache_overwrite = Output(new Bool)
 }
 
 class BranchCache extends Module with XinYiConfig {
   val io = IO(new Bundle{
-    val inst_if = new BranchCacheOut
-    val inst_id = new BranchCacheOut
+    val out = new BranchCacheOut
   })
 
-  io.inst_if.pc := 0.U(lgc_addr_w.W)
-  io.inst_if.inst := 0.U(data_w.W)
-  io.inst_if.branch_cache_overwrite := 0.B
-
-  io.inst_id.pc := 0.U(lgc_addr_w.W)
-  io.inst_id.inst := 0.U(data_w.W)
-  io.inst_id.branch_cache_overwrite := 0.B
+  for (i <- 0 until issue_num) {
+    io.out.inst(i).pc := 0.U(32.W)
+    io.out.inst(i).inst := 0.U(32.W)
+  }
+  io.out.branch_cache_overwrite := false.B
 }
