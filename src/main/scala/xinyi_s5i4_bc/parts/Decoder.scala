@@ -7,6 +7,12 @@ import wrap._
 import ControlConst._
 import ISAPatterns._
 
+class Instruction extends Bundle with XinYiConfig {
+  val pc   = UInt(lgc_addr_w.W)
+  val inst = UInt(data_w.W)
+  val dec  = new ControlSet
+}
+
 object ControlConst {
 
   val True  = true.B
@@ -219,4 +225,26 @@ class MIPSDecoder extends Module with XinYiConfig {
   io.ctrl.rs1           := control_signal(10)
   io.ctrl.rs2           := control_signal(11)
   io.ctrl.rd            := control_signal(12)
+}
+
+object NOPBubble {
+  def apply() = {
+    val item = Wire(new Instruction)
+    item.pc   := 0.U(32.W)
+    item.inst := 0.U(32.W)
+    item.dec.inst_type     := 0.U(4.W)
+    item.dec.next_pc       := 0.U(3.W)
+    item.dec.mdu           := 0.U(1.W)
+    item.dec.branch_type   := 0.U(4.W)
+    item.dec.param_a       := 0.U(3.W)
+    item.dec.param_b       := 0.U(1.W)
+    item.dec.write_target  := 0.U(3.W)
+    item.dec.alu_op        := 0.U(4.W)
+    item.dec.mem_width     := 0.U(3.W)
+    item.dec.wb_from       := 0.U(2.W)
+    item.dec.rs1           := 0.U(5.W)
+    item.dec.rs2           := 0.U(5.W)
+    item.dec.rd            := 0.U(5.W)
+    item
+  }
 }
