@@ -30,7 +30,7 @@ class ALU(data_bits: Int, alu_ctrl_bits: Int) extends Module {
 
     io.out_res := MuxLookup(
         io.in_ctrl,
-        0.U(data_bits.W),
+        "hcafebabe".U,
         Seq(
             ALUADD -> (io.in_a + io.in_b),
             ALUADDU -> (io.in_a + io.in_b),
@@ -43,16 +43,16 @@ class ALU(data_bits: Int, alu_ctrl_bits: Int) extends Module {
             ALUOR -> (io.in_a | io.in_b),
             ALUXOR -> (io.in_a ^ io.in_b),
             ALUSLL -> (io.in_a << io.in_b(4, 0)),
-            ALUSRA -> (io.in_a.asSInt() >> io.in_b(4, 0)),
+            ALUSRA -> (io.in_a.asSInt() >> io.in_b(4, 0)).asUInt(),
             ALUSRL -> (io.in_a >> io.in_b(4, 0))
         )
     )
 
     io.err_overflow := ((io.in_ctrl === ALUADD) &&
         (io.in_a(data_bits - 1) === io.in_b(data_bits - 1)) &&
-        (io.in_a(data_bits - 1) =/= io.out_res(data_bits))) ||
+        (io.in_a(data_bits - 1) =/= io.out_res(data_bits - 1))) ||
         ((io.in_ctrl === ALUSUB) &&
             (io.in_a(data_bits - 1) =/= io.in_b(data_bits - 1)) &&
-            (io.in_a(data_bits - 1) =/= io.out_res(data_bits)))
+            (io.in_a(data_bits - 1) =/= io.out_res(data_bits - 1)))
 
 }

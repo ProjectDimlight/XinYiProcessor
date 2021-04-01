@@ -1,4 +1,6 @@
 ### Project Specific stuff
+src/main/scala/Driver.scala
+output/
 verilog/
 test_run_dir/*
 ### XilinxISE template
