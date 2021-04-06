@@ -74,88 +74,30 @@ class IDStage extends Module with XinYiConfig {
   io.out.dec  := decoder.io.ctrl
 }
 
-class Issuer(path_id: Int, path_num: Int) extends Module with XinYiConfig {
-  val io = IO(new Bundle{
-    val inst      = Input(Vec(issue_num, new Instruction))
-    val target    = Input(Vec(issue_num, UInt(path_w.W)))
-    val path      = Output(Vec(path_num, new Instruction))
-    val issue_cnt = Output(UInt(issue_num_w.W))
-  })
-
-  io.issue_cnt := 0.U(issue_num_w.W)
-  val id = Wire(Vec(path_num, UInt(4.W)))
-
-  // for each path
-  for (j <- 0 until path_num) {
-    id(j) := issue_num.U(4.W)
-
-    // For each instruciton in the queue
-    // pre-decide whether it is available
-    val available      = Wire(Vec(issue_num, Bool()))
-    val available_pass = Wire(Vec(issue_num, Bool()))
-    for (i <- 0 until issue_num) {
-      if (j != 0)
-        // It must have the correct type
-        // And it's id must be greater than the last issued instruction with the same type
-        // That is, it must havn not yet been issued
-        available(i)      := ((io.target(i) === path_id.U) & (i.U > id(j-1)))
-      else
-        available(i)      :=  (io.target(i) === path_id.U)
-    }
-
-    available_pass(0) := false.B
-    for (i <- 1 until issue_num)
-      available_pass(i) := available_pass(i-1) | available(i-1)
-
-    // find the FIRST fitting instruction (which hasn't been issued yet)
-    for (i <- 0 until issue_num) {
-      when (available(i) & ~available_pass(i)) {
-        id(j) := i.U(4.W)
-      }
-    }
-
-    when (id(j) < issue_num.U(4.W)) {
-      io.path(j) := io.inst(id(j))
-      io.issue_cnt := j.U(issue_num_w.W)
-    }
-    .otherwise {
-      io.path(j) := NOPBubble()
-    }
-  }
-}
-
-object Issuer extends XinYiConfig {
-  def apply(
-    path_id  : Int,
-    path_num : Int,
-    inst     : Vec[Instruction],
-    target   : Vec[UInt],
-    path     : Vec[Instruction]
-  ) = {
-    val issuer = Module(new Issuer(path_id, path_num))
-    issuer.io.inst   <> inst
-    issuer.io.target <> target
-    issuer.io.path   <> path
-    issuer.io.issue_cnt
-  }
-}
-
 // Issue Queue
 class ISStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in        = Input(Vec(fetch_num, Flipped(new Instruction)))
     val bc        = Flipped(new BranchCacheOut)
     
-    val wt        = Input(Vec(alu_path_num + mdu_path_num + lsu_path_num, UInt(write_target_w.W)))
-    val rd        = Input(Vec(alu_path_num + mdu_path_num + lsu_path_num, UInt(reg_id_w.W)))
+    val alu_wt    = Input(Vec(alu_path_num, UInt(write_target_w.W)))
+    val alu_rd    = Input(Vec(alu_path_num, UInt(reg_id_w.W)))
     val alu_ready = Input(Vec(alu_path_num, Bool()))
+
+    val mdu_wt    = Input(Vec(mdu_path_num, UInt(write_target_w.W)))
+    val mdu_rd    = Input(Vec(mdu_path_num, UInt(reg_id_w.W)))
     val mdu_ready = Input(Vec(mdu_path_num, Bool()))
+
+    val lsu_wt    = Input(Vec(lsu_path_num, UInt(write_target_w.W)))
+    val lsu_rd    = Input(Vec(lsu_path_num, UInt(reg_id_w.W)))
     val lsu_ready = Input(Vec(lsu_path_num, Bool()))
     
     val alu_path  = Output(Vec(alu_path_num, new Instruction))
     val mdu_path  = Output(Vec(mdu_path_num, new Instruction))
     val lsu_path  = Output(Vec(lsu_path_num, new Instruction))
   })
+
+  // Queue logic
 
   val queue = Reg(Vec(queue_len, new Instruction))
   val head  = RegInit(0.U(queue_len_w.W))
@@ -169,7 +111,7 @@ class ISStage extends Module with XinYiConfig {
     inst := io.bc.inst
   }
   // The next instruction is from the queue
-  .otherwise {    
+  .otherwise {
     for (i <- 0 until issue_num) {
       when (head + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
         inst(i) := queue(i.U(queue_len_w.W) + head)
@@ -180,50 +122,82 @@ class ISStage extends Module with XinYiConfig {
     }
   }
 
-  // For each instruction, decide which path it should go
+  /////////////////////////////////////////////////////////////////
+
+  // Issue Logic  
+
   val actual_issue_cnt = Wire(UInt(issue_num_w.W))
+  
+  val filtered_inst = Wire(Vec(issue_num, new Instruction))
+
+  // For each instruction, decide which path it should go
   val target = Wire(Vec(issue_num, UInt(path_w.W)))
 
-  val available       = Wire(Vec(issue_num, Bool()))
-  val available_pass  = Wire(Vec(issue_num, Bool()))
+  val issued_by_alu = Wire(Vec(issue_num, Bool()))
+  val issued_by_mdu = Wire(Vec(issue_num, Bool()))
+  val issued_by_lsu = Wire(Vec(issue_num, Bool()))
+  val issued        = Wire(Vec(issue_num, Bool()))
+  val no_raw        = Wire(Vec(issue_num, Bool()))
 
+  // Begin
   actual_issue_cnt := 0.U(issue_num_w.W)
 
   // i is the id of the currect instruction to be detected
   for (i <- 0 until issue_num) {
-    // TODO: Detect hazards
-    // j is an instruction id before i
-    for (j <- 0 until i) {
-      
+    // Detect hazards
+
+    // RAW Data hazard
+    no_raw(i) := true.B
+    for (j <- 0 until alu_path_num) {
+      when (!io.alu_ready(j) & (io.alu_rd(j) === inst(i).dec.rs1 | io.alu_rd(j) === inst(i).dec.rs2)) {
+        no_raw(i) := false.B
+      }
+    }
+    for (j <- 0 until mdu_path_num) {
+      when (!io.mdu_ready(j) & (io.mdu_rd(j) === inst(i).dec.rs1 | io.mdu_rd(j) === inst(i).dec.rs2)) {
+        no_raw(i) := false.B
+      }
+    }
+    for (j <- 0 until lsu_path_num) {
+      when (!io.lsu_ready(j) & (io.lsu_rd(j) === inst(i).dec.rs1 | io.lsu_rd(j) === inst(i).dec.rs2)) {
+        no_raw(i) := false.B
+      }
+    }
+
+    // Target filter
+    target(i) := MuxCase(
+      alu_path_id.U(path_w.W),                                          // ALU
+      Array(
+        (inst(i).dec.mem_width =/= MemXXX) -> lsu_path_id.U(path_w.W),  // LSU
+        (inst(i).dec.mdu)                  -> mdu_path_id.U(path_w.W)   // MDU
+      )
+    )
+    when (!no_raw(i)) {
+      target(i) := 0.U(path_w.W)
+    }
+
+    // Structural hazard
+    issued(i) := issued_by_alu(i) | issued_by_mdu(i) | issued_by_lsu(i)
+    when (issued(i) === false.B) {
+      actual_issue_cnt := (i + 1).U(issue_num_w.W)
     }
 
     // Ordered issuing
     // If an instruction fails to issue
     // Then all instructions afterwards will also be stalled
-    if (i == 0)
-      available_pass(i) := available(i)
-    else
-      available_pass(i) := available_pass(i-1) | available(i)
-    
-    when (available_pass(i)) {
-      target(i) := MuxCase(
-        alu_path_id.U(path_w.W),                                          // ALU
-        Array(
-          (inst(i).dec.mem_width =/= MemXXX) -> lsu_path_id.U(path_w.W),  // LSU
-          (inst(i).dec.mdu)                  -> mdu_path_id.U(path_w.W)   // MDU
-        )
-      )
-    } .otherwise {
-      target(i) := 0.U(path_w.W)
+    when (i.U(issue_num_w.W) >= actual_issue_cnt) {
+      filtered_inst(i) := NOPBubble()
+    }
+    .otherwise {
+      filtered_inst(i) := inst(i)
     }
   }
 
   // Put instructions into paths
   // Parameterized issuing
-  actual_issue_cnt :=
-    Issuer(alu_path_id, alu_path_num, inst, target, io.alu_path) + 
-    Issuer(mdu_path_id, mdu_path_num, inst, target, io.mdu_path) + 
-    Issuer(lsu_path_id, lsu_path_num, inst, target, io.lsu_path)
+  Issuer(alu_path_id, alu_path_num, inst, target, io.alu_ready, issued_by_alu, io.alu_path)
+  Issuer(mdu_path_id, mdu_path_num, inst, target, io.mdu_ready, issued_by_mdu, io.mdu_path)
+  Issuer(lsu_path_id, lsu_path_num, inst, target, io.lsu_ready, issued_by_lsu, io.lsu_path)
   
   head := head + actual_issue_cnt
 }
