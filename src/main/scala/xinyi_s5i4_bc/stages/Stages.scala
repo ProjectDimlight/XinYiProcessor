@@ -178,6 +178,10 @@ class ISStage extends Module with XinYiConfig {
 
     // Structural hazard
     issued(i) := issued_by_alu(i) | issued_by_mdu(i) | issued_by_lsu(i)
+
+    // If an instruction cannot be issued
+    // Mark its ID
+    // Every following instruction (with a greater ID) will be replaced by an NOP Bubble
     when (issued(i) === false.B) {
       actual_issue_cnt := (i + 1).U(issue_num_w.W)
     }
