@@ -7,6 +7,17 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
 import ControlConst._
 
+class PCStage extends Module with XinYiConfig {
+  val io = IO(new Bundle{
+    val pc      = Input(UInt(lgc_addr_w.W))
+    //val bpu_out = Flipped(new BPUOut)
+    //val bju_out = Flipped(new BJUOut)
+    val next_pc = Output(UInt(lgc_addr_w.W))
+  })
+
+  io.next_pc := io.pc + 4.U(lgc_addr_w.W)
+}
+
 class IFIn extends Bundle with XinYiConfig {
   val pc = Input(UInt(lgc_addr_w.W))
 }
@@ -25,11 +36,13 @@ class IFStage extends Module with XinYiConfig {
     val out   = new IFOut
   })
 
+  // ICache
   io.cache.addr := io.in.pc
   // If Cache instructions are supported, we might have to write into ICache
   // I don't know
   io.cache.din  := 0.U(32.W)
   
+  // Output to IF-ID Regs
   io.out.pc := io.in.pc
   io.out.inst := io.cache.dout
 }
@@ -45,8 +58,8 @@ class IDOut extends Bundle with XinYiConfig {
   val dec  = Output(new ControlSet)
 }
 
-// Decode 2 instructions
-// Branch Cache
+// Decode 1 instruction
+// Generate multiple instances to support multi-issuing
 class IDStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in    = new IDIn
@@ -132,7 +145,13 @@ class ISStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in        = Input(Vec(fetch_num, Flipped(new Instruction)))
     val bc        = Flipped(new BranchCacheOut)
-    //val stall     = Output(Bool())
+    
+    val wt        = Input(Vec(alu_path_num + mdu_path_num + lsu_path_num, UInt(write_target_w.W)))
+    val rd        = Input(Vec(alu_path_num + mdu_path_num + lsu_path_num, UInt(reg_id_w.W)))
+    val alu_ready = Input(Vec(alu_path_num, Bool()))
+    val mdu_ready = Input(Vec(mdu_path_num, Bool()))
+    val lsu_ready = Input(Vec(lsu_path_num, Bool()))
+    
     val alu_path  = Output(Vec(alu_path_num, new Instruction))
     val mdu_path  = Output(Vec(mdu_path_num, new Instruction))
     val lsu_path  = Output(Vec(lsu_path_num, new Instruction))
@@ -156,7 +175,7 @@ class ISStage extends Module with XinYiConfig {
         inst(i) := queue(i.U(queue_len_w.W) + head)
       }
       .otherwise {
-        inst(i) := queue(head + (16 + i - queue_len).U(queue_len_w.W))
+        inst(i) := queue(head + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W))
       }
     }
   }
@@ -164,25 +183,29 @@ class ISStage extends Module with XinYiConfig {
   // For each instruction, decide which path it should go
   val actual_issue_cnt = Wire(UInt(issue_num_w.W))
   val target = Wire(Vec(issue_num, UInt(path_w.W)))
-  val available = Wire(Vec(issue_num, Bool()))
+
+  val available       = Wire(Vec(issue_num, Bool()))
+  val available_pass  = Wire(Vec(issue_num, Bool()))
 
   actual_issue_cnt := 0.U(issue_num_w.W)
 
+  // i is the id of the currect instruction to be detected
   for (i <- 0 until issue_num) {
+    // TODO: Detect hazards
+    // j is an instruction id before i
+    for (j <- 0 until i) {
+      
+    }
+
     // Ordered issuing
     // If an instruction fails to issue
     // Then all instructions afterwards will also be stalled
     if (i == 0)
-      available(i) := true.B
+      available_pass(i) := available(i)
     else
-      available(i) := available(i-1)
-
-    // TODO: Detect hazards
-    for (j <- 0 until issue_num) {
-      
-    }
+      available_pass(i) := available_pass(i-1) | available(i)
     
-    when (available(i)) {
+    when (available_pass(i)) {
       target(i) := MuxCase(
         alu_path_id.U(path_w.W),                                          // ALU
         Array(
