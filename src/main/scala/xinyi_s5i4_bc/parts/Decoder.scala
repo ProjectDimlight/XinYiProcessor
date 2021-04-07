@@ -3,6 +3,7 @@ package xinyi_s5i4_bc.parts
 
 import chisel3._
 import chisel3.util._
+import chisel3.experimental.BundleLiterals._
 import wrap._
 
 import ControlConst._
@@ -252,45 +253,75 @@ object NOPBubble {
   }
 }
 
-// Construct an Instruction with given functions
-object InstCode {
-  
-}
-
 // Construct a decoded Instruction with given functions
-object InstDecodedByPath {
+object InstDecodedLitByPath {
   // Construction By path
-  def apply(path_type: Int, rs1: Int, rs2: Int, rd: Int) = {
-    val item = Wire(new Instruction)
+  def apply(path_type: Int, rs1: Int, rs2: Int, rd: Int): Instruction = {
+    val inst = new Instruction
     // ALU
     if (path_type == 1) {
-      item.pc               := 0.U(32.W)
-      item.inst             := 0.U(32.W)
-      item.dec.inst_type    := RType
-      item.dec.next_pc      := PC4
-      item.dec.mdu          := False
-      item.dec.branch_type  := BrXXX
-      item.dec.param_a      := AReg
-      item.dec.param_b      := BReg
-      item.dec.write_target := DReg
-      item.dec.alu_op       := ALUADD
-      item.dec.mem_width    := MemXXX
-      item.dec.wb_from      := WBALU
-      item.dec.rs1          := rs1.U(5.W)
-      item.dec.rs2          := rs2.U(5.W)
-      item.dec.rd           := rd.U(5.W)
+      inst.Lit(
+        _.pc               -> 0.U(32.W),
+        _.inst             -> 0.U(32.W),
+        _.dec.inst_type    -> RType,
+        _.dec.next_pc      -> PC4,
+        _.dec.mdu          -> False,
+        _.dec.branch_type  -> BrXXX,
+        _.dec.param_a      -> AReg,
+        _.dec.param_b      -> BReg,
+        _.dec.write_target -> DReg,
+        _.dec.alu_op       -> ALUADD,
+        _.dec.mem_width    -> MemXXX,
+        _.dec.wb_from      -> WBALU,
+        _.dec.rs1          -> rs1.U(5.W),
+        _.dec.rs2          -> rs2.U(5.W),
+        _.dec.rd           -> rd.U(5.W)
+      )
     }
     // MDU
     else if (path_type == 2) {
-      // TODO
+      inst.Lit(
+        _.pc               -> 0.U(32.W),
+        _.inst             -> 0.U(32.W),
+        _.dec.inst_type    -> RType,
+        _.dec.next_pc      -> PC4,
+        _.dec.mdu          -> True,
+        _.dec.branch_type  -> BrXXX,
+        _.dec.param_a      -> AReg,
+        _.dec.param_b      -> BReg,
+        _.dec.write_target -> DReg,
+        _.dec.alu_op       -> ALUADD,
+        _.dec.mem_width    -> MemXXX,
+        _.dec.wb_from      -> WBALU,
+        _.dec.rs1          -> rs1.U(5.W),
+        _.dec.rs2          -> rs2.U(5.W),
+        _.dec.rd           -> rd.U(5.W)
+      )
     }
+    /*
     // LSU
     else if (path_type == 3) {
       // TODO
     }
+    */
     else {
-      item := NOPBubble()
+      inst.Lit(
+        _.pc               -> 0.U(32.W),
+        _.inst             -> 0.U(32.W),
+        _.dec.inst_type    -> InstXXX,
+        _.dec.next_pc      -> PC4,
+        _.dec.mdu          -> False,
+        _.dec.branch_type  -> BrXXX,
+        _.dec.param_a      -> AXXX,
+        _.dec.param_b      -> BXXX,
+        _.dec.write_target -> DXXX,
+        _.dec.alu_op       -> ALUXXX,
+        _.dec.mem_width    -> MemXXX,
+        _.dec.wb_from      -> WBXXX,
+        _.dec.rs1          -> rs1.U(5.W),
+        _.dec.rs2          -> rs2.U(5.W),
+        _.dec.rd           -> rd.U(5.W)
+      )
     }
-    item
   }
 }

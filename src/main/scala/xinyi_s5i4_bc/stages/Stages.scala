@@ -82,14 +82,12 @@ class PathInterface extends Bundle with XinYiConfig {
 }
 
 // Issue Queue
-class ISStage extends Module with XinYiConfig {
+class IssueQueue extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in        = Input(Vec(fetch_num, Flipped(new Instruction)))
     val bc        = Flipped(new BranchCacheOut)
-    
-    val alu_paths = Flipped(Vec(alu_path_num, new PathInterface))
-    val mdu_paths = Flipped(Vec(mdu_path_num, new PathInterface))
-    val lsu_paths = Flipped(Vec(lsu_path_num, new PathInterface))
+    val actual_issue_cnt = Input(UInt(issue_num_w.W))
+    val inst      = Output(Vec(issue_num, new Instruction))
   })
 
   // Queue logic
@@ -107,6 +105,7 @@ class ISStage extends Module with XinYiConfig {
       queue(head + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W)) := io.in(i)
     }
   }
+  head := head + io.actual_issue_cnt
   tail := tail + fetch_num.U(queue_len_w.W)
 
   val inst = Wire(Vec(issue_num, new Instruction))
@@ -127,13 +126,24 @@ class ISStage extends Module with XinYiConfig {
     }
   }
 
-  /////////////////////////////////////////////////////////////////
+  io.inst := inst
+}
+
+// Issue Stage
+class ISStage extends Module with XinYiConfig {
+  val io = IO(new Bundle{
+    val inst      = Input(Vec(issue_num, new Instruction))
+    val alu_paths = Flipped(Vec(alu_path_num, new PathInterface))
+    val mdu_paths = Flipped(Vec(mdu_path_num, new PathInterface))
+    val lsu_paths = Flipped(Vec(lsu_path_num, new PathInterface))
+    val actual_issue_cnt = Output(UInt(issue_num_w.W))
+  })
 
   // Hazard Detect Logic  
 
-  val actual_issue_cnt = Wire(UInt(issue_num_w.W))
-  
+  val inst = Wire(Vec(issue_num, new Instruction))
   val filtered_inst = Wire(Vec(issue_num, new Instruction))
+  inst := io.inst
 
   // For each instruction, decide which path it should go
   val target = Wire(Vec(issue_num, UInt(path_w.W)))
@@ -145,7 +155,7 @@ class ISStage extends Module with XinYiConfig {
   val no_raw        = Wire(Vec(issue_num, Bool()))
 
   // Begin
-  actual_issue_cnt := 0.U(issue_num_w.W)
+  io.actual_issue_cnt := issue_num.U(issue_num_w.W)
 
   // i is the id of the currect instruction to be detected
   for (i <- 0 until issue_num) {
@@ -188,13 +198,13 @@ class ISStage extends Module with XinYiConfig {
     // Mark its ID
     // Every following instruction (with a greater ID) will be replaced by an NOP Bubble
     when (issued(i) === false.B) {
-      actual_issue_cnt := (i + 1).U(issue_num_w.W)
+      io.actual_issue_cnt := i.U(issue_num_w.W)
     }
 
     // Ordered issuing
     // If an instruction fails to issue
     // Then all instructions afterwards will also be stalled
-    when (i.U(issue_num_w.W) >= actual_issue_cnt) {
+    when (i.U(issue_num_w.W) >= io.actual_issue_cnt) {
       filtered_inst(i) := NOPBubble()
     }
     .otherwise {
@@ -211,6 +221,4 @@ class ISStage extends Module with XinYiConfig {
   Issuer(alu_path_id, alu_path_num, inst, target, issued_by_alu, io.alu_paths)
   Issuer(mdu_path_id, mdu_path_num, inst, target, issued_by_mdu, io.mdu_paths)
   Issuer(lsu_path_id, lsu_path_num, inst, target, issued_by_lsu, io.lsu_paths)
-  
-  head := head + actual_issue_cnt
 }
