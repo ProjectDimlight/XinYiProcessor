@@ -3,6 +3,7 @@ package xinyi_s5i4_bc.parts
 import chisel3._
 import chisel3.util._
 import wrap._
+import xinyi_s5i4_bc.stages._
 import ControlConst._
 
 class Issuer(path_id: Int, path_num: Int) extends Module with XinYiConfig {
@@ -75,15 +76,16 @@ object Issuer extends XinYiConfig {
     path_num : Int,
     inst     : Vec[Instruction],
     target   : Vec[UInt],
-    ready    : Vec[Bool],
     issue    : Vec[Bool],
-    path     : Vec[Instruction]
+    path     : Vec[PathInterface]
   ) = {
     val issuer = Module(new Issuer(path_id, path_num))
     issuer.io.inst   <> inst
     issuer.io.target <> target
-    issuer.io.ready  <> ready
     issuer.io.issue  <> issue
-    issuer.io.path   <> path
+    for (i <- 0 until path_num) {
+      issuer.io.ready(i)  <> path(i).ready
+      issuer.io.path(i)   <> path(i).inst
+    }
   }
 }

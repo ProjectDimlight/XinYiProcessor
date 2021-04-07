@@ -74,27 +74,22 @@ class IDStage extends Module with XinYiConfig {
   io.out.dec  := decoder.io.ctrl
 }
 
+class PathInterface extends Bundle with XinYiConfig {
+  val wt          = Output(UInt(write_target_w.W))
+  val rd          = Output(UInt(reg_id_w.W))
+  val ready       = Output(Bool())
+  val inst        = Input(new Instruction)
+}
+
 // Issue Queue
 class ISStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in        = Input(Vec(fetch_num, Flipped(new Instruction)))
     val bc        = Flipped(new BranchCacheOut)
     
-    val alu_wt    = Input(Vec(alu_path_num, UInt(write_target_w.W)))
-    val alu_rd    = Input(Vec(alu_path_num, UInt(reg_id_w.W)))
-    val alu_ready = Input(Vec(alu_path_num, Bool()))
-
-    val mdu_wt    = Input(Vec(mdu_path_num, UInt(write_target_w.W)))
-    val mdu_rd    = Input(Vec(mdu_path_num, UInt(reg_id_w.W)))
-    val mdu_ready = Input(Vec(mdu_path_num, Bool()))
-
-    val lsu_wt    = Input(Vec(lsu_path_num, UInt(write_target_w.W)))
-    val lsu_rd    = Input(Vec(lsu_path_num, UInt(reg_id_w.W)))
-    val lsu_ready = Input(Vec(lsu_path_num, Bool()))
-    
-    val alu_path  = Output(Vec(alu_path_num, new Instruction))
-    val mdu_path  = Output(Vec(mdu_path_num, new Instruction))
-    val lsu_path  = Output(Vec(lsu_path_num, new Instruction))
+    val alu_paths = Flipped(Vec(alu_path_num, new PathInterface))
+    val mdu_paths = Flipped(Vec(mdu_path_num, new PathInterface))
+    val lsu_paths = Flipped(Vec(lsu_path_num, new PathInterface))
   })
 
   // Queue logic
@@ -104,6 +99,16 @@ class ISStage extends Module with XinYiConfig {
   val tail  = RegInit(0.U(queue_len_w.W))
   val size  = RegInit(0.U(queue_len_w.W))
   
+  for (i <- 0 until fetch_num) {
+    when (tail + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
+      queue(head + i.U(queue_len_w.W)) := io.in(i)
+    } 
+    .otherwise {
+      queue(head + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W)) := io.in(i)
+    }
+  }
+  tail := tail + fetch_num.U(queue_len_w.W)
+
   val inst = Wire(Vec(issue_num, new Instruction))
 
   // The next instruction comes from branch cache
@@ -114,7 +119,7 @@ class ISStage extends Module with XinYiConfig {
   .otherwise {
     for (i <- 0 until issue_num) {
       when (head + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
-        inst(i) := queue(i.U(queue_len_w.W) + head)
+        inst(i) := queue(head + i.U(queue_len_w.W))
       }
       .otherwise {
         inst(i) := queue(head + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W))
@@ -124,7 +129,7 @@ class ISStage extends Module with XinYiConfig {
 
   /////////////////////////////////////////////////////////////////
 
-  // Issue Logic  
+  // Hazard Detect Logic  
 
   val actual_issue_cnt = Wire(UInt(issue_num_w.W))
   
@@ -149,17 +154,17 @@ class ISStage extends Module with XinYiConfig {
     // RAW Data hazard
     no_raw(i) := true.B
     for (j <- 0 until alu_path_num) {
-      when (!io.alu_ready(j) & (io.alu_rd(j) === inst(i).dec.rs1 | io.alu_rd(j) === inst(i).dec.rs2)) {
+      when (!io.alu_paths(j).ready & (io.alu_paths(j).rd === inst(i).dec.rs1 | io.alu_paths(j).rd === inst(i).dec.rs2)) {
         no_raw(i) := false.B
       }
     }
     for (j <- 0 until mdu_path_num) {
-      when (!io.mdu_ready(j) & (io.mdu_rd(j) === inst(i).dec.rs1 | io.mdu_rd(j) === inst(i).dec.rs2)) {
+      when (!io.mdu_paths(j).ready & (io.mdu_paths(j).rd === inst(i).dec.rs1 | io.mdu_paths(j).rd === inst(i).dec.rs2)) {
         no_raw(i) := false.B
       }
     }
     for (j <- 0 until lsu_path_num) {
-      when (!io.lsu_ready(j) & (io.lsu_rd(j) === inst(i).dec.rs1 | io.lsu_rd(j) === inst(i).dec.rs2)) {
+      when (!io.lsu_paths(j).ready & (io.lsu_paths(j).rd === inst(i).dec.rs1 | io.lsu_paths(j).rd === inst(i).dec.rs2)) {
         no_raw(i) := false.B
       }
     }
@@ -197,11 +202,15 @@ class ISStage extends Module with XinYiConfig {
     }
   }
 
+  /////////////////////////////////////////////////////////////////
+
+  // Issue Logic
+
   // Put instructions into paths
   // Parameterized issuing
-  Issuer(alu_path_id, alu_path_num, inst, target, io.alu_ready, issued_by_alu, io.alu_path)
-  Issuer(mdu_path_id, mdu_path_num, inst, target, io.mdu_ready, issued_by_mdu, io.mdu_path)
-  Issuer(lsu_path_id, lsu_path_num, inst, target, io.lsu_ready, issued_by_lsu, io.lsu_path)
+  Issuer(alu_path_id, alu_path_num, inst, target, issued_by_alu, io.alu_paths)
+  Issuer(mdu_path_id, mdu_path_num, inst, target, issued_by_mdu, io.mdu_paths)
+  Issuer(lsu_path_id, lsu_path_num, inst, target, issued_by_lsu, io.lsu_paths)
   
   head := head + actual_issue_cnt
 }
