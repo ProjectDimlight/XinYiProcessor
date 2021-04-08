@@ -91,6 +91,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
         device.io.in(1).poke(InstDecodedLitByPath(1, j+1, j+1, j+1))
         device.clock.step(1)
       }
+      device.io.full.expect(true.B)
       device.io.in(0).poke(z)
       device.io.in(1).poke(z)
 
@@ -101,6 +102,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
 
         device.io.issue_cnt.expect(6.U)
         device.io.actual_issue_cnt.poke(2.U)
+        device.io.full.expect(false.B)
         device.io.inst(0).expect(InstDecodedLitByPath(1, j, j, j))
         device.io.inst(1).expect(InstDecodedLitByPath(1, j+1, j+1, j+1))
 

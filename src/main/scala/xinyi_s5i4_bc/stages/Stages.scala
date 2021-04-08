@@ -87,6 +87,7 @@ class IssueQueue extends Module with XinYiConfig {
     val in                = Input(Vec(fetch_num, Flipped(new Instruction)))
     val bc                = Flipped(new BranchCacheOut)
     val actual_issue_cnt  = Input(UInt(issue_num_w.W))
+    val full              = Output(Bool())
     val issue_cnt         = Output(UInt(issue_num_w.W))
     val inst              = Output(Vec(issue_num, new Instruction))
   })
@@ -116,6 +117,10 @@ class IssueQueue extends Module with XinYiConfig {
       }
     }
     tail := tail + fetch_num.U(queue_len_w.W)
+    io.full := false.B
+  }
+  .otherwise {
+    io.full := true.B
   }
 
   // Output 
