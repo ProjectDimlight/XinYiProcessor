@@ -33,11 +33,44 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
       
       device.clock.step(1)
 
-      device.io.size.expect(2.U)
+      device.io.issue_cnt.expect(2.U)
+      device.io.inst(0).expect(a)
+      device.io.inst(1).expect(b)
+    }
+  }
+
+  it should "Test Case 1: Input 2, Immediately Issue 1, then Issue 1" in {
+    test(new IssueQueue()) { device =>
+      val a = InstDecodedLitByPath(1, 1, 1, 2)
+      val b = InstDecodedLitByPath(1, 3, 3, 4)
+      val z = InstDecodedLitByPath(0, 0, 0, 0)
+
+      device.io.in(0).poke(a)
+      device.io.in(1).poke(b)
+      device.io.bc.inst(0).poke(z)
+      device.io.bc.inst(1).poke(z)
+      device.io.bc.branch_cache_overwrite.poke(false.B)
+      device.io.actual_issue_cnt.poke(0.U)
+      
+      // Cycle 1
+
+      device.clock.step(1)
 
       device.io.issue_cnt.expect(2.U)
       device.io.inst(0).expect(a)
       device.io.inst(1).expect(b)
+
+      // Issue 1 instruction
+      device.io.in(0).poke(z)
+      device.io.in(1).poke(z)
+      device.io.actual_issue_cnt.poke(1.U)
+
+      // Cycle 2
+      device.clock.step(1)
+
+      device.io.issue_cnt.expect(3.U)
+      device.io.inst(0).expect(b)
+      device.io.inst(1).expect(z)
     }
   }
 }

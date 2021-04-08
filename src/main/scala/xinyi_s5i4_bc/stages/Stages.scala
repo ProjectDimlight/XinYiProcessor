@@ -89,7 +89,6 @@ class IssueQueue extends Module with XinYiConfig {
     val actual_issue_cnt  = Input(UInt(issue_num_w.W))
     val issue_cnt         = Output(UInt(issue_num_w.W))
     val inst              = Output(Vec(issue_num, new Instruction))
-    val size              = Output(UInt(queue_len_w.W))
   })
 
   // Queue logic
@@ -97,14 +96,13 @@ class IssueQueue extends Module with XinYiConfig {
   val queue = Reg(Vec(queue_len, new Instruction))
   val head  = RegInit(0.U(queue_len_w.W))
   val tail  = RegInit(0.U(queue_len_w.W))
-  val size  = Wire(0.U(queue_len_w.W))
+  val size  = Wire(UInt(queue_len_w.W))
 
   size := Mux(
     tail >= head,
     tail - head,
     tail + queue_len.U - head
   )
-  io.size := size
   
   when (size < (queue_len - fetch_num).U) {
     for (i <- 0 until fetch_num) {
