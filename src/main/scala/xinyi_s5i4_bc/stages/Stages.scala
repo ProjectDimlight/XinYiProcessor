@@ -93,55 +93,50 @@ class IssueQueue extends Module with XinYiConfig {
 
   // Queue logic
 
-  val queue = Reg(Vec(queue_len, new Instruction))
-  val head  = RegInit(0.U(queue_len_w.W))
-  val tail  = RegInit(0.U(queue_len_w.W))
-  val size  = Wire(UInt(queue_len_w.W))
+  val queue   = Reg(Vec(queue_len, new Instruction))
+  val head    = RegInit(0.U(queue_len_w.W))
+  val tail    = RegInit(0.U(queue_len_w.W))
+  val size    = Wire(UInt(queue_len_w.W))
+  val last_ow = RegInit(false.B)
 
   size := Mux(
     tail >= head,
     tail - head,
     tail + queue_len.U - head
   )
-  
-  when (size < (queue_len - fetch_num).U) {
+
+  // Input
+  when (size < (queue_len - fetch_num).U +& io.actual_issue_cnt) {
     for (i <- 0 until fetch_num) {
       when (tail + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
-        queue(tail + i.U(queue_len_w.W)) := io.in(i)
+        queue(tail + i.U(queue_len_w.W)) := Mux(io.bc.branch_cache_overwrite, io.bc.inst(i), io.in(i))
       } 
       .otherwise {
-        queue(tail + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W)) := io.in(i)
+        queue(tail + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W)) := Mux(io.bc.branch_cache_overwrite, io.bc.inst(i), io.in(i))
       }
     }
-
     tail := tail + fetch_num.U(queue_len_w.W)
   }
 
-  val inst = Wire(Vec(issue_num, new Instruction))
-
-  // The next instruction comes from branch cache
-  when (io.bc.branch_cache_overwrite) {
-    inst := io.bc.inst
-    io.issue_cnt := issue_num.U
-  }
-  // The next instruction is from the queue
-  .otherwise {
-    for (i <- 0 until issue_num) {
-      // If i > issue_cnt, the instruction path will be 0 (Stall)
-      // So there is no need to clear the inst Vec here
-      when (head + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
-        inst(i) := queue(head + i.U(queue_len_w.W))
-      }
-      .otherwise {
-        inst(i) := queue(head + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W))
-      }
+  // Output 
+  for (i <- 0 until issue_num) {
+    // If i > issue_cnt, the instruction path will be 0 (Stall)
+    // So there is no need to clear the inst Vec here
+    when (head + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
+      io.inst(i) := queue(head + i.U(queue_len_w.W))
     }
-    io.issue_cnt := size
-
-    head := head + io.actual_issue_cnt
+    .otherwise {
+      io.inst(i) := queue(head + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W))
+    }
   }
-
-  io.inst := inst
+  io.issue_cnt := size
+  
+  head := Mux(
+    io.bc.branch_cache_overwrite & !last_ow,
+    tail,
+    head + io.actual_issue_cnt
+  )
+  last_ow := io.bc.branch_cache_overwrite
 }
 
 // Issue Stage
