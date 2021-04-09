@@ -4,7 +4,7 @@ import chisel3._
 import wrap._
 
 class BranchCacheOut extends Bundle with XinYiConfig {
-  val inst = Output(Vec(2, new Instruction))
+  val inst = Output(Vec(fetch_num, new Instruction))
   val branch_cache_overwrite = Output(new Bool)
 }
 
@@ -13,7 +13,7 @@ class BranchCache extends Module with XinYiConfig {
     val out = new BranchCacheOut
   })
 
-  for (i <- 0 until issue_num) {
+  for (i <- 0 until fetch_num) {
     io.out.inst(i).pc := 0.U(32.W)
     io.out.inst(i).inst := 0.U(32.W)
   }

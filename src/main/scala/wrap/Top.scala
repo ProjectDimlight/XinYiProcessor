@@ -14,6 +14,7 @@ trait XinYiConfig {
   
   val start_addr    = 0x80000000L
 
+  val bc_num        = 4
   val fetch_num     = 2
   val issue_num     = 2
   val issue_num_w   = 3
@@ -38,6 +39,6 @@ class CoreIO extends Bundle with XinYiConfig {
 
 object Generate {
   def main(args: Array[String]): Unit = {
-    chisel3.Driver.execute(Array("--target-dir", "verilog"), () => new ISStage())
+    chisel3.Driver.execute(Array("--target-dir", "verilog"), () => new IssueQueue())
   }
 }
