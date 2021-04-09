@@ -7,6 +7,17 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
 import ControlConst._
 
+class PCStage extends Module with XinYiConfig {
+  val io = IO(new Bundle{
+    val pc      = Input(UInt(lgc_addr_w.W))
+    //val bpu_out = Flipped(new BPUOut)
+    //val bju_out = Flipped(new BJUOut)
+    val next_pc = Output(UInt(lgc_addr_w.W))
+  })
+
+  io.next_pc := io.pc + 4.U(lgc_addr_w.W)
+}
+
 class IFIn extends Bundle with XinYiConfig {
   val pc = Input(UInt(lgc_addr_w.W))
 }
@@ -25,11 +36,13 @@ class IFStage extends Module with XinYiConfig {
     val out   = new IFOut
   })
 
+  // ICache
   io.cache.addr := io.in.pc
   // If Cache instructions are supported, we might have to write into ICache
   // I don't know
   io.cache.din  := 0.U(32.W)
   
+  // Output to IF-ID Regs
   io.out.pc := io.in.pc
   io.out.inst := io.cache.dout
 }
@@ -45,8 +58,8 @@ class IDOut extends Bundle with XinYiConfig {
   val dec  = Output(new ControlSet)
 }
 
-// Decode 2 instructions
-// Branch Cache
+// Decode 1 instruction
+// Generate multiple instances to support multi-issuing
 class IDStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in    = new IDIn
@@ -61,146 +74,182 @@ class IDStage extends Module with XinYiConfig {
   io.out.dec  := decoder.io.ctrl
 }
 
-class Issuer(path_id: Int, path_num: Int) extends Module with XinYiConfig {
-  val io = IO(new Bundle{
-    val inst      = Input(Vec(issue_num, new Instruction))
-    val target    = Input(Vec(issue_num, UInt(path_w.W)))
-    val path      = Output(Vec(path_num, new Instruction))
-    val issue_cnt = Output(UInt(issue_num_w.W))
-  })
-
-  io.issue_cnt := 0.U(issue_num_w.W)
-  val id = Wire(Vec(path_num, UInt(4.W)))
-
-  // for each path
-  for (j <- 0 until path_num) {
-    id(j) := issue_num.U(4.W)
-
-    // For each instruciton in the queue
-    // pre-decide whether it is available
-    val available      = Wire(Vec(issue_num, Bool()))
-    val available_pass = Wire(Vec(issue_num, Bool()))
-    for (i <- 0 until issue_num) {
-      if (j != 0)
-        // It must have the correct type
-        // And it's id must be greater than the last issued instruction with the same type
-        // That is, it must havn not yet been issued
-        available(i)      := ((io.target(i) === path_id.U) & (i.U > id(j-1)))
-      else
-        available(i)      :=  (io.target(i) === path_id.U)
-    }
-
-    available_pass(0) := false.B
-    for (i <- 1 until issue_num)
-      available_pass(i) := available_pass(i-1) | available(i-1)
-
-    // find the FIRST fitting instruction (which hasn't been issued yet)
-    for (i <- 0 until issue_num) {
-      when (available(i) & ~available_pass(i)) {
-        id(j) := i.U(4.W)
-      }
-    }
-
-    when (id(j) < issue_num.U(4.W)) {
-      io.path(j) := io.inst(id(j))
-      io.issue_cnt := j.U(issue_num_w.W)
-    }
-    .otherwise {
-      io.path(j) := NOPBubble()
-    }
-  }
-}
-
-object Issuer extends XinYiConfig {
-  def apply(
-    path_id  : Int,
-    path_num : Int,
-    inst     : Vec[Instruction],
-    target   : Vec[UInt],
-    path     : Vec[Instruction]
-  ) = {
-    val issuer = Module(new Issuer(path_id, path_num))
-    issuer.io.inst   <> inst
-    issuer.io.target <> target
-    issuer.io.path   <> path
-    issuer.io.issue_cnt
-  }
+class PathInterface extends Bundle with XinYiConfig {
+  val wt          = Output(UInt(write_target_w.W))
+  val rd          = Output(UInt(reg_id_w.W))
+  val ready       = Output(Bool())
+  val inst        = Input(new Instruction)
 }
 
 // Issue Queue
-class ISStage extends Module with XinYiConfig {
+class IssueQueue extends Module with XinYiConfig {
   val io = IO(new Bundle{
-    val in        = Input(Vec(fetch_num, Flipped(new Instruction)))
-    val bc        = Flipped(new BranchCacheOut)
-    //val stall     = Output(Bool())
-    val alu_path  = Output(Vec(alu_path_num, new Instruction))
-    val mdu_path  = Output(Vec(mdu_path_num, new Instruction))
-    val lsu_path  = Output(Vec(lsu_path_num, new Instruction))
+    val in                = Input(Vec(fetch_num, Flipped(new Instruction)))
+    val bc                = Flipped(new BranchCacheOut)
+    val actual_issue_cnt  = Input(UInt(issue_num_w.W))
+    val full              = Output(Bool())
+    val issue_cnt         = Output(UInt(issue_num_w.W))
+    val inst              = Output(Vec(issue_num, new Instruction))
   })
 
-  val queue = Reg(Vec(queue_len, new Instruction))
-  val head  = RegInit(0.U(queue_len_w.W))
-  val tail  = RegInit(0.U(queue_len_w.W))
-  val size  = RegInit(0.U(queue_len_w.W))
-  
-  val inst = Wire(Vec(issue_num, new Instruction))
+  // Queue logic
 
-  // The next instruction comes from branch cache
-  when (io.bc.branch_cache_overwrite) {
-    inst := io.bc.inst
-  }
-  // The next instruction is from the queue
-  .otherwise {    
-    for (i <- 0 until issue_num) {
-      when (head + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
-        inst(i) := queue(i.U(queue_len_w.W) + head)
-      }
+  val queue   = Reg(Vec(queue_len, new Instruction))
+  val head    = RegInit(0.U(queue_len_w.W))
+  val tail    = RegInit(0.U(queue_len_w.W))
+  val size    = Wire(UInt(queue_len_w.W))
+  val last_ow = RegInit(false.B)
+
+  size := Mux(
+    tail >= head,
+    tail - head,
+    tail + queue_len.U - head
+  )
+
+  // Input
+  when (size < (queue_len - fetch_num).U +& io.actual_issue_cnt) {
+    for (i <- 0 until fetch_num) {
+      when (tail + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
+        queue(tail + i.U(queue_len_w.W)) := Mux(io.bc.branch_cache_overwrite, io.bc.inst(i), io.in(i))
+      } 
       .otherwise {
-        inst(i) := queue(head + (16 + i - queue_len).U(queue_len_w.W))
+        queue(tail + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W)) := Mux(io.bc.branch_cache_overwrite, io.bc.inst(i), io.in(i))
       }
     }
+    tail := tail + fetch_num.U(queue_len_w.W)
+    io.full := false.B
+  }
+  .otherwise {
+    io.full := true.B
   }
 
-  // For each instruction, decide which path it should go
-  val actual_issue_cnt = Wire(UInt(issue_num_w.W))
-  val target = Wire(Vec(issue_num, UInt(path_w.W)))
-  val available = Wire(Vec(issue_num, Bool()))
-
-  actual_issue_cnt := 0.U(issue_num_w.W)
-
+  // Output 
   for (i <- 0 until issue_num) {
+    // If i > issue_cnt, the instruction path will be 0 (Stall)
+    // So there is no need to clear the inst Vec here
+    when (head + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
+      io.inst(i) := queue(head + i.U(queue_len_w.W))
+    }
+    .otherwise {
+      io.inst(i) := queue(head + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W))
+    }
+  }
+  io.issue_cnt := size
+  
+  head := Mux(
+    io.bc.branch_cache_overwrite & !last_ow,
+    tail,
+    head + io.actual_issue_cnt
+  )
+  last_ow := io.bc.branch_cache_overwrite
+}
+
+// Issue Stage
+class ISStage extends Module with XinYiConfig {
+  val io = IO(new Bundle{
+    val issue_cnt = Input(UInt(queue_len_w.W))
+    val inst      = Input(Vec(issue_num, new Instruction))
+    val alu_paths = Flipped(Vec(alu_path_num, new PathInterface))
+    val mdu_paths = Flipped(Vec(mdu_path_num, new PathInterface))
+    val lsu_paths = Flipped(Vec(lsu_path_num, new PathInterface))
+    val actual_issue_cnt = Output(UInt(issue_num_w.W))
+  })
+
+  // Hazard Detect Logic  
+
+  val inst = Wire(Vec(issue_num, new Instruction))
+  val filtered_inst = Wire(Vec(issue_num, new Instruction))
+  inst := io.inst
+
+  // For each instruction, decide which path it should go
+  val target = Wire(Vec(issue_num, UInt(path_w.W)))
+
+  val issued_by_alu = Wire(Vec(issue_num, Bool()))
+  val issued_by_mdu = Wire(Vec(issue_num, Bool()))
+  val issued_by_lsu = Wire(Vec(issue_num, Bool()))
+  val issued        = Wire(Vec(issue_num, Bool()))
+  val no_raw        = Wire(Vec(issue_num, Bool()))
+
+  // Begin
+  io.actual_issue_cnt := issue_num.U(issue_num_w.W)
+
+  def RAWPath(i: Instruction, j: PathInterface) = {
+    !j.ready & (j.rd === i.dec.rs1 | j.rd === i.dec.rs2)
+  }
+
+  def RAWInst(i: Instruction, k: Instruction) = {
+    (k.dec.rd === i.dec.rs1 | k.dec.rd === i.dec.rs2)
+  }
+
+  // i is the id of the currect instruction to be detected
+  for (i <- 0 until issue_num) {
+    // Detect hazards
+
+    // RAW Data hazard
+
+    // From path (issued)
+    no_raw(i) := true.B
+    for (j <- 0 until alu_path_num) {
+      when (RAWPath(inst(i), io.alu_paths(j))) {
+        no_raw(i) := false.B
+      }
+    }
+    for (j <- 0 until mdu_path_num) {
+      when (RAWPath(inst(i), io.mdu_paths(j))) {
+        no_raw(i) := false.B
+      }
+    }
+    for (j <- 0 until lsu_path_num) {
+      when (RAWPath(inst(i), io.lsu_paths(j))) {
+        no_raw(i) := false.B
+      }
+    }
+
+    // From queue (going to issue)
+    for (k <- 0 until i) {
+      when (RAWInst(inst(i), inst(k))) {
+        no_raw(i) := false.B
+      }
+    }
+
+    // Target filter
+    target(i) := MuxCase(
+      alu_path_id.U(path_w.W),                                             // ALU
+      Array(
+        (!no_raw(i) | (i.U >= io.issue_cnt))  -> 0.U(path_w.W),            // Stall
+        (inst(i).dec.mem_width =/= MemXXX)    -> lsu_path_id.U(path_w.W),  // LSU
+        (inst(i).dec.mdu)                     -> mdu_path_id.U(path_w.W)   // MDU
+      )
+    )
+
+    // Structural hazard
+    issued(i) := issued_by_alu(i) | issued_by_mdu(i) | issued_by_lsu(i)
+
+    // If an instruction cannot be issued
+    // Mark its ID
+    // Every following instruction (with a greater ID) will be replaced by an NOP Bubble
+    when (issued(i) === false.B) {
+      io.actual_issue_cnt := i.U(issue_num_w.W)
+    }
+
     // Ordered issuing
     // If an instruction fails to issue
     // Then all instructions afterwards will also be stalled
-    if (i == 0)
-      available(i) := true.B
-    else
-      available(i) := available(i-1)
-
-    // TODO: Detect hazards
-    for (j <- 0 until issue_num) {
-      
+    when (i.U(issue_num_w.W) >= io.actual_issue_cnt) {
+      filtered_inst(i) := NOPBubble()
     }
-    
-    when (available(i)) {
-      target(i) := MuxCase(
-        alu_path_id.U(path_w.W),                                          // ALU
-        Array(
-          (inst(i).dec.mem_width =/= MemXXX) -> lsu_path_id.U(path_w.W),  // LSU
-          (inst(i).dec.mdu)                  -> mdu_path_id.U(path_w.W)   // MDU
-        )
-      )
-    } .otherwise {
-      target(i) := 0.U(path_w.W)
+    .otherwise {
+      filtered_inst(i) := inst(i)
     }
   }
 
+  /////////////////////////////////////////////////////////////////
+
+  // Issue Logic
+
   // Put instructions into paths
   // Parameterized issuing
-  actual_issue_cnt :=
-    Issuer(alu_path_id, alu_path_num, inst, target, io.alu_path) + 
-    Issuer(mdu_path_id, mdu_path_num, inst, target, io.mdu_path) + 
-    Issuer(lsu_path_id, lsu_path_num, inst, target, io.lsu_path)
-  
-  head := head + actual_issue_cnt
+  Issuer(alu_path_id, alu_path_num, inst, target, issued_by_alu, io.alu_paths)
+  Issuer(mdu_path_id, mdu_path_num, inst, target, issued_by_mdu, io.mdu_paths)
+  Issuer(lsu_path_id, lsu_path_num, inst, target, issued_by_lsu, io.lsu_paths)
 }

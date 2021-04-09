@@ -20,8 +20,13 @@ class DataPath extends Module with XinYiConfig {
   val icache = Module(new DummyCache(lgc_addr_w, l1_w))
 
   // Stages
+  val pc_stage = Module(new PCStage)
   val if_stage = Module(new IFStage)
   val id_stage = VecInit(Seq.fill(fetch_num)(Module(new IDStage).io))
+
+  // PC Stage
+  pc_stage.io.pc <> pc_if_reg.io.if_in.pc
+  pc_stage.io.next_pc <> pc_if_reg.io.pc_out
 
   // IF Stage
   if_stage.io.in <> pc_if_reg.io.if_in
