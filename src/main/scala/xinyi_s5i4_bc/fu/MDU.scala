@@ -5,6 +5,18 @@ import chisel3._
 import chisel3.util._
 import xinyi_s5i4_bc.parts.ControlConst._
 
+
+/**
+ *
+ * @param data_bits
+ * @param mdu_ctrl_bits
+ * @IO
+ *      @in_a
+ *      @in_b
+ *      @in_ctrl
+ *      @out_hi
+ *      @out_lo
+ */
 class MDU(data_bits: Int, mdu_ctrl_bits: Int) extends Module {
     val io = IO(new Bundle {
         val in_a = Input(UInt(data_bits.W))

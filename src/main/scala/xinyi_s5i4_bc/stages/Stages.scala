@@ -65,6 +65,7 @@ class Issuer(path_id: Int, path_num: Int) extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val inst      = Input(Vec(issue_num, new Instruction))
     val target    = Input(Vec(issue_num, UInt(path_w.W)))
+    // TODO backend provide
     val path      = Output(Vec(path_num, new Instruction))
     val issue_cnt = Output(UInt(issue_num_w.W))
   })
@@ -179,7 +180,7 @@ class ISStage extends Module with XinYiConfig {
 
     // TODO: Detect hazards
     for (j <- 0 until issue_num) {
-      
+     // TODO RAW dependency 
     }
     
     when (available(i)) {

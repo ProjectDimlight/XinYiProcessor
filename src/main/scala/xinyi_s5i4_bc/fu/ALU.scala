@@ -1,4 +1,3 @@
-
 package xinyi_s5i4_bc.fu
 
 import chisel3._
@@ -7,16 +6,20 @@ import xinyi_s5i4_bc.parts.ControlConst._
 
 
 /**
-  * @module ALU
-  * @param data_bits
-  * @param alu_ctrl_bits
-  * @IO
-  *     @in_a
-  *     @in_b
-  *     @in_ctrl
-  *     @out_res
-  *     @err_overflow
-  */
+ * @module ALU
+ * ---
+ * @param data_bits     width of data
+ * @param alu_ctrl_bits width of control
+ * ---
+ * @IO
+ * @input in_a         value a
+ * @input in_b         value b
+ * @input in_ctrl      control signal
+ * @output out_res     result
+ * @output err_overflow    bool signal indicating an overflow
+ * ---
+ * @Status can emit verilog code successfully.
+ */
 class ALU(data_bits: Int, alu_ctrl_bits: Int) extends Module {
     val io = IO(new Bundle {
         val in_a = Input(UInt(data_bits.W))
@@ -54,5 +57,4 @@ class ALU(data_bits: Int, alu_ctrl_bits: Int) extends Module {
         ((io.in_ctrl === ALUSUB) &&
             (io.in_a(data_bits - 1) =/= io.in_b(data_bits - 1)) &&
             (io.in_a(data_bits - 1) =/= io.out_res(data_bits - 1)))
-
 }
