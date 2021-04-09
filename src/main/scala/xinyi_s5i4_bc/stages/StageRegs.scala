@@ -5,10 +5,12 @@ import wrap._
 
 class PCIFReg extends Module with XinYiConfig {
   val io = IO(new Bundle{
-    val if_in = Flipped(new IFIn)
+    val pc_out    = Input(UInt(lgc_addr_w.W))
+    val if_in     = Flipped(new IFIn)
   })
 
   val pc = RegInit(start_addr.U(lgc_addr_w.W))
+  pc := io.pc_out
   
   io.if_in.pc := pc
 }

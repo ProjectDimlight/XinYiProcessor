@@ -22,13 +22,23 @@ class ISIn extends Bundle {
 
 class Test extends Module with TestConfig {
   val io = IO(new Bundle{
+    val debug = Output(Vec(3, Vec(2, UInt(32.W))))
+  })
+
+  for (i <- 0 until 3)
+    for (j <- 0 until 2)
+      io.debug(i)(j) := (i * j).U
+}
+
+/*
+class Test extends Module with TestConfig {
+  val io = IO(new Bundle{
     val in  = Input(Vec(queue_len, Bool()))
     val out = Output(Vec(alu_path_num, UInt(32.W)))
     //val out = Output(Vec(issue_num, new ISIn()))
     //val cnt = Output(UInt(32.W))
   })
 
-  /*
   val queue = Reg(Vec(5, new ISIn))
   val head = RegInit(0.U(queue_len_w.W))
   val tail = RegInit(0.U(queue_len_w.W))
@@ -47,7 +57,6 @@ class Test extends Module with TestConfig {
       io.out(i) := queue(head + (16 + i - queue_size).U(queue_len_w.W))
     }
   }
-  */
 
   // This queue simulates the instructions to be issued
   val queue = Wire(Vec(queue_len, UInt(32.W)))
@@ -100,3 +109,4 @@ class Test extends Module with TestConfig {
 
   // io.cnt := item
 }
+*/
