@@ -44,7 +44,11 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       }
 
       device.io.alu_paths(0).inst.expect(a)
+      device.io.alu_paths(0).id.expect(0.U)
       device.io.alu_paths(1).inst.expect(b)
+      device.io.alu_paths(1).id.expect(1.U)
+      device.io.mdu_paths(0).id.expect(2.U)
+      device.io.lsu_paths(0).id.expect(2.U)
       device.io.actual_issue_cnt.expect(2.U)
     }
   }
@@ -76,8 +80,11 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       }
 
       device.io.alu_paths(0).inst.expect(c)
+      device.io.alu_paths(0).id.expect(2.U)
       device.io.alu_paths(1).inst.expect(c)
+      device.io.alu_paths(0).id.expect(2.U)
       device.io.mdu_paths(0).inst.expect(a)
+      device.io.mdu_paths(0).id.expect(0.U)
       device.io.lsu_paths(0).inst.expect(c)
       device.io.actual_issue_cnt.expect(1.U)
     }
@@ -85,8 +92,8 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
 
   it should "Test Case 3: 1ALU 1MDU" in {
     test(new ISStage()) { device =>
-      val a = InstDecodedLitByPath(1, 1, 1, 2)
-      val b = InstDecodedLitByPath(2, 3, 3, 4)
+      val a = InstDecodedLitByPath(2, 1, 1, 2)
+      val b = InstDecodedLitByPath(1, 3, 3, 4)
       val c = InstDecodedLitByPath(0, 0, 0, 0)
 
       device.io.issue_cnt.poke(2.U)
@@ -109,9 +116,12 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
         device.io.lsu_paths(i).ready.  poke(true.B)
       }
 
-      device.io.alu_paths(0).inst.expect(a)
+      device.io.alu_paths(0).inst.expect(b)
+      device.io.alu_paths(0).id.expect(1.U)
       device.io.alu_paths(1).inst.expect(c)
-      device.io.mdu_paths(0).inst.expect(b)
+      device.io.alu_paths(1).id.expect(2.U)
+      device.io.mdu_paths(0).inst.expect(a)
+      device.io.mdu_paths(0).id.expect(0.U)
       device.io.lsu_paths(0).inst.expect(c)
       device.io.actual_issue_cnt.expect(2.U)
     }
