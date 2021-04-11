@@ -192,4 +192,70 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.actual_issue_cnt.expect(1.U)
     }
   }
+
+  it should "Test Case 4: 2ALU with RAW" in {
+    test(new ISStage()) { device =>
+      val a = InstDecodedLitByPath(1, 1, 1, 2)
+      val b = InstDecodedLitByPath(2, 2, 2, 3)
+      val c = InstDecodedLitByPath(0, 0, 0, 0)
+
+      device.io.issue_cnt.poke(2.U)
+      device.io.inst(0).poke(a)
+      device.io.inst(1).poke(b)
+
+      for (i <- 0 until alu_path_num) {
+        device.io.alu_paths(i).wt.     poke(DReg)
+        device.io.alu_paths(i).rd.     poke(0.U(5.W))
+        device.io.alu_paths(i).ready.  poke(true.B)
+      }
+      for (i <- 0 until mdu_path_num) {
+        device.io.mdu_paths(i).wt.     poke(DReg)
+        device.io.mdu_paths(i).rd.     poke(0.U(5.W))
+        device.io.mdu_paths(i).ready.  poke(true.B)
+      }
+      for (i <- 0 until lsu_path_num) {
+        device.io.lsu_paths(i).wt.     poke(DReg)
+        device.io.lsu_paths(i).rd.     poke(0.U(5.W))
+        device.io.lsu_paths(i).ready.  poke(true.B)
+      }
+
+      device.io.alu_paths(0).inst.expect(a)
+      device.io.alu_paths(1).inst.expect(c)
+      device.io.mdu_paths(0).inst.expect(c)
+      device.io.lsu_paths(0).inst.expect(c)
+      device.io.actual_issue_cnt.expect(1.U)
+    }
+  }
+
+  it should "Test Case 5: 2 ALU, but only issue 1" in {
+    test(new ISStage()) { device =>
+      val a = InstDecodedLitByPath(1, 1, 1, 2)
+      val b = InstDecodedLitByPath(1, 3, 3, 4)
+      val c = InstDecodedLitByPath(0, 0, 0, 0)
+
+      device.io.issue_cnt.poke(1.U)
+      device.io.inst(0).poke(a)
+      device.io.inst(1).poke(b)
+
+      for (i <- 0 until alu_path_num) {
+        device.io.alu_paths(i).wt.     poke(DReg)
+        device.io.alu_paths(i).rd.     poke(0.U(5.W))
+        device.io.alu_paths(i).ready.  poke(true.B)
+      }
+      for (i <- 0 until mdu_path_num) {
+        device.io.mdu_paths(i).wt.     poke(DReg)
+        device.io.mdu_paths(i).rd.     poke(0.U(5.W))
+        device.io.mdu_paths(i).ready.  poke(true.B)
+      }
+      for (i <- 0 until lsu_path_num) {
+        device.io.lsu_paths(i).wt.     poke(DReg)
+        device.io.lsu_paths(i).rd.     poke(0.U(5.W))
+        device.io.lsu_paths(i).ready.  poke(true.B)
+      }
+
+      device.io.alu_paths(0).inst.expect(a)
+      device.io.alu_paths(1).inst.expect(c)
+      device.io.actual_issue_cnt.expect(1.U)
+    }
+  }
 }
