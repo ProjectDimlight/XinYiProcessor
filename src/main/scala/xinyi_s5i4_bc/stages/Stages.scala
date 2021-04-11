@@ -79,6 +79,7 @@ class PathInterface extends Bundle with XinYiConfig {
   val rd          = Output(UInt(reg_id_w.W))
   val ready       = Output(Bool())
   val inst        = Input(new Instruction)
+  val id          = Input(UInt(issue_num_w.W))
 }
 
 // Issue Queue
@@ -162,7 +163,7 @@ class ISStage extends Module with XinYiConfig {
   inst := io.inst
 
   // For each instruction, decide which path it should go
-  val target = Wire(Vec(issue_num, UInt(path_w.W)))
+  val target = Wire(Vec(issue_num, UInt(wb_from_w.W)))
 
   val issued_by_alu = Wire(Vec(issue_num, Bool()))
   val issued_by_mdu = Wire(Vec(issue_num, Bool()))
@@ -213,13 +214,10 @@ class ISStage extends Module with XinYiConfig {
     }
 
     // Target filter
-    target(i) := MuxCase(
-      alu_path_id.U(path_w.W),                                             // ALU
-      Array(
-        (!no_raw(i) | (i.U >= io.issue_cnt))  -> 0.U(path_w.W),            // Stall
-        (inst(i).dec.mem_width =/= MemXXX)    -> lsu_path_id.U(path_w.W),  // LSU
-        (inst(i).dec.mdu)                     -> mdu_path_id.U(path_w.W)   // MDU
-      )
+    target(i) := Mux(
+      (!no_raw(i) | (i.U >= io.issue_cnt)),
+      0.U,
+      inst(i).dec.wb_from
     )
 
     // Structural hazard
