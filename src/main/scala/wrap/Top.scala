@@ -19,10 +19,14 @@ trait XinYiConfig {
   val issue_num     = 2
   val issue_num_w   = 3
   
+  val n_a_path_id   = 0
+
   val alu_path_num  = 2
   val alu_path_id   = 1
-  val mdu_path_num  = 1
-  val mdu_path_id   = 2
+
+  val bju_path_num  = 1
+  val bju_path_id   = 2
+  
   val lsu_path_num  = 1
   val lsu_path_id   = 3
 
