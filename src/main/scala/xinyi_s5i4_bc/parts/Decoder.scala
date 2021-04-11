@@ -142,11 +142,11 @@ class MIPSDecoder extends Module with XinYiConfig {
 
   // Decode
 val control_signal = ListLookup(io.inst,
-                    List(Illegal ,  PC4     ,  BrXXX   ,  AXXX   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathXXX   , IRS , IRT , IRD),
+                    List(Illegal ,  PC4     ,  BrXXX   ,  AXXX   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
     Array(         /*      Inst  |   PC     | Branch   |   A     |   B     |  D      | ALU      |  Mem    |  Path id   | rs1 | rs2 |  rd */
                    /*      Type  | Select   | Type     | use rs1 | use rs2 | write   | Type     | Type    |   Select   |     |     |     */
                    /*  Structure | NextPC   | Brch/Jmp | alusrcA | alusrcB | target  | alu OP   | B/H/W   | MultiIssue |     |     |     */
-      NOP        -> List(RType   ,  PC4     ,  BrXXX   ,  AReg   ,  BReg   ,  DXXX   , ALUADD   , MemXXX  ,  PathXXX   , IRS , IRT , IXX),
+      NOP        -> List(RType   ,  PC4     ,  BrXXX   ,  AReg   ,  BReg   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IXX),
       ADD        -> List(RType   ,  PC4     ,  BrXXX   ,  AReg   ,  BReg   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IRD),
       ADDI       -> List(IType   ,  PC4     ,  BrXXX   ,  AReg   ,  BImm   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IRS , IXX , IRT),
       ADDU       -> List(RType   ,  PC4     ,  BrXXX   ,  AReg   ,  BReg   ,  DReg   , ALUADDU  , MemXXX  ,  PathALU   , IRS , IRT , IRD),
@@ -178,27 +178,27 @@ val control_signal = ListLookup(io.inst,
       SRLV       -> List(RType   ,  PC4     ,  BrXXX   ,  AReg   ,  BReg   ,  DReg   , ALUSRL   , MemXXX  ,  PathALU   , IRS , IRT , IRD),
       SRL        -> List(RSType  ,  PC4     ,  BrXXX   ,  AShamt ,  BReg   ,  DReg   , ALUSRL   , MemXXX  ,  PathALU   , IXX , IXX , IRD),
            
-      BEQ        -> List(IBType  ,  Branch  ,  BrEQ    ,  AReg   ,  BReg   ,  DXXX   , ALUADD   , MemXXX  ,  PathBJU   , IRS , IRT , IXX),
-      BNE        -> List(IBType  ,  Branch  ,  BrNE    ,  AReg   ,  BReg   ,  DXXX   , ALUADD   , MemXXX  ,  PathBJU   , IRS , IRT , IXX),
-      BGEZ       -> List(IBType  ,  Branch  ,  BrGE    ,  AReg   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathBJU   , IRS , IRT , IXX),
-      BGTZ       -> List(IBType  ,  Branch  ,  BrGT    ,  AReg   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathBJU   , IRS , IRT , IXX),
-      BLEZ       -> List(IBType  ,  Branch  ,  BrLE    ,  AReg   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathBJU   , IRS , IRT , IXX),
-      BLTZ       -> List(IBType  ,  Branch  ,  BrLT    ,  AReg   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathBJU   , IRS , IRT , IXX),
-      BGEZAL     -> List(IBType  ,  Branch  ,  BrGE    ,  AReg   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathBJU   , IRS , IRT , IRA),
-      BLTZAL     -> List(IBType  ,  Branch  ,  BrLT    ,  AReg   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathBJU   , IRS , IRT , IRA),
+      BEQ        -> List(IBType  ,  Branch  ,  BrEQ    ,  AReg   ,  BReg   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IXX),
+      BNE        -> List(IBType  ,  Branch  ,  BrNE    ,  AReg   ,  BReg   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IXX),
+      BGEZ       -> List(IBType  ,  Branch  ,  BrGE    ,  AReg   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IXX),
+      BGTZ       -> List(IBType  ,  Branch  ,  BrGT    ,  AReg   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IXX),
+      BLEZ       -> List(IBType  ,  Branch  ,  BrLE    ,  AReg   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IXX),
+      BLTZ       -> List(IBType  ,  Branch  ,  BrLT    ,  AReg   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IXX),
+      BGEZAL     -> List(IBType  ,  Branch  ,  BrGE    ,  AReg   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IRA),
+      BLTZAL     -> List(IBType  ,  Branch  ,  BrLT    ,  AReg   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IRS , IRT , IRA),
            
-      J          -> List(JType   ,  Jump    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathBJU   , IXX , IXX , IXX),
-      JAL        -> List(JType   ,  Jump    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUPC    , MemXXX  ,  PathBJU   , IXX , IXX , IRA),
-      JR         -> List(JRType  ,  PCReg   ,  BrXXX   ,  AReg   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathBJU   , IRS , IXX , IRD),
-      JALR       -> List(JRType  ,  PCReg   ,  BrXXX   ,  AReg   ,  BXXX   ,  DReg   , ALUPC    , MemXXX  ,  PathBJU   , IRS , IXX , IRA),
+      J          -> List(JType   ,  Jump    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
+      JAL        -> List(JType   ,  Jump    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUPC    , MemXXX  ,  PathALU   , IXX , IXX , IRA),
+      JR         -> List(JRType  ,  PCReg   ,  BrXXX   ,  AReg   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IRS , IXX , IRD),
+      JALR       -> List(JRType  ,  PCReg   ,  BrXXX   ,  AReg   ,  BXXX   ,  DReg   , ALUPC    , MemXXX  ,  PathALU   , IRS , IXX , IRA),
            
       MFHI       -> List(RType   ,  PC4     ,  BrXXX   ,  AHi    ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IRD),
       MFLO       -> List(RType   ,  PC4     ,  BrXXX   ,  ALo    ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IRD),
       MTHI       -> List(RType   ,  PC4     ,  BrXXX   ,  AReg   ,  BXXX   ,  DHi    , ALUADD   , MemXXX  ,  PathALU   , IRS , IXX , IXX),
       MTLO       -> List(RType   ,  PC4     ,  BrXXX   ,  AReg   ,  BXXX   ,  DLo    , ALUADD   , MemXXX  ,  PathALU   , IRS , IXX , IXX),
            
-      BREAK      -> List(RTType  ,  Trap    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathBJU   , IXX , IXX , IXX),
-      SYSCALL    -> List(RTType  ,  Trap    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathBJU   , IXX , IXX , IXX),
+      BREAK      -> List(RTType  ,  Trap    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
+      SYSCALL    -> List(RTType  ,  Trap    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
            
       LB         -> List(IMType  ,  PC4     ,  BrXXX   ,  AReg   ,  BImm   ,  DReg   , ALUADD   , MemByte ,  PathLSU   , IRS , IXX , IRT),
       LBU        -> List(IMType  ,  PC4     ,  BrXXX   ,  AReg   ,  BImm   ,  DReg   , ALUADD   , MemByteU,  PathLSU   , IRS , IXX , IRT),
@@ -209,7 +209,7 @@ val control_signal = ListLookup(io.inst,
       SH         -> List(IMType  ,  PC4     ,  BrXXX   ,  AReg   ,  BImm   ,  DMem   , ALUADD   , MemHalf ,  PathLSU   , IRS , IRT , IXX),
       SW         -> List(IMType  ,  PC4     ,  BrXXX   ,  AReg   ,  BImm   ,  DMem   , ALUADD   , MemWord ,  PathLSU   , IRS , IRT , IXX),
            
-      ERET       -> List(SType   ,  Ret     ,  BrXXX   ,  AXXX   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathBJU   , IXX , IXX , IXX),
+      ERET       -> List(SType   ,  Ret     ,  BrXXX   ,  AXXX   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
       MFC0       -> List(SType   ,  PC4     ,  BrXXX   ,  ACP0   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IRD , IXX , IRT),
       MTC0       -> List(SType   ,  PC4     ,  BrXXX   ,  AReg   ,  BXXX   ,  DCP0   , ALUADD   , MemXXX  ,  PathALU   , IRT , IXX , IRD)
   ))

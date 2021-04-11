@@ -47,7 +47,6 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.alu_paths(0).id.expect(0.U)
       device.io.alu_paths(1).inst.expect(b)
       device.io.alu_paths(1).id.expect(1.U)
-      device.io.bju_paths(0).id.expect(2.U)
       device.io.lsu_paths(0).id.expect(2.U)
       device.io.actual_issue_cnt.expect(2.U)
     }
@@ -83,14 +82,13 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.alu_paths(0).id.expect(2.U)
       device.io.alu_paths(1).inst.expect(c)
       device.io.alu_paths(0).id.expect(2.U)
-      device.io.bju_paths(0).inst.expect(a)
-      device.io.bju_paths(0).id.expect(0.U)
       device.io.lsu_paths(0).inst.expect(c)
       device.io.actual_issue_cnt.expect(1.U)
     }
   }
 
   it should "Test Case 3: 1ALU 1BJU" in {
+    // As there are no BJU paths, these instructions cannot issue at all
     test(new ISStage()) { device =>
       val a = InstDecodedLitByPath(2, 1, 1, 2)
       val b = InstDecodedLitByPath(1, 3, 3, 4)
@@ -116,14 +114,12 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
         device.io.lsu_paths(i).ready.  poke(true.B)
       }
 
-      device.io.alu_paths(0).inst.expect(b)
+      device.io.alu_paths(0).inst.expect(c)
       device.io.alu_paths(0).id.expect(1.U)
       device.io.alu_paths(1).inst.expect(c)
       device.io.alu_paths(1).id.expect(2.U)
-      device.io.bju_paths(0).inst.expect(a)
-      device.io.bju_paths(0).id.expect(0.U)
       device.io.lsu_paths(0).inst.expect(c)
-      device.io.actual_issue_cnt.expect(2.U)
+      device.io.actual_issue_cnt.expect(0.U)
     }
   }
 
@@ -155,7 +151,6 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
 
       device.io.alu_paths(0).inst.expect(a)
       device.io.alu_paths(1).inst.expect(c)
-      device.io.bju_paths(0).inst.expect(c)
       device.io.lsu_paths(0).inst.expect(c)
       device.io.actual_issue_cnt.expect(1.U)
     }

@@ -24,10 +24,10 @@ trait XinYiConfig {
   val alu_path_num  = 2
   val alu_path_id   = 1
 
-  val bju_path_num  = 1
+  val bju_path_num  = 0
   val bju_path_id   = 2
   
-  val lsu_path_num  = 1
+  val lsu_path_num  = 2
   val lsu_path_id   = 3
 
   val queue_len_w   = 4

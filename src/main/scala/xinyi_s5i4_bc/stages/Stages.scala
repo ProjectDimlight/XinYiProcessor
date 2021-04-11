@@ -156,7 +156,7 @@ class IssueQueue extends Module with XinYiConfig {
     // If the Branch is issued but the Delay Slot is not, 
     // The BJU would generate a branch_cache_overwrite signal along with a keep_delay_slot, 
     // Ensuring that the rest of the queue will be cleared while the Delay Slot works as is.
-    when (io.inst(i).dec.branch_type =/= BrXXX) {
+    when (io.inst(i).dec.next_pc =/= PC4) {
       // If the delay slot is already fetched (into the queue)
       when ((i + 2).U <= size) {
         io.issue_cnt := (i + 2).U
@@ -275,7 +275,7 @@ class ISStage extends Module with XinYiConfig {
 
   // Put instructions into paths
   // Parameterized issuing
-  Issuer(alu_path_id, alu_path_num, inst, target, issued_by_alu, io.alu_paths)
-  Issuer(bju_path_id, bju_path_num, inst, target, issued_by_bju, io.bju_paths)
-  Issuer(lsu_path_id, lsu_path_num, inst, target, issued_by_lsu, io.lsu_paths)
+  Issuer(alu_path_id, alu_path_num, filtered_inst, target, issued_by_alu, io.alu_paths)
+  Issuer(bju_path_id, bju_path_num, filtered_inst, target, issued_by_bju, io.bju_paths)
+  Issuer(lsu_path_id, lsu_path_num, filtered_inst, target, issued_by_lsu, io.lsu_paths)
 }
