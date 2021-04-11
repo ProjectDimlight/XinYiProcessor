@@ -13,9 +13,11 @@ class Issuer(path_id: Int, path_num: Int) extends Module with XinYiConfig {
     val ready     = Input(Vec(path_num, Bool()))
     val issue     = Output(Vec(issue_num, Bool()))
     val path      = Output(Vec(path_num, new Instruction))
+    val id        = Output(Vec(path_num, UInt(issue_num_w.W)))
   })
 
   val id = Wire(Vec(path_num, UInt(issue_num_w.W)))
+  io.id := id
   
   for (i <- 0 until issue_num)
     io.issue(i) := false.B
@@ -86,6 +88,7 @@ object Issuer extends XinYiConfig {
     for (i <- 0 until path_num) {
       issuer.io.ready(i)  <> path(i).ready
       issuer.io.path(i)   <> path(i).inst
+      issuer.io.id(i)     <> path(i).id
     }
   }
 }
