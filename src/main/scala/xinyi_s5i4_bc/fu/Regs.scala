@@ -24,9 +24,9 @@ class Regs extends Module {
     val rs_real_idx = Wire(UInt(REG_INDEX_WIDTH.W))
     val rt_real_idx = Wire(UInt(REG_INDEX_WIDTH.W))
     val rd_real_idx = Wire(UInt(REG_INDEX_WIDTH.W))
-    rs_real_idx := io.in_rs + 1
-    rt_real_idx := io.in_rt + 1
-    rd_real_idx := io.in_rt + 1
+    rs_real_idx := io.in_rs + 1.U
+    rt_real_idx := io.in_rt + 1.U
+    rd_real_idx := io.in_rt + 1.U
 
 
     io.out_rs_val := Mux(io.in_rs === 0.U(REG_INDEX_WIDTH.W), 0.U(XLEN.W), regfile(rs_real_idx))

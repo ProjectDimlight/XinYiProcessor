@@ -17,7 +17,7 @@ class LSU(addr_bits: Int, lsu_ctrl_bits: Int) extends Module {
         val in_ctrl = Input(UInt(lsu_ctrl_bits.W))
         val out_data = Output(UInt(XLEN.W))
         val out_addr = Output(UInt(addr_bits.W))
-        val ready = Output(Bool)
+        val ready = Output(Bool())
     })
 
     // TODO LSU by ziyue
