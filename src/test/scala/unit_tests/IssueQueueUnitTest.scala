@@ -28,7 +28,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
       device.io.in(1).poke(b)
       device.io.bc.inst(0).poke(z)
       device.io.bc.inst(1).poke(z)
-      device.io.bc.branch_cache_overwrite.poke(false.B)
+      device.io.bc.overwrite.poke(false.B)
       device.io.actual_issue_cnt.poke(0.U)
       
       device.clock.step(1)
@@ -49,7 +49,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
       device.io.in(1).poke(b)
       device.io.bc.inst(0).poke(z)
       device.io.bc.inst(1).poke(z)
-      device.io.bc.branch_cache_overwrite.poke(false.B)
+      device.io.bc.overwrite.poke(false.B)
       device.io.actual_issue_cnt.poke(0.U)
       
       // Cycle 1
@@ -82,7 +82,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
 
       device.io.bc.inst(0).poke(z)
       device.io.bc.inst(1).poke(z)
-      device.io.bc.branch_cache_overwrite.poke(false.B)
+      device.io.bc.overwrite.poke(false.B)
       device.io.actual_issue_cnt.poke(0.U)
       
       for (i <- 0 until 4) {
@@ -121,7 +121,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
 
       device.io.bc.inst(0).poke(z)
       device.io.bc.inst(1).poke(z)
-      device.io.bc.branch_cache_overwrite.poke(false.B)
+      device.io.bc.overwrite.poke(false.B)
       
 
       device.io.actual_issue_cnt.poke(0.U)
@@ -185,7 +185,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
 
       device.io.bc.inst(0).poke(a)
       device.io.bc.inst(1).poke(b)
-      device.io.bc.branch_cache_overwrite.poke(true.B)
+      device.io.bc.overwrite.poke(true.B)
       
       device.io.in(0).poke(x)
       device.io.in(1).poke(y)
@@ -199,7 +199,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
       // Cycle 2
       device.io.bc.inst(0).poke(c)
       device.io.bc.inst(1).poke(d)
-      device.io.bc.branch_cache_overwrite.poke(true.B)
+      device.io.bc.overwrite.poke(true.B)
       
       device.io.in(0).poke(x)
       device.io.in(1).poke(y)
@@ -213,7 +213,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
       // Cycle 3
       device.io.bc.inst(0).poke(z)
       device.io.bc.inst(1).poke(z)
-      device.io.bc.branch_cache_overwrite.poke(false.B)
+      device.io.bc.overwrite.poke(false.B)
       
       device.io.in(0).poke(e)
       device.io.in(1).poke(f)

@@ -93,31 +93,46 @@ class IssueQueue extends Module with XinYiConfig {
     val inst              = Output(Vec(issue_num, new Instruction))
   })
 
+  def Step(base: UInt, offset: UInt) = {
+    Mux(
+      base +& offset >= queue_len.U,
+      base + offset - queue_len.U,
+      base + offset
+    )
+  }
+
   // Queue logic
 
   val queue   = Reg(Vec(queue_len, new Instruction))
   val head    = RegInit(0.U(queue_len_w.W))
   val tail    = RegInit(0.U(queue_len_w.W))
+  val head_n  = Wire(UInt(queue_len_w.W))   // Next Head
+  val tail_b  = Wire(UInt(queue_len_w.W))   // Actual Tail Base
   val size    = Wire(UInt(queue_len_w.W))
-  val last_ow = RegInit(false.B)
 
+  tail_b := Mux(
+    io.bc.flush,
+    Mux(io.bc.keep_delay_slot, Step(head_n, 1.U(queue_len_w.W)), head_n),
+    tail
+  )
   size := Mux(
-    tail >= head,
-    tail - head,
-    tail + queue_len.U - head
+    tail_b >= head,
+    tail_b - head,
+    tail_b + queue_len.U - head
   )
 
   // Input
   when (size < (queue_len - fetch_num).U +& io.actual_issue_cnt) {
     for (i <- 0 until fetch_num) {
-      when (tail + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
-        queue(tail + i.U(queue_len_w.W)) := Mux(io.bc.branch_cache_overwrite, io.bc.inst(i), io.in(i))
+      when (tail_b + i.U(queue_len_w.W) < queue_len.U(queue_len_w.W)) {
+        queue(tail_b + i.U(queue_len_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
       } 
       .otherwise {
-        queue(tail + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W)) := Mux(io.bc.branch_cache_overwrite, io.bc.inst(i), io.in(i))
+        queue(tail_b + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
       }
     }
-    tail := tail + fetch_num.U(queue_len_w.W)
+
+    tail := Step(tail_b, fetch_num.U(queue_len_w.W))
     io.full := false.B
   }
   .otherwise {
@@ -125,6 +140,7 @@ class IssueQueue extends Module with XinYiConfig {
   }
 
   // Output 
+  io.issue_cnt := size
   for (i <- 0 until issue_num) {
     // If i > issue_cnt, the instruction path will be 0 (Stall)
     // So there is no need to clear the inst Vec here
@@ -134,15 +150,27 @@ class IssueQueue extends Module with XinYiConfig {
     .otherwise {
       io.inst(i) := queue(head + ((1 << queue_len_w) + i - queue_len).U(queue_len_w.W))
     }
+
+    // Issue until Delay Slot
+    // If the Branch itself is not issued, it will be re-issued in the next cycle.
+    // If the Branch is issued but the Delay Slot is not, 
+    // The BJU would generate a branch_cache_overwrite signal along with a keep_delay_slot, 
+    // Ensuring that the rest of the queue will be cleared while the Delay Slot works as is.
+    when (io.inst(i).dec.branch_type =/= BrXXX) {
+      // If the delay slot is already fetched (into the queue)
+      when ((i + 2).U <= size) {
+        io.issue_cnt := (i + 2).U
+      }
+      // The delay slot is not in the queue yet
+      // Stall
+      .otherwise {
+        io.issue_cnt := 0.U
+      }
+    }
   }
-  io.issue_cnt := size
   
-  head := Mux(
-    io.bc.branch_cache_overwrite & !last_ow,
-    tail,
-    head + io.actual_issue_cnt
-  )
-  last_ow := io.bc.branch_cache_overwrite
+  head_n := Step(head, io.actual_issue_cnt)
+  head   := head_n
 }
 
 // Issue Stage
@@ -151,7 +179,7 @@ class ISStage extends Module with XinYiConfig {
     val issue_cnt = Input(UInt(queue_len_w.W))
     val inst      = Input(Vec(issue_num, new Instruction))
     val alu_paths = Flipped(Vec(alu_path_num, new PathInterface))
-    val mdu_paths = Flipped(Vec(mdu_path_num, new PathInterface))
+    val bju_paths = Flipped(Vec(bju_path_num, new PathInterface))
     val lsu_paths = Flipped(Vec(lsu_path_num, new PathInterface))
     val actual_issue_cnt = Output(UInt(issue_num_w.W))
   })
@@ -163,10 +191,10 @@ class ISStage extends Module with XinYiConfig {
   inst := io.inst
 
   // For each instruction, decide which path it should go
-  val target = Wire(Vec(issue_num, UInt(wb_from_w.W)))
+  val target = Wire(Vec(issue_num, UInt(path_w.W)))
 
   val issued_by_alu = Wire(Vec(issue_num, Bool()))
-  val issued_by_mdu = Wire(Vec(issue_num, Bool()))
+  val issued_by_bju = Wire(Vec(issue_num, Bool()))
   val issued_by_lsu = Wire(Vec(issue_num, Bool()))
   val issued        = Wire(Vec(issue_num, Bool()))
   val no_raw        = Wire(Vec(issue_num, Bool()))
@@ -195,8 +223,8 @@ class ISStage extends Module with XinYiConfig {
         no_raw(i) := false.B
       }
     }
-    for (j <- 0 until mdu_path_num) {
-      when (RAWPath(inst(i), io.mdu_paths(j))) {
+    for (j <- 0 until bju_path_num) {
+      when (RAWPath(inst(i), io.bju_paths(j))) {
         no_raw(i) := false.B
       }
     }
@@ -217,11 +245,11 @@ class ISStage extends Module with XinYiConfig {
     target(i) := Mux(
       (!no_raw(i) | (i.U >= io.issue_cnt)),
       0.U,
-      inst(i).dec.wb_from
+      inst(i).dec.path
     )
 
     // Structural hazard
-    issued(i) := issued_by_alu(i) | issued_by_mdu(i) | issued_by_lsu(i)
+    issued(i) := issued_by_alu(i) | issued_by_bju(i) | issued_by_lsu(i)
 
     // If an instruction cannot be issued
     // Mark its ID
@@ -248,6 +276,6 @@ class ISStage extends Module with XinYiConfig {
   // Put instructions into paths
   // Parameterized issuing
   Issuer(alu_path_id, alu_path_num, inst, target, issued_by_alu, io.alu_paths)
-  Issuer(mdu_path_id, mdu_path_num, inst, target, issued_by_mdu, io.mdu_paths)
+  Issuer(bju_path_id, bju_path_num, inst, target, issued_by_bju, io.bju_paths)
   Issuer(lsu_path_id, lsu_path_num, inst, target, issued_by_lsu, io.lsu_paths)
 }
