@@ -107,7 +107,6 @@ object ControlConst {
   val MDUDIVU       = 1.U(5.W)
   val MDUMUL        = 2.U(5.W)
   val MDUMULU       = 3.U(5.W)
-  val mdu_op_w      = MDUDIV.getWidth
 
   val reg_id_w      = 5
 }
