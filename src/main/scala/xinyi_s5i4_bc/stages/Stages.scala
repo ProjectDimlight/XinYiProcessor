@@ -236,10 +236,10 @@ class ISStage extends Module with XinYiConfig {
     // Ordered issuing
     // If an instruction fails to issue
     // Then all instructions afterwards will also be stalled
-    if (i == 0)
-      available(i) := true.B
-    else
-      available(i) := available(i-1)
+//    if (i == 0)
+//      available(i) := true.B
+//    else
+//      available(i) := available(i-1)
 
     // TODO: Detect hazards
     for (j <- 0 until issue_num) {
@@ -250,7 +250,6 @@ class ISStage extends Module with XinYiConfig {
     .otherwise {
       filtered_inst(i) := inst(i)
     }
-  }
 
   /////////////////////////////////////////////////////////////////
 
