@@ -86,9 +86,9 @@ object Issuer extends XinYiConfig {
     issuer.io.target <> target
     issuer.io.issue  <> issue
     for (i <- 0 until path_num) {
-      issuer.io.ready(i)  <> path(i).ready
-      issuer.io.path(i)   <> path(i).inst
-      issuer.io.id(i)     <> path(i).id
+      issuer.io.ready(i)  <> path(i).out.ready
+      issuer.io.path(i)   <> path(i).in.inst
+      issuer.io.id(i)     <> path(i).in.id
     }
   }
 }

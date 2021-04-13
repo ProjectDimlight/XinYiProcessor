@@ -197,8 +197,8 @@ val control_signal = ListLookup(io.inst,
       MTHI       -> List(RType   ,  PC4     ,  BrXXX   ,  AReg   ,  BXXX   ,  DHi    , ALUADD   , MemXXX  ,  PathALU   , IRS , IXX , IXX),
       MTLO       -> List(RType   ,  PC4     ,  BrXXX   ,  AReg   ,  BXXX   ,  DLo    , ALUADD   , MemXXX  ,  PathALU   , IRS , IXX , IXX),
            
-      BREAK      -> List(RTType  ,  Trap    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
-      SYSCALL    -> List(RTType  ,  Trap    ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
+      BREAK      -> List(RTType  ,  PC4     ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
+      SYSCALL    -> List(RTType  ,  PC4     ,  BrXXX   ,  AXXX   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
            
       LB         -> List(IMType  ,  PC4     ,  BrXXX   ,  AReg   ,  BImm   ,  DReg   , ALUADD   , MemByte ,  PathLSU   , IRS , IXX , IRT),
       LBU        -> List(IMType  ,  PC4     ,  BrXXX   ,  AReg   ,  BImm   ,  DReg   , ALUADD   , MemByteU,  PathLSU   , IRS , IXX , IRT),
@@ -209,7 +209,7 @@ val control_signal = ListLookup(io.inst,
       SH         -> List(IMType  ,  PC4     ,  BrXXX   ,  AReg   ,  BImm   ,  DMem   , ALUADD   , MemHalf ,  PathLSU   , IRS , IRT , IXX),
       SW         -> List(IMType  ,  PC4     ,  BrXXX   ,  AReg   ,  BImm   ,  DMem   , ALUADD   , MemWord ,  PathLSU   , IRS , IRT , IXX),
            
-      ERET       -> List(SType   ,  Ret     ,  BrXXX   ,  AXXX   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
+      ERET       -> List(SType   ,  PC4     ,  BrXXX   ,  AXXX   ,  BXXX   ,  DXXX   , ALUADD   , MemXXX  ,  PathALU   , IXX , IXX , IXX),
       MFC0       -> List(SType   ,  PC4     ,  BrXXX   ,  ACP0   ,  BXXX   ,  DReg   , ALUADD   , MemXXX  ,  PathALU   , IRD , IXX , IRT),
       MTC0       -> List(SType   ,  PC4     ,  BrXXX   ,  AReg   ,  BXXX   ,  DCP0   , ALUADD   , MemXXX  ,  PathALU   , IRT , IXX , IRD)
   ))
@@ -276,6 +276,25 @@ object InstDecodedLitByPath {
       )
     }
     // BJU
+    else if (path_type == 5) {
+      inst.Lit(
+        _.pc               -> 0x20.U(lgc_addr_w.W),
+        _.inst             -> (rd & 0x0000FFFF).U(data_w.W),
+        _.dec.inst_type    -> RType,
+        _.dec.next_pc      -> Branch,
+        _.dec.branch_type  -> BrEQ,
+        _.dec.param_a      -> AReg,
+        _.dec.param_b      -> BReg,
+        _.dec.write_target -> DXXX,
+        _.dec.alu_op       -> ALUADD,
+        _.dec.mem_width    -> MemXXX,
+        _.dec.path         -> PathALU,
+        _.dec.rs1          -> rs1.U(reg_id_w.W),
+        _.dec.rs2          -> rs2.U(reg_id_w.W),
+        _.dec.rd           -> 0.U(reg_id_w.W)
+      )
+    }
+    // N/A
     else if (path_type == 2) {
       inst.Lit(
         _.pc               -> 0.U(lgc_addr_w.W),

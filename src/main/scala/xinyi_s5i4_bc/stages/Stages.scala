@@ -7,12 +7,17 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
 import ControlConst._
 
+class PCInterface extends Bundle with XinYiConfig {
+  val enable = Input(UInt(lgc_addr_w.W))
+  val target = Input(UInt(lgc_addr_w.W))
+}
+
 class PCStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
-    val pc      = Input(UInt(lgc_addr_w.W))
-    //val bpu_out = Flipped(new BPUOut)
-    //val bju_out = Flipped(new BJUOut)
-    val next_pc = Output(UInt(lgc_addr_w.W))
+    val pc        = Input(UInt(lgc_addr_w.W))
+    val branch    = new PCInterface
+    val exception = new PCInterface
+    val next_pc   = Output(UInt(lgc_addr_w.W))
   })
 
   io.next_pc := io.pc + 4.U(lgc_addr_w.W)
@@ -74,12 +79,25 @@ class IDStage extends Module with XinYiConfig {
   io.out.dec  := decoder.io.ctrl
 }
 
-class PathInterface extends Bundle with XinYiConfig {
+class PathIn extends Bundle with XinYiConfig {
+  val inst        = Input(new Instruction)
+  val id          = Input(UInt(issue_num_w.W))
+}
+
+class PathOut extends Bundle with XinYiConfig {
   val wt          = Output(UInt(write_target_w.W))
   val rd          = Output(UInt(reg_id_w.W))
   val ready       = Output(Bool())
-  val inst        = Input(new Instruction)
-  val id          = Input(UInt(issue_num_w.W))
+}
+
+class PathData extends Bundle with XinYiConfig {
+  val rs1         = Input(UInt(data_w.W))
+  val rs2         = Input(UInt(data_w.W))
+}
+
+class PathInterface extends Bundle with XinYiConfig {
+  val in  = new PathIn
+  val out = new PathOut
 }
 
 // Issue Queue
@@ -178,10 +196,15 @@ class ISStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val issue_cnt = Input(UInt(queue_len_w.W))
     val inst      = Input(Vec(issue_num, new Instruction))
+
     val alu_paths = Flipped(Vec(alu_path_num, new PathInterface))
-    val bju_paths = Flipped(Vec(bju_path_num, new PathInterface))
+    val bju_paths = Flipped(Vec(bju_path_num, new PathInterface))   // bju path num = 0
     val lsu_paths = Flipped(Vec(lsu_path_num, new PathInterface))
     val actual_issue_cnt = Output(UInt(issue_num_w.W))
+
+    // To BJU
+    val bju_interface = Flipped(new PathIn)
+    val delay_slot_pending = Output(Bool())
   })
 
   // Hazard Detect Logic  
@@ -203,7 +226,7 @@ class ISStage extends Module with XinYiConfig {
   io.actual_issue_cnt := issue_num.U(issue_num_w.W)
 
   def RAWPath(i: Instruction, j: PathInterface) = {
-    !j.ready & (j.rd === i.dec.rs1 | j.rd === i.dec.rs2)
+    !j.out.ready & (j.out.rd === i.dec.rs1 | j.out.rd === i.dec.rs2)
   }
 
   def RAWInst(i: Instruction, k: Instruction) = {
@@ -278,4 +301,15 @@ class ISStage extends Module with XinYiConfig {
   Issuer(alu_path_id, alu_path_num, filtered_inst, target, issued_by_alu, io.alu_paths)
   Issuer(bju_path_id, bju_path_num, filtered_inst, target, issued_by_bju, io.bju_paths)
   Issuer(lsu_path_id, lsu_path_num, filtered_inst, target, issued_by_lsu, io.lsu_paths)
+  
+  io.bju_interface.inst := NOPBubble()
+  io.bju_interface.id   := issue_num.U
+  io.delay_slot_pending := false.B
+  for (j <- 0 until alu_path_num) {
+    // Branch
+    when (io.alu_paths(j).in.inst.dec.next_pc =/= PC4) {
+      io.bju_interface := io.alu_paths(j).in
+      io.delay_slot_pending := (io.alu_paths(j).in.id + 1.U) === io.actual_issue_cnt
+    }
+  }
 }

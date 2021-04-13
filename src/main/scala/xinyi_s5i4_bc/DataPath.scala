@@ -16,7 +16,6 @@ class DataPath extends Module with XinYiConfig {
   val pc_if_reg = Module(new PCIFReg)
   val if_id_reg = Module(new IFIDReg)
 
-  // val branch_cache = Module(new BranchCache)
   val icache = Module(new DummyCache(lgc_addr_w, l1_w))
 
   // Stages
