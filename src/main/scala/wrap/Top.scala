@@ -23,6 +23,7 @@ trait XinYiConfig {
 
   val alu_path_num    = 2
   val alu_path_id     = 1
+  val alu_path_num_w  = 2
 
   val bju_path_num    = 0
   val bju_path_id     = 2

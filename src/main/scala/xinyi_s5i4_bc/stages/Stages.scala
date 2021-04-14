@@ -57,18 +57,12 @@ class IDIn extends Bundle with XinYiConfig {
   val inst = Input(UInt(data_w.W))
 }
 
-class IDOut extends Bundle with XinYiConfig {
-  val pc   = Output(UInt(lgc_addr_w.W))
-  val inst = Output(UInt(data_w.W))
-  val dec  = Output(new ControlSet)
-}
-
 // Decode 1 instruction
 // Generate multiple instances to support multi-issuing
 class IDStage extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val in    = new IDIn
-    val out   = new IDOut
+    val out   = new Instruction
   })
 
   val decoder = Module(new MIPSDecoder)
@@ -203,7 +197,7 @@ class ISStage extends Module with XinYiConfig {
     val actual_issue_cnt = Output(UInt(issue_num_w.W))
 
     // To BJU
-    val bju_interface = Flipped(new PathIn)
+    val branch_jump_id = Output(UInt(alu_path_num_w.W))
     val delay_slot_pending = Output(Bool())
   })
 
@@ -302,13 +296,12 @@ class ISStage extends Module with XinYiConfig {
   Issuer(bju_path_id, bju_path_num, filtered_inst, target, issued_by_bju, io.bju_paths)
   Issuer(lsu_path_id, lsu_path_num, filtered_inst, target, issued_by_lsu, io.lsu_paths)
   
-  io.bju_interface.inst := NOPBubble()
-  io.bju_interface.id   := issue_num.U
+  io.branch_jump_id := alu_path_num.U(alu_path_num_w.W)
   io.delay_slot_pending := false.B
   for (j <- 0 until alu_path_num) {
     // Branch
     when (io.alu_paths(j).in.inst.dec.next_pc =/= PC4) {
-      io.bju_interface := io.alu_paths(j).in
+      io.branch_jump_id := j.U(alu_path_num_w.W)
       io.delay_slot_pending := (io.alu_paths(j).in.id + 1.U) === io.actual_issue_cnt
     }
   }
