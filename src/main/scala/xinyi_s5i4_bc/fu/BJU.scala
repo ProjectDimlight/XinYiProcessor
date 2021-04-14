@@ -9,8 +9,7 @@ import xinyi_s5i4_bc.parts.ControlConst._
 
 class BJU extends Module with XinYiConfig {
   val io = IO(new Bundle {
-    val path = new PathIn
-    val data = new PathData
+    val path = new BJUPathInterface
     val delay_slot_pending = Input(Bool())
 
     val branch_cache_out = new BranchCacheOut
@@ -18,17 +17,17 @@ class BJU extends Module with XinYiConfig {
   })
 
   val branch = Wire(Bool())
-  branch := io.path.inst.dec.next_pc =/= PC4 & 
+  branch := io.path.in.inst.dec.next_pc =/= PC4 & 
     MuxLookup(
       io.path.inst.dec.branch_type,
         true.B,
       Array(
-        BrEQ -> (io.data.rs1 === io.data.rs2),
-        BrNE -> (io.data.rs1 =/= io.data.rs2),
-        BrGE -> (io.data.rs1 >=  io.data.rs2),
-        BrGT -> (io.data.rs1 >   io.data.rs2),
-        BrLE -> (io.data.rs1 <=  io.data.rs2),
-        BrLT -> (io.data.rs1 <   io.data.rs2)
+        BrEQ -> (io.path.data.rs1 === io.path.data.rs2),
+        BrNE -> (io.path.data.rs1 =/= io.path.data.rs2),
+        BrGE -> (io.path.data.rs1 >=  io.path.data.rs2),
+        BrGT -> (io.path.data.rs1 >   io.path.data.rs2),
+        BrLE -> (io.path.data.rs1 <=  io.path.data.rs2),
+        BrLT -> (io.path.data.rs1 <   io.path.data.rs2)
       )
     )
 

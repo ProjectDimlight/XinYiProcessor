@@ -129,7 +129,7 @@ class ControlSet extends Bundle with XinYiConfig {
 class MIPSDecoder extends Module with XinYiConfig {
   val io = IO(new Bundle{
     val inst = Input(UInt(data_w.W))
-    val ctrl = Output(new ControlSet)
+    val dec = Output(new ControlSet)
   })
 
   val SHAMT = io.inst(10,  6)
@@ -214,18 +214,18 @@ val control_signal = ListLookup(io.inst,
       MTC0       -> List(SType   ,  PC4     ,  BrXXX   ,  AReg   ,  BXXX   ,  DCP0   , ALUADD   , MemXXX  ,  PathALU   , IRT , IXX , IRD)
   ))
 
-  io.ctrl.inst_type     := control_signal(0)
-  io.ctrl.next_pc       := control_signal(1)
-  io.ctrl.branch_type   := control_signal(2)
-  io.ctrl.param_a       := control_signal(3)
-  io.ctrl.param_b       := control_signal(4)
-  io.ctrl.write_target  := control_signal(5)
-  io.ctrl.alu_op        := control_signal(6)
-  io.ctrl.mem_width     := control_signal(7)
-  io.ctrl.path          := control_signal(8)
-  io.ctrl.rs1           := control_signal(9)
-  io.ctrl.rs2           := control_signal(10)
-  io.ctrl.rd            := control_signal(11)
+  io.dec.inst_type     := control_signal(0)
+  io.dec.next_pc       := control_signal(1)
+  io.dec.branch_type   := control_signal(2)
+  io.dec.param_a       := control_signal(3)
+  io.dec.param_b       := control_signal(4)
+  io.dec.write_target  := control_signal(5)
+  io.dec.alu_op        := control_signal(6)
+  io.dec.mem_width     := control_signal(7)
+  io.dec.path          := control_signal(8)
+  io.dec.rs1           := control_signal(9)
+  io.dec.rs2           := control_signal(10)
+  io.dec.rd            := control_signal(11)
 }
 
 // Construct an NOP instruction
