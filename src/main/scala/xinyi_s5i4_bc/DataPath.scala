@@ -69,15 +69,10 @@ class DataPath extends Module  {
   }
 
   // FUs
-  for (j <- 0 until ALU_PATH_NUM) {
-    alu_paths(j).io.in   <> is_stage.io.alu_paths(j).in
-    alu_paths(j).io.out  <> is_stage.io.alu_paths(j).out
-    alu_paths(j).io.data <> inst_params(is_stage.io.alu_paths(j).in.id)
-  }
-  for (j <- 0 until LSU_PATH_NUM) {
-    lsu_paths(j).io.in   <> is_stage.io.lsu_paths(j).in
-    lsu_paths(j).io.out  <> is_stage.io.lsu_paths(j).out
-    lsu_paths(j).io.data <> inst_params(is_stage.io.lsu_paths(j).in.id)
+  for (j <- 0 until TOT_PATH_NUM) {
+    paths(j).io.in   <> is_stage.io.paths(j).in
+    paths(j).io.out  <> is_stage.io.paths(j).out
+    paths(j).io.data <> inst_params(is_stage.io.paths(j).in.id)
   }
 
   // BJU

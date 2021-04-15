@@ -112,18 +112,21 @@ class ISStage extends Module  {
     val issue_cnt = Input(UInt(QUEUE_LEN_w.W))
     val inst      = Input(Vec(ISSUE_NUM, new Instruction))
 
-    val paths     = Flipped(Vec(TOT_PATH_NUM, new PathInterface))
-    val actual_issue_cnt = Output(UInt(ISSUE_NUM_W.W))
+    // To Param Fetcher 
+    val forwarding_path     = Output(Vec(ISSUE_NUM, UInt(TOT_PATH_NUM_W.W)))
+
+    // To common FUs
+    val paths               = Flipped(Vec(TOT_PATH_NUM, new PathInterface))
+    val actual_issue_cnt    = Output(UInt(ISSUE_NUM_W.W))
 
     // To BJU
-    val branch_jump_id = Output(UInt(ALU_PATH_NUM_W.W))
-    val delay_slot_pending = Output(Bool())
+    val branch_jump_id      = Output(UInt(ALU_PATH_NUM_W.W))
+    val delay_slot_pending  = Output(Bool())
   })
 
   // Hazard Detect Logic  
-
-  val inst = Wire(Vec(ISSUE_NUM, new Instruction))
   val filtered_inst = Wire(Vec(ISSUE_NUM, new Instruction))
+  val inst = Wire(Vec(ISSUE_NUM, new Instruction))
   inst := io.inst
 
   // For each instruction, decide which path it should go
@@ -136,7 +139,7 @@ class ISStage extends Module  {
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
   def RAWPath(i: Instruction, j: PathInterface) = {
-    !j.out.ready & (j.out.rd === i.dec.rs1 | j.out.rd === i.dec.rs2)
+    (j.out.rd === i.dec.rs1 | j.out.rd === i.dec.rs2)
   }
 
   def RAWInst(i: Instruction, k: Instruction) = {
@@ -149,10 +152,17 @@ class ISStage extends Module  {
 
     // RAW Data hazard
     // From path (issued)
+    io.forwarding_path(i) := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
     no_raw(i) := true.B
     for (j <- 0 until TOT_PATH_NUM) {
       when (RAWPath(inst(i), io.paths(j))) {
-        no_raw(i) := false.B
+        // Forwarding
+        when (io.paths(j).out.ready) {
+          io.forwarding_path(i) := j.U
+        }
+        .otherwise {
+          no_raw(i) := false.B
+        }
       }
     }
     // From queue (going to issue)
@@ -190,7 +200,7 @@ class ISStage extends Module  {
       filtered_inst(i) := NOPBubble()
     }
     .otherwise {
-      filtered_inst(i) := inst(i)
+      filtered_inst(i) := io.inst(i)
     }
   }
 
