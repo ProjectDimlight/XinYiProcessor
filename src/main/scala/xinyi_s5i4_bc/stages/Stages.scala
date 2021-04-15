@@ -112,9 +112,7 @@ class ISStage extends Module  {
     val issue_cnt = Input(UInt(QUEUE_LEN_w.W))
     val inst      = Input(Vec(ISSUE_NUM, new Instruction))
 
-    val alu_paths = Flipped(Vec(ALU_PATH_NUM, new PathInterface))
-    val bju_paths = Flipped(Vec(BJU_PATH_NUM, new PathInterface))   // bju path num = 0
-    val lsu_paths = Flipped(Vec(LSU_PATH_NUM, new PathInterface))
+    val paths     = Flipped(Vec(TOT_PATH_NUM, new PathInterface))
     val actual_issue_cnt = Output(UInt(ISSUE_NUM_W.W))
 
     // To BJU
@@ -131,10 +129,7 @@ class ISStage extends Module  {
   // For each instruction, decide which path it should go
   val target = Wire(Vec(ISSUE_NUM, UInt(PATH_W.W)))
 
-  val issued_by_alu = Wire(Vec(ISSUE_NUM, Bool()))
-  val issued_by_bju = Wire(Vec(ISSUE_NUM, Bool()))
-  val issued_by_lsu = Wire(Vec(ISSUE_NUM, Bool()))
-  val issued        = Wire(Vec(ISSUE_NUM, Bool()))
+  val issued        = Wire(Vec(PATH_TYPE_NUM, Vec(ISSUE_NUM, Bool())))
   val no_raw        = Wire(Vec(ISSUE_NUM, Bool()))
 
   // Begin
@@ -153,25 +148,13 @@ class ISStage extends Module  {
     // Detect hazards
 
     // RAW Data hazard
-
     // From path (issued)
     no_raw(i) := true.B
-    for (j <- 0 until ALU_PATH_NUM) {
-      when (RAWPath(inst(i), io.alu_paths(j))) {
+    for (j <- 0 until TOT_PATH_NUM) {
+      when (RAWPath(inst(i), io.paths(j))) {
         no_raw(i) := false.B
       }
     }
-    for (j <- 0 until BJU_PATH_NUM) {
-      when (RAWPath(inst(i), io.bju_paths(j))) {
-        no_raw(i) := false.B
-      }
-    }
-    for (j <- 0 until LSU_PATH_NUM) {
-      when (RAWPath(inst(i), io.lsu_paths(j))) {
-        no_raw(i) := false.B
-      }
-    }
-
     // From queue (going to issue)
     for (k <- 0 until i) {
       when (RAWInst(inst(i), inst(k))) {
@@ -187,12 +170,16 @@ class ISStage extends Module  {
     )
 
     // Structural hazard
-    issued(i) := issued_by_alu(i) | issued_by_bju(i) | issued_by_lsu(i)
+    issued(0)(i) := false.B
+    for (path_type <- 1 until PATH_TYPE_NUM)
+      when (issued(path_type)(i)) {
+        issued(0)(i) := true.B
+      }
 
     // If an instruction cannot be issued
     // Mark its ID
     // Every following instruction (with a greater ID) will be replaced by an NOP Bubble
-    when (issued(i) === false.B) {
+    when (issued(0)(i) === false.B) {
       io.actual_issue_cnt := i.U(ISSUE_NUM_W.W)
     }
 
@@ -213,17 +200,19 @@ class ISStage extends Module  {
 
   // Put instructions into paths
   // Parameterized issuing
-  Issuer(ALU_PATH_ID, ALU_PATH_NUM, filtered_inst, target, issued_by_alu, io.alu_paths)
-  Issuer(BJU_PATH_ID, BJU_PATH_NUM, filtered_inst, target, issued_by_bju, io.bju_paths)
-  Issuer(LSU_PATH_ID, LSU_PATH_NUM, filtered_inst, target, issued_by_lsu, io.lsu_paths)
+  var base = 0
+  for (path_type <- 1 until PATH_TYPE_NUM) {
+    Issuer(path_type, base, PATH_NUM(path_type), filtered_inst, target, issued(path_type), io.paths)
+    base += PATH_NUM(path_type)
+  }
   
-  io.branch_jump_id := ALU_PATH_NUM.U(ALU_PATH_NUM_W.W)
+  io.branch_jump_id := ALU_PATH_NUM.U(TOT_PATH_NUM_W.W)
   io.delay_slot_pending := false.B
   for (j <- 0 until ALU_PATH_NUM) {
     // Branch
-    when (io.alu_paths(j).in.inst.dec.next_pc =/= PC4) {
+    when (io.paths(j).in.inst.dec.next_pc =/= PC4) {
       io.branch_jump_id := j.U(ALU_PATH_NUM_W.W)
-      io.delay_slot_pending := (io.alu_paths(j).in.id + 1.U) === io.actual_issue_cnt
+      io.delay_slot_pending := (io.paths(j).in.id + 1.U) === io.actual_issue_cnt
     }
   }
 }
