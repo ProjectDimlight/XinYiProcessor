@@ -8,12 +8,12 @@ import xinyi_s5i4_bc.caches._
 import ControlConst._
 import config.config._
 
-class PCInterface extends Bundle  {
+class PCInterface extends Bundle {
   val enable = Input(UInt(LGC_ADDR_W.W))
   val target = Input(UInt(LGC_ADDR_W.W))
 }
 
-class PCStage extends Module  {
+class PCStage extends Module {
   val io = IO(new Bundle{
     val pc        = Input(UInt(LGC_ADDR_W.W))
     val branch    = new PCInterface
@@ -25,18 +25,18 @@ class PCStage extends Module  {
   io.next_pc := io.pc + 4.U(LGC_ADDR_W.W)
 }
 
-class IFIn extends Bundle  {
+class IFIn extends Bundle {
   val pc = Input(UInt(LGC_ADDR_W.W))
 }
 
-class IFOut extends Bundle  {
+class IFOut extends Bundle {
   val pc   = Output(UInt(LGC_ADDR_W.W))
   val inst = Output(UInt(L1_W.W))
 }
 
 // Load load_num instructions at a time
 // Branch Cache
-class IFStage extends Module  {
+class IFStage extends Module {
   val io = IO(new Bundle{
     val in    = new IFIn
     val cache = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
@@ -54,14 +54,14 @@ class IFStage extends Module  {
   io.out.inst := io.cache.dout
 }
 
-class IDIn extends Bundle  {
+class IDIn extends Bundle {
   val pc   = Input(UInt(LGC_ADDR_W.W))
   val inst = Input(UInt(DATA_W.W))
 }
 
 // Decode 1 instruction
 // Generate multiple instances to support multi-issuing
-class IDStage extends Module  {
+class IDStage extends Module {
   val io = IO(new Bundle{
     val in    = Vec(FETCH_NUM, new IDIn)
     val out   = Output(Vec(FETCH_NUM, new Instruction))
@@ -76,23 +76,23 @@ class IDStage extends Module  {
   }
 }
 
-class PathIn extends Bundle  {
+class PathIn extends Bundle {
   val inst        = Input(new Instruction)
   val id          = Input(UInt(ISSUE_NUM_W.W))
 }
 
-class PathOut extends Bundle  {
+class PathOut extends Bundle {
   val wt          = Output(UInt(write_target_w.W))
   val rd          = Output(UInt(REG_ID_W.W))
   val ready       = Output(Bool())
 }
 
-class PathData extends Bundle  {
+class PathData extends Bundle {
   val rs1         = Input(UInt(DATA_W.W))
   val rs2         = Input(UInt(DATA_W.W))
 }
 
-class PathInterface extends Bundle  {
+class PathInterface extends Bundle {
   val in   = new PathIn
   val out  = new PathOut
 }
@@ -101,19 +101,24 @@ class PathInterfaceWithData extends PathInterface {
   val data = new PathData
 }
 
-class BJUPathInterface extends Bundle  {
+class BJUPathInterface extends Bundle {
   val in   = new PathIn
   val data = new PathData
 }
 
+class ForwardingPath extends Bundle {
+  val is1  = UInt(TOT_PATH_NUM_W.W)
+  val is2  = UInt(TOT_PATH_NUM_W.W)
+}
+
 // Issue Stage
-class ISStage extends Module  {
+class ISStage extends Module {
   val io = IO(new Bundle{
     val issue_cnt = Input(UInt(QUEUE_LEN_w.W))
     val inst      = Input(Vec(ISSUE_NUM, new Instruction))
 
     // To Param Fetcher 
-    val forwarding_path     = Output(Vec(ISSUE_NUM, UInt(TOT_PATH_NUM_W.W)))
+    val forwarding_path     = Output(Vec(ISSUE_NUM, new ForwardingPath))
 
     // To common FUs
     val paths               = Flipped(Vec(TOT_PATH_NUM, new PathInterface))
@@ -138,12 +143,29 @@ class ISStage extends Module  {
   // Begin
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
-  def RAWPath(i: Instruction, j: PathInterface) = {
-    (j.out.rd === i.dec.rs1 | j.out.rd === i.dec.rs2)
+  def RAWPath(i: Int, j: Int) {
+    when (io.paths(j).out.rd === inst(i).dec.rs1) {
+      when (io.paths(j).out.ready) {
+        io.forwarding_path(i).is1 := j.U
+      }
+      .otherwise {
+        no_raw(i) := false.B
+      }
+    }
+    when (io.paths(j).out.rd === inst(i).dec.rs1) {
+      when (io.paths(j).out.ready) {
+        io.forwarding_path(i).is2 := j.U
+      }
+      .otherwise {
+        no_raw(i) := false.B
+      }
+    }
   }
 
-  def RAWInst(i: Instruction, k: Instruction) = {
-    (k.dec.rd === i.dec.rs1 | k.dec.rd === i.dec.rs2)
+  def RAWInst(i: Int, k: Int) {
+    when (inst(k).dec.rd === inst(i).dec.rs1 | inst(k).dec.rd === inst(i).dec.rs2) {
+      no_raw(i) := false.B
+    }
   }
 
   // i is the id of the currect instruction to be detected
@@ -152,24 +174,15 @@ class ISStage extends Module  {
 
     // RAW Data hazard
     // From path (issued)
-    io.forwarding_path(i) := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    io.forwarding_path(i).is1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    io.forwarding_path(i).is2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
     no_raw(i) := true.B
     for (j <- 0 until TOT_PATH_NUM) {
-      when (RAWPath(inst(i), io.paths(j))) {
-        // Forwarding
-        when (io.paths(j).out.ready) {
-          io.forwarding_path(i) := j.U
-        }
-        .otherwise {
-          no_raw(i) := false.B
-        }
-      }
+      RAWPath(i, j)
     }
     // From queue (going to issue)
     for (k <- 0 until i) {
-      when (RAWInst(inst(i), inst(k))) {
-        no_raw(i) := false.B
-      }
+      RAWInst(i, k)
     }
 
     // Target filter

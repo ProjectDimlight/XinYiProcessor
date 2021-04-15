@@ -7,7 +7,7 @@ import xinyi_s5i4_bc.stages._
 import ControlConst._
 import config.config._
 
-class Issuer(path_type: Int, path_num: Int) extends Module  {
+class Issuer(path_type: Int, path_num: Int) extends Module {
   val io = IO(new Bundle{
     val inst      = Input(Vec(ISSUE_NUM, new Instruction))
     val target    = Input(Vec(ISSUE_NUM, UInt(PATH_W.W)))

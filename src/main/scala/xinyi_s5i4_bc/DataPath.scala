@@ -7,7 +7,7 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
 
 /*
-class DataPath extends Module  {
+class DataPath extends Module {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
     val icache_l2 = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))

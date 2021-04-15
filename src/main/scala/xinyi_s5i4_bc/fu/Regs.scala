@@ -5,14 +5,14 @@ import config.config._
 
 import config.config._
 
-class RegReadInterface extends Bundle  {
+class RegReadInterface extends Bundle {
   val rs1   = Input(UInt(REG_ID_W.W))
   val rs2   = Input(UInt(REG_ID_W.W))
   val data1 = Output(UInt(DATA_W.W))
   val data2 = Output(UInt(DATA_W.W))
 }
 
-class RegWriteInterface extends Bundle  {
+class RegWriteInterface extends Bundle {
   val rd    = Input(UInt(REG_ID_W.W))
   val data  = Input(UInt(DATA_W.W))
 }

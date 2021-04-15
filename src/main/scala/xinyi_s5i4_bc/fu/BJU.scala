@@ -7,7 +7,7 @@ import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.parts.ControlConst._
 
-class BJU extends Module  {
+class BJU extends Module {
   val io = IO(new Bundle {
     val path = new BJUPathInterface
     val delay_slot_pending = Input(Bool())

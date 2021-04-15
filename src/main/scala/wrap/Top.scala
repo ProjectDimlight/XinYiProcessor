@@ -10,7 +10,7 @@ trait XinYiConfig {
   
 }
 
-class CoreIO extends Bundle  {
+class CoreIO extends Bundle {
   
 }
 

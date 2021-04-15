@@ -6,7 +6,7 @@ import xinyi_s5i4_bc.parts._
 import ControlConst._
 import config.config._
 
-class PCIFReg extends Module  {
+class PCIFReg extends Module {
   val io = IO(new Bundle{
     val pc_out    = Input(UInt(LGC_ADDR_W.W))
     val if_in     = Flipped(new IFIn)
@@ -18,7 +18,7 @@ class PCIFReg extends Module  {
   io.if_in.pc := pc
 }
 
-class IFIDReg extends Module  {
+class IFIDReg extends Module {
   val io = IO(new Bundle{
     val if_out = Flipped(new IFOut)
     val id_in = Flipped(Vec(FETCH_NUM, new IDIn))
@@ -33,7 +33,7 @@ class IFIDReg extends Module  {
 }
 
 // Issue Queue
-class IssueQueue extends Module  {
+class IssueQueue extends Module {
   val io = IO(new Bundle{
     val in                = Input(Vec(FETCH_NUM, Flipped(new Instruction)))
     val bc                = Flipped(new BranchCacheOut)

@@ -9,7 +9,7 @@ import ControlConst._
 import ISAPatterns._
 import config.config._
 
-class Instruction extends Bundle  {
+class Instruction extends Bundle {
   val pc = UInt(LGC_ADDR_W.W)
   val inst = UInt(DATA_W.W)
   val dec = new ControlSet
@@ -81,10 +81,10 @@ object ControlConst {
   val MemHalfU      = 5.U(3.W)
   val mem_width_w   = MemXXX.getWidth
 
-  val PathXXX       = N_A_PATH_ID.U(2.W)
-  val PathALU       = ALU_PATH_ID.U(2.W)
-  val PathBJU       = BJU_PATH_ID.U(2.W)
-  val PathLSU       = LSU_PATH_ID.U(2.W)
+  val PathXXX       = N_A_PATH_TYPE.U(2.W)
+  val PathALU       = ALU_PATH_TYPE.U(2.W)
+  val PathBJU       = BJU_PATH_TYPE.U(2.W)
+  val PathLSU       = LSU_PATH_TYPE.U(2.W)
   
   val ALUXXX        = 0.U(4.W)
   val ALUADD        = 0.U(4.W)
@@ -109,7 +109,7 @@ object ControlConst {
   val MDUMULU       = 3.U(5.W)
 }
 
-class ControlSet extends Bundle  {
+class ControlSet extends Bundle {
   val inst_type     = UInt(inst_type_w.W)
   val next_pc       = UInt(next_pc_w.W)
   val branch_type   = UInt(branch_type_w.W)
@@ -124,7 +124,7 @@ class ControlSet extends Bundle  {
   val rd            = UInt(REG_ID_W.W)
 }
 
-class MIPSDecoder extends Module  {
+class MIPSDecoder extends Module {
   val io = IO(new Bundle{
     val inst = Input(UInt(DATA_W.W))
     val dec = Output(new ControlSet)
