@@ -137,8 +137,9 @@ class ISStage extends Module {
   // For each instruction, decide which path it should go
   val target = Wire(Vec(ISSUE_NUM, UInt(PATH_W.W)))
 
-  val issued        = Wire(Vec(PATH_TYPE_NUM, Vec(ISSUE_NUM, Bool())))
-  val no_raw        = Wire(Vec(ISSUE_NUM, Bool()))
+  val issued            = Wire(Vec(PATH_TYPE_NUM, Vec(ISSUE_NUM, Bool())))
+  val raw               = Wire(Vec(ISSUE_NUM, Bool()))
+  val structural_hazard = Wire(Bool())
 
   // Begin
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
@@ -149,7 +150,7 @@ class ISStage extends Module {
         io.forwarding_path(i).is1 := j.U
       }
       .otherwise {
-        no_raw(i) := false.B
+        raw(i) := true.B
       }
     }
     when (io.paths(j).out.rd === inst(i).dec.rs1) {
@@ -157,16 +158,22 @@ class ISStage extends Module {
         io.forwarding_path(i).is2 := j.U
       }
       .otherwise {
-        no_raw(i) := false.B
+        raw(i) := true.B
       }
     }
   }
 
   def RAWInst(i: Int, k: Int) {
     when (inst(k).dec.rd === inst(i).dec.rs1 | inst(k).dec.rd === inst(i).dec.rs2) {
-      no_raw(i) := false.B
+      raw(i) := true.B
     }
   }
+
+  structural_hazard := false.B
+  for (j <- 0 until TOT_PATH_NUM)
+    when (!io.paths(j).out.ready) {
+      structural_hazard := true.B
+    }
 
   // i is the id of the currect instruction to be detected
   for (i <- 0 until ISSUE_NUM) {
@@ -176,7 +183,7 @@ class ISStage extends Module {
     // From path (issued)
     io.forwarding_path(i).is1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
     io.forwarding_path(i).is2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
-    no_raw(i) := true.B
+    raw(i) := false.B
     for (j <- 0 until TOT_PATH_NUM) {
       RAWPath(i, j)
     }
@@ -185,26 +192,19 @@ class ISStage extends Module {
       RAWInst(i, k)
     }
 
+    // Structural hazard
     // Target filter
     target(i) := Mux(
-      (!no_raw(i) | (i.U >= io.issue_cnt)),
+      (raw(i) | structural_hazard | (i.U >= io.issue_cnt)),
       0.U,
       inst(i).dec.path
     )
 
-    // Structural hazard
     issued(0)(i) := false.B
     for (path_type <- 1 until PATH_TYPE_NUM)
       when (issued(path_type)(i)) {
         issued(0)(i) := true.B
       }
-
-    // If an instruction cannot be issued
-    // Mark its ID
-    // Every following instruction (with a greater ID) will be replaced by an NOP Bubble
-    when (issued(0)(i) === false.B) {
-      io.actual_issue_cnt := i.U(ISSUE_NUM_W.W)
-    }
 
     // Ordered issuing
     // If an instruction fails to issue
@@ -214,6 +214,15 @@ class ISStage extends Module {
     }
     .otherwise {
       filtered_inst(i) := io.inst(i)
+    }
+  }
+
+  for (i <- ISSUE_NUM - 1 to 0 by -1) {
+    // If an instruction cannot be issued
+    // Mark its ID
+    // Every following instruction (with a greater ID) will be replaced by an NOP Bubble
+    when (issued(0)(i) === false.B) {
+      io.actual_issue_cnt := i.U(ISSUE_NUM_W.W)
     }
   }
 
