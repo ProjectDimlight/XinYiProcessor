@@ -21,7 +21,7 @@ class MDU extends Module {
     val io = IO(new Bundle {
         val in_a = Input(UInt(XLEN.W))
         val in_b = Input(UInt(XLEN.W))
-        val in_ctrl = Input(UInt(mdu_op_w.W))
+        val in_ctrl = Input(UInt(alu_op_w.W))
         val out_hi = Output(UInt(XLEN.W))
         val out_lo = Output(UInt(XLEN.W))
     })

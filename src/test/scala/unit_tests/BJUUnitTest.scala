@@ -9,14 +9,14 @@ import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import wrap._
+import config.config._
 import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.fu._
 import xinyi_s5i4_bc.caches._
 import ControlConst._
 
-class BJUUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers with XinYiConfig {
+class BJUUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers  {
   behavior of "BJU Unit Test"
 
   it should "Test Case 1: Branch" in {
@@ -31,8 +31,8 @@ class BJUUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers w
       val branch_cache_out = new BranchCacheOut
       val pc_interface = new PCInterface
 
-      device.io.path.inst.poke(a)
-      device.io.data.poke((new PathData).Lit(_.rs1 -> 0.U, _.rs2 -> 0.U))
+      device.io.path.in.inst.poke(a)
+      device.io.path.data.poke((new PathData).Lit(_.rs1 -> 0.U, _.rs2 -> 0.U))
       device.io.delay_slot_pending.poke(false.B)
 
       // Replace 1
@@ -47,7 +47,7 @@ class BJUUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers w
       device.clock.step(1)
 
       // Replace 2
-      device.io.path.inst.poke(z)
+      device.io.path.in.inst.poke(z)
 
       device.io.branch_cache_out.inst(0).expect(z)
       device.io.branch_cache_out.overwrite.expect(true.B)
@@ -59,7 +59,7 @@ class BJUUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers w
       device.clock.step(1)
 
       // End
-      device.io.path.inst.poke(z)
+      device.io.path.in.inst.poke(z)
 
       device.io.branch_cache_out.inst(0).expect(z)
       device.io.branch_cache_out.overwrite.expect(false.B)
@@ -81,8 +81,8 @@ class BJUUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers w
       val branch_cache_out = new BranchCacheOut
       val pc_interface = new PCInterface
 
-      device.io.path.inst.poke(a)
-      device.io.data.poke((new PathData).Lit(_.rs1 -> 0.U, _.rs2 -> 0.U))
+      device.io.path.in.inst.poke(a)
+      device.io.path.data.poke((new PathData).Lit(_.rs1 -> 0.U, _.rs2 -> 0.U))
       device.io.delay_slot_pending.poke(true.B)
 
       // Replace 1
@@ -97,7 +97,7 @@ class BJUUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers w
       device.clock.step(1)
 
       // Replace 2
-      device.io.path.inst.poke(z)
+      device.io.path.in.inst.poke(z)
 
       device.io.branch_cache_out.inst(0).expect(z)
       device.io.branch_cache_out.overwrite.expect(true.B)
@@ -109,7 +109,7 @@ class BJUUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers w
       device.clock.step(1)
 
       // End
-      device.io.path.inst.poke(z)
+      device.io.path.in.inst.poke(z)
 
       device.io.branch_cache_out.inst(0).expect(z)
       device.io.branch_cache_out.overwrite.expect(false.B)

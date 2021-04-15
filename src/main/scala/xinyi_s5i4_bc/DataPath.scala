@@ -1,22 +1,23 @@
 package xinyi_s5i4_bc
 
 import chisel3._
-import wrap._
+import config.config._
 import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
 
-class DataPath extends Module with XinYiConfig {
+/*
+class DataPath extends Module  {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
-    val icache_l2 = Flipped(new RAMInterface(lgc_addr_w, l1_w))
+    val icache_l2 = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
     val debug_out = Vec(2, new IDOut)
   })
 
   val pc_if_reg = Module(new PCIFReg)
   val if_id_reg = Module(new IFIDReg)
 
-  val icache = Module(new DummyCache(lgc_addr_w, l1_w))
+  val icache = Module(new DummyCache(LGC_ADDR_W, L1_W))
 
   // Stages
   val pc_stage      = Module(new PCStage)
@@ -55,25 +56,25 @@ class DataPath extends Module with XinYiConfig {
   is_stage.io.inst <> issue_queue.io.inst
   
   // Fetch instruction params
-  val inst_params = Wire(Vec(fetch_num , new PathData)
-  for (i <- 0 until fetch_num) {
+  val inst_params = Wire(Vec(FETCH_NUM , new PathData))
+  for (i <- 0 until FETCH_NUM) {
     val inst = Wire(new Instruction)
     inst := issue_queue.io.inst(i)
     // when (inst(i).param_a)
-    inst.dec.rs1 <> regs.io.inst(i).reg_id1
+    inst.dec.rs1 <> regs.io.inst(i).rs1
     inst_params(i).rs1 <> regs.io.inst(i).data1
 
-    inst.dec.rs2 <> regs.io.inst(i).reg_id2
+    inst.dec.rs2 <> regs.io.inst(i).rs2
     inst_params(i).rs2 <> regs.io.inst(i).data2
   }
 
   // FUs
-  for (j <- 0 until alu_path_num) {
+  for (j <- 0 until ALU_PATH_NUM) {
     alu_paths(j).io.in   <> is_stage.io.alu_paths(j).in
     alu_paths(j).io.out  <> is_stage.io.alu_paths(j).out
     alu_paths(j).io.data <> inst_params(is_stage.io.alu_paths(j).in.id)
   }
-  for (j <- 0 until lsu_path_num) {
+  for (j <- 0 until LSU_PATH_NUM) {
     lsu_paths(j).io.in   <> is_stage.io.lsu_paths(j).in
     lsu_paths(j).io.out  <> is_stage.io.lsu_paths(j).out
     lsu_paths(j).io.data <> inst_params(is_stage.io.lsu_paths(j).in.id)
@@ -86,3 +87,4 @@ class DataPath extends Module with XinYiConfig {
 
   // TODO: add FUs
 }
+*/

@@ -4,14 +4,14 @@ package xinyi_s5i4_bc.parts
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
-import wrap._
 
 import ControlConst._
 import ISAPatterns._
+import config.config._
 
-class Instruction extends Bundle with XinYiConfig {
-  val pc = UInt(lgc_addr_w.W)
-  val inst = UInt(data_w.W)
+class Instruction extends Bundle  {
+  val pc = UInt(LGC_ADDR_W.W)
+  val inst = UInt(DATA_W.W)
   val dec = new ControlSet
 }
 
@@ -81,10 +81,10 @@ object ControlConst {
   val MemHalfU      = 5.U(3.W)
   val mem_width_w   = MemXXX.getWidth
 
-  val PathXXX       = n_a_path_id.U(2.W)
-  val PathALU       = alu_path_id.U(2.W)
-  val PathBJU       = bju_path_id.U(2.W)
-  val PathLSU       = lsu_path_id.U(2.W)
+  val PathXXX       = N_A_PATH_ID.U(2.W)
+  val PathALU       = ALU_PATH_ID.U(2.W)
+  val PathBJU       = BJU_PATH_ID.U(2.W)
+  val PathLSU       = LSU_PATH_ID.U(2.W)
   
   val ALUXXX        = 0.U(4.W)
   val ALUADD        = 0.U(4.W)
@@ -107,11 +107,9 @@ object ControlConst {
   val MDUDIVU       = 1.U(5.W)
   val MDUMUL        = 2.U(5.W)
   val MDUMULU       = 3.U(5.W)
-
-  val reg_id_w      = 5
 }
 
-class ControlSet extends Bundle with XinYiConfig {
+class ControlSet extends Bundle  {
   val inst_type     = UInt(inst_type_w.W)
   val next_pc       = UInt(next_pc_w.W)
   val branch_type   = UInt(branch_type_w.W)
@@ -120,15 +118,15 @@ class ControlSet extends Bundle with XinYiConfig {
   val write_target  = UInt(write_target_w.W)
   val alu_op        = UInt(alu_op_w.W)
   val mem_width     = UInt(mem_width_w.W)
-  val path          = UInt(path_w.W)
-  val rs1           = UInt(reg_id_w.W)
-  val rs2           = UInt(reg_id_w.W)
-  val rd            = UInt(reg_id_w.W)
+  val path          = UInt(PATH_W.W)
+  val rs1           = UInt(REG_ID_W.W)
+  val rs2           = UInt(REG_ID_W.W)
+  val rd            = UInt(REG_ID_W.W)
 }
 
-class MIPSDecoder extends Module with XinYiConfig {
+class MIPSDecoder extends Module  {
   val io = IO(new Bundle{
-    val inst = Input(UInt(data_w.W))
+    val inst = Input(UInt(DATA_W.W))
     val dec = Output(new ControlSet)
   })
 
@@ -137,8 +135,8 @@ class MIPSDecoder extends Module with XinYiConfig {
   val IRS   = io.inst(25, 21)
   val IRT   = io.inst(20, 16)
   val IRD   = io.inst(15, 11)
-  val IRA   = 31.U(reg_id_w.W)
-  val IXX   = 0.U(reg_id_w.W)
+  val IRA   = 31.U(REG_ID_W.W)
+  val IXX   = 0.U(REG_ID_W.W)
 
   // Decode
 val control_signal = ListLookup(io.inst,
@@ -233,8 +231,8 @@ val control_signal = ListLookup(io.inst,
 object NOPBubble {
   def apply() = {
     val item = Wire(new Instruction)
-    item.pc               := 0.U(lgc_addr_w.W)
-    item.inst             := 0.U(data_w.W)
+    item.pc               := 0.U(LGC_ADDR_W.W)
+    item.inst             := 0.U(DATA_W.W)
     item.dec.inst_type    := 0.U(inst_type_w.W)
     item.dec.next_pc      := 0.U(next_pc_w.W)
     item.dec.branch_type  := 0.U(branch_type_w.W)
@@ -243,10 +241,10 @@ object NOPBubble {
     item.dec.write_target := 0.U(write_target_w.W)
     item.dec.alu_op       := 0.U(alu_op_w.W)
     item.dec.mem_width    := 0.U(mem_width_w.W)
-    item.dec.path         := 0.U(path_w.W)
-    item.dec.rs1          := 0.U(reg_id_w.W)
-    item.dec.rs2          := 0.U(reg_id_w.W)
-    item.dec.rd           := 0.U(reg_id_w.W)
+    item.dec.path         := 0.U(PATH_W.W)
+    item.dec.rs1          := 0.U(REG_ID_W.W)
+    item.dec.rs2          := 0.U(REG_ID_W.W)
+    item.dec.rd           := 0.U(REG_ID_W.W)
     item
   }
 }
@@ -259,8 +257,8 @@ object InstDecodedLitByPath {
     // ALU
     if (path_type == 1) {
       inst.Lit(
-        _.pc               -> 0.U(lgc_addr_w.W),
-        _.inst             -> 0.U(data_w.W),
+        _.pc               -> 0.U(LGC_ADDR_W.W),
+        _.inst             -> 0.U(DATA_W.W),
         _.dec.inst_type    -> RType,
         _.dec.next_pc      -> PC4,
         _.dec.branch_type  -> BrXXX,
@@ -270,16 +268,16 @@ object InstDecodedLitByPath {
         _.dec.alu_op       -> ALUADD,
         _.dec.mem_width    -> MemXXX,
         _.dec.path         -> PathALU,
-        _.dec.rs1          -> rs1.U(reg_id_w.W),
-        _.dec.rs2          -> rs2.U(reg_id_w.W),
-        _.dec.rd           -> rd.U(reg_id_w.W)
+        _.dec.rs1          -> rs1.U(REG_ID_W.W),
+        _.dec.rs2          -> rs2.U(REG_ID_W.W),
+        _.dec.rd           -> rd.U(REG_ID_W.W)
       )
     }
     // BJU
     else if (path_type == 5) {
       inst.Lit(
-        _.pc               -> 0x20.U(lgc_addr_w.W),
-        _.inst             -> (rd & 0x0000FFFF).U(data_w.W),
+        _.pc               -> 0x20.U(LGC_ADDR_W.W),
+        _.inst             -> (rd & 0x0000FFFF).U(DATA_W.W),
         _.dec.inst_type    -> RType,
         _.dec.next_pc      -> Branch,
         _.dec.branch_type  -> BrEQ,
@@ -289,16 +287,16 @@ object InstDecodedLitByPath {
         _.dec.alu_op       -> ALUADD,
         _.dec.mem_width    -> MemXXX,
         _.dec.path         -> PathALU,
-        _.dec.rs1          -> rs1.U(reg_id_w.W),
-        _.dec.rs2          -> rs2.U(reg_id_w.W),
-        _.dec.rd           -> 0.U(reg_id_w.W)
+        _.dec.rs1          -> rs1.U(REG_ID_W.W),
+        _.dec.rs2          -> rs2.U(REG_ID_W.W),
+        _.dec.rd           -> 0.U(REG_ID_W.W)
       )
     }
     // N/A
     else if (path_type == 2) {
       inst.Lit(
-        _.pc               -> 0.U(lgc_addr_w.W),
-        _.inst             -> 0.U(data_w.W),
+        _.pc               -> 0.U(LGC_ADDR_W.W),
+        _.inst             -> 0.U(DATA_W.W),
         _.dec.inst_type    -> IBType,
         _.dec.next_pc      -> Branch,
         _.dec.branch_type  -> BrEQ,
@@ -308,9 +306,9 @@ object InstDecodedLitByPath {
         _.dec.alu_op       -> ALUADD,
         _.dec.mem_width    -> MemXXX,
         _.dec.path         -> PathBJU,
-        _.dec.rs1          -> rs1.U(reg_id_w.W),
-        _.dec.rs2          -> rs2.U(reg_id_w.W),
-        _.dec.rd           -> rd.U(reg_id_w.W)
+        _.dec.rs1          -> rs1.U(REG_ID_W.W),
+        _.dec.rs2          -> rs2.U(REG_ID_W.W),
+        _.dec.rd           -> rd.U(REG_ID_W.W)
       )
     }
     /*
@@ -321,8 +319,8 @@ object InstDecodedLitByPath {
     */
     else {
       inst.Lit(
-        _.pc               -> 0.U(lgc_addr_w.W),
-        _.inst             -> 0.U(data_w.W),
+        _.pc               -> 0.U(LGC_ADDR_W.W),
+        _.inst             -> 0.U(DATA_W.W),
         _.dec.inst_type    -> InstXXX,
         _.dec.next_pc      -> PC4,
         _.dec.branch_type  -> BrXXX,

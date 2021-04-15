@@ -1,9 +1,9 @@
 package xinyi_s5i4_bc
 
 import chisel3._
-import wrap._
+import config.config._
 
-class S5I4 extends Module with XinYiConfig {
+class S5I4 extends Module  {
   //val io = IO(new CoreIO)
   val io = IO(new Bundle{})
 

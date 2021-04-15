@@ -9,13 +9,13 @@ import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import wrap._
+import config.config._
 import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
 import ControlConst._
 
-class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers with XinYiConfig {
+class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers  {
   behavior of "IssueQueue Unit Test"
 
   it should "Test Case 1: Input 2, Immediately Issue" in {

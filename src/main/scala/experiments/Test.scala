@@ -3,18 +3,34 @@ package experiments
 import chisel3._
 
 trait TestConfig {
-  val queue_len  = 3
+  val QUEUE_LEN  = 3
 
-  val fetch_num   = 2
-  val issue_num   = 2
+  val FETCH_NUM   = 2
+  val ISSUE_NUM   = 2
   val issue_cnt_w = 4
 
-  val alu_path_num  = 4
-  val mdu_path_num  = 4
-  val lsu_path_num  = 4
-  val queue_len_w   = 4
+  val ALU_PATH_NUM  = 4
+  val MDU_PATH_NUM  = 4
+  val LSU_PATH_NUM  = 4
+  val QUEUE_LEN_w   = 4
 }
 
+class X extends Bundle {
+  val a = Bool()
+}
+
+class Test extends Module {
+  val io = IO(new Bundle{
+    val in = Input(Bool())
+    val x = Output(new X)
+    val x_a = Output(Bool())
+  })
+
+  io.x.a := !io.in
+  io.x_a := io.in
+}
+
+/*
 class ISIn extends Bundle {
   val pc   = Output(UInt(32.W))
   val inst = Output(UInt(32.W))
@@ -30,55 +46,54 @@ class Test extends Module with TestConfig {
       io.debug(i)(j) := (i * j).U
 }
 
-/*
 class Test extends Module with TestConfig {
   val io = IO(new Bundle{
-    val in  = Input(Vec(queue_len, Bool()))
-    val out = Output(Vec(alu_path_num, UInt(32.W)))
-    //val out = Output(Vec(issue_num, new ISIn()))
+    val in  = Input(Vec(QUEUE_LEN, Bool()))
+    val out = Output(Vec(ALU_PATH_NUM, UInt(32.W)))
+    //val out = Output(Vec(ISSUE_NUM, new ISIn()))
     //val cnt = Output(UInt(32.W))
   })
 
   val queue = Reg(Vec(5, new ISIn))
-  val head = RegInit(0.U(queue_len_w.W))
-  val tail = RegInit(0.U(queue_len_w.W))
+  val head = RegInit(0.U(QUEUE_LEN_w.W))
+  val tail = RegInit(0.U(QUEUE_LEN_w.W))
 
   for (i <- 0 until 5) {
     queue(i).pc := queue(i).pc + 1.U(32.W)
     queue(i).inst := queue(i).inst + 1.U(32.W)
   }
-  head := head + 1.U(queue_len_w.W)
+  head := head + 1.U(QUEUE_LEN_w.W)
 
-  for (i <- 0 until issue_num) {
-    when (head + i.U(queue_len_w.W) < queue_size.U(queue_len_w.W)) {
-      io.out(i) := queue(i.U(queue_len_w.W) + head)
+  for (i <- 0 until ISSUE_NUM) {
+    when (head + i.U(QUEUE_LEN_w.W) < queue_size.U(QUEUE_LEN_w.W)) {
+      io.out(i) := queue(i.U(QUEUE_LEN_w.W) + head)
     }
     .otherwise {
-      io.out(i) := queue(head + (16 + i - queue_size).U(queue_len_w.W))
+      io.out(i) := queue(head + (16 + i - queue_size).U(QUEUE_LEN_w.W))
     }
   }
 
   // This queue simulates the instructions to be issued
-  val queue = Wire(Vec(queue_len, UInt(32.W)))
+  val queue = Wire(Vec(QUEUE_LEN, UInt(32.W)))
   // The path declares the set of FUs (ALU, MDU, LSU) it requires
   // In this simulation we may suppose there are only 2 type of FUs
   // And we only issue instructions with Type #1
-  val path = Wire(Vec(queue_len, Bool()))
-  for (i <- 0 until queue_len) {
+  val path = Wire(Vec(QUEUE_LEN, Bool()))
+  for (i <- 0 until QUEUE_LEN) {
     queue(i) := (i + 100).U(32.W)
     path(i) := ~(i & 1).B
   }
 
-  val id = Wire(Vec(alu_path_num, UInt(4.W)))
+  val id = Wire(Vec(ALU_PATH_NUM, UInt(4.W)))
   // for each path
-  for (j <- 0 until alu_path_num) {
-    id(j) := queue_len.U(4.W)
+  for (j <- 0 until ALU_PATH_NUM) {
+    id(j) := QUEUE_LEN.U(4.W)
 
     // For each instruciton in the queue
     // pre-decide whether it is available
-    val available      = Wire(Vec(queue_len, Bool()))
-    val available_pass = Wire(Vec(queue_len, Bool()))
-    for (i <- 0 until queue_len) {
+    val available      = Wire(Vec(QUEUE_LEN, Bool()))
+    val available_pass = Wire(Vec(QUEUE_LEN, Bool()))
+    for (i <- 0 until QUEUE_LEN) {
       if (j != 0)
         // It must have the correct type
         // And it's id must be greater than the last issued instruction with the same type
@@ -89,17 +104,17 @@ class Test extends Module with TestConfig {
     }
 
     available_pass(0) := false.B
-    for (i <- 1 until queue_len)
+    for (i <- 1 until QUEUE_LEN)
       available_pass(i) := available_pass(i-1) | available(i-1)
 
     // find the FIRST fitting instruction (which hasn't been issued yet)
-    for (i <- 0 until queue_len) {
+    for (i <- 0 until QUEUE_LEN) {
       when (available(i) & ~available_pass(i)) {
         id(j) := i.U(4.W)
       }
     }
 
-    when (id(j) < queue_len.U(4.W)) {
+    when (id(j) < QUEUE_LEN.U(4.W)) {
       io.out(j) := queue(id(j))
     }
     .otherwise {

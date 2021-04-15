@@ -2,12 +2,12 @@ package xinyi_s5i4_bc.fu
 
 import chisel3._
 import chisel3.util._
-import wrap._
+import config.config._
 import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.parts.ControlConst._
 
-class BJU extends Module with XinYiConfig {
+class BJU extends Module  {
   val io = IO(new Bundle {
     val path = new BJUPathInterface
     val delay_slot_pending = Input(Bool())
@@ -19,7 +19,7 @@ class BJU extends Module with XinYiConfig {
   val branch = Wire(Bool())
   branch := io.path.in.inst.dec.next_pc =/= PC4 & 
     MuxLookup(
-      io.path.inst.dec.branch_type,
+      io.path.in.inst.dec.branch_type,
         true.B,
       Array(
         BrEQ -> (io.path.data.rs1 === io.path.data.rs2),
@@ -31,15 +31,15 @@ class BJU extends Module with XinYiConfig {
       )
     )
 
-  val target = Wire(UInt(lgc_addr_w.W))
+  val target = Wire(UInt(LGC_ADDR_W.W))
   target := MuxLookup(
-    io.path.inst.dec.next_pc,
-      0.U(lgc_addr_w.W),
+    io.path.in.inst.dec.next_pc,
+      0.U(LGC_ADDR_W.W),
     Array(
       // Note that syscall, trap, and all other exceptions will not be handled here
       // They will be triggered and managed in FU
-      Branch  -> ((io.path.inst.pc + 4.U(lgc_addr_w.W)).asSInt() + Cat(io.path.inst.inst(15, 0), 0.U(2.W)).asSInt()).asUInt(),
-      Jump    -> Cat(io.path.inst.pc(31, 28), io.path.inst.inst(25, 0), 0.U(2.W))
+      Branch  -> ((io.path.in.inst.pc + 4.U(LGC_ADDR_W.W)).asSInt() + Cat(io.path.in.inst.inst(15, 0), 0.U(2.W)).asSInt()).asUInt(),
+      Jump    -> Cat(io.path.in.inst.pc(31, 28), io.path.in.inst.inst(25, 0), 0.U(2.W))
     )
   )
 
