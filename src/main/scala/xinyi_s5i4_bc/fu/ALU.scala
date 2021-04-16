@@ -21,8 +21,8 @@ import config.config._
  */
 
 trait ALUConfig {
-    final val ALUXXX = 0.U(5.W)
-    final val ALU_CTRL_WIDTH = ALUXXX.getWidth // width of ALU control signal
+    final val ALU_XXX = 0.U(5.W)
+    final val ALU_CTRL_WIDTH = ALU_XXX.getWidth // width of ALU control signal
 
     final val ALU_ADD = 0.U(ALU_CTRL_WIDTH.W)
     final val ALU_ADDU = 1.U(ALU_CTRL_WIDTH.W)

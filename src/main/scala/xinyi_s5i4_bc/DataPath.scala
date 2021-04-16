@@ -12,7 +12,7 @@ class DataPath extends Module {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
     val icache_axi  = new ICacheAXI
-    val debug_out   = Vec(2, new IDOut)
+//    val debug_out   = Vec(2, new IDOut)
   })
 
   val pc_if_reg     = Module(new PCIFReg)
