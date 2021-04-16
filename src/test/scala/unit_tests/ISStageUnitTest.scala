@@ -138,10 +138,10 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
         device.io.paths(i).out.ready.  poke(true.B)
       }
 
-      device.io.forwarding_path(0).is1.expect(1.U)
-      device.io.forwarding_path(0).is2.expect(1.U)
-      device.io.forwarding_path(1).is1.expect(0.U)
-      device.io.forwarding_path(1).is2.expect(0.U)
+      device.io.forwarding_path(0).rs1.expect(1.U)
+      device.io.forwarding_path(0).rs2.expect(1.U)
+      device.io.forwarding_path(1).rs1.expect(0.U)
+      device.io.forwarding_path(1).rs2.expect(0.U)
 
       device.io.paths(0).in.inst.expect(a)
       device.io.paths(1).in.inst.expect(b)

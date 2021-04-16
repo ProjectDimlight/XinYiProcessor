@@ -23,7 +23,7 @@ class ALU extends Module {
     val io = IO(new Bundle {
         val in_a = Input(UInt(XLEN.W))
         val in_b = Input(UInt(XLEN.W))
-        val in_ctrl = Input(UInt(alu_op_w.W))
+        val in_ctrl = Input(UInt(ALU_OP_W.W))
 
         val out_res = Output(UInt(XLEN.W))
         val err_overflow = Output(Bool())

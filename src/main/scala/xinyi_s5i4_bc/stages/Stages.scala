@@ -9,7 +9,7 @@ import ControlConst._
 import config.config._
 
 class PCInterface extends Bundle {
-  val enable = Input(UInt(LGC_ADDR_W.W))
+  val enable = Input(Bool())
   val target = Input(UInt(LGC_ADDR_W.W))
 }
 
@@ -21,8 +21,13 @@ class PCStage extends Module {
     val next_pc   = Output(UInt(LGC_ADDR_W.W))
   })
 
-  //when (exception)
-  io.next_pc := io.pc + 4.U(LGC_ADDR_W.W)
+  io.next_pc := MuxCase(
+    (io.pc & 0xFFFFFFFC.U) + 4.U(LGC_ADDR_W.W),
+    Array(
+      io.exception.enable -> io.exception.target,
+      io.branch.enable    -> io.branch.target
+    )
+  )
 }
 
 class IFIn extends Bundle {
@@ -82,8 +87,10 @@ class PathIn extends Bundle {
 }
 
 class PathOut extends Bundle {
-  val wt          = Output(UInt(write_target_w.W))
+  val wt          = Output(UInt(WRITE_TARGET_W.W))
   val rd          = Output(UInt(REG_ID_W.W))
+  val data        = Output(UInt(DATA_W.W))
+  val hi          = Output(UInt(DATA_W.W))
   val ready       = Output(Bool())
 }
 
@@ -97,8 +104,11 @@ class PathInterface extends Bundle {
   val out  = new PathOut
 }
 
-class PathInterfaceWithData extends PathInterface {
+class ISInterface extends PathInterface {
   val data = new PathData
+}
+
+class WBInterface extends PathInterface {
 }
 
 class BJUPathInterface extends Bundle {
@@ -107,8 +117,8 @@ class BJUPathInterface extends Bundle {
 }
 
 class ForwardingPath extends Bundle {
-  val is1  = UInt(TOT_PATH_NUM_W.W)
-  val is2  = UInt(TOT_PATH_NUM_W.W)
+  val rs1  = UInt(TOT_PATH_NUM_W.W)
+  val rs2  = UInt(TOT_PATH_NUM_W.W)
 }
 
 // Issue Stage
@@ -145,17 +155,22 @@ class ISStage extends Module {
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
   def RAWPath(i: Int, j: Int) {
-    when (io.paths(j).out.rd === inst(i).dec.rs1) {
+    when ((io.paths(j).out.wt   === 5.U & inst(i).dec.param_a === BitPat("b01?") |  // HiLo
+           io.paths(j).out.wt   === inst(i).dec.param_a) &  // Same source
+           io.paths(j).out.rd   === inst(i).dec.rs1 &       // Same ID
+          (inst(i).dec.param_a  =/= 0.U | inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
       when (io.paths(j).out.ready) {
-        io.forwarding_path(i).is1 := j.U
+        io.forwarding_path(i).rs1 := j.U
       }
       .otherwise {
         raw(i) := true.B
       }
     }
-    when (io.paths(j).out.rd === inst(i).dec.rs1) {
+    when ( io.paths(j).out.wt   === 0.U &   // rs2 ONLY comes from regs
+           io.paths(j).out.rd   === inst(i).dec.rs2 &
+           inst(i).dec.rs2      =/= 0.U) {  // Not Reg 0
       when (io.paths(j).out.ready) {
-        io.forwarding_path(i).is2 := j.U
+        io.forwarding_path(i).rs2 := j.U
       }
       .otherwise {
         raw(i) := true.B
@@ -181,8 +196,8 @@ class ISStage extends Module {
 
     // RAW Data hazard
     // From path (issued)
-    io.forwarding_path(i).is1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
-    io.forwarding_path(i).is2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    io.forwarding_path(i).rs1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    io.forwarding_path(i).rs2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
     raw(i) := false.B
     for (j <- 0 until TOT_PATH_NUM) {
       RAWPath(i, j)
@@ -248,3 +263,4 @@ class ISStage extends Module {
     }
   }
 }
+

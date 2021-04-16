@@ -3,17 +3,34 @@ package xinyi_s5i4_bc.caches
 import chisel3._
 import config.config._
 
-class DummyCache(val addr_w: Int, val cache_w: Int) extends Module {
+class ICacheAXI extends Bundle {
+  val addr_in     = Output(UInt(PHY_ADDR_W.W))
+  val en          = Output(Bool())
+  val addr_out    = Input(UInt(PHY_ADDR_W.W))
+  val data        = Input(UInt(DATA_W.W))
+  val stall       = Input(Bool())
+  val valid       = Input(Bool())
+}
+
+class DummyICache extends Module {
   val io = IO(new Bundle{
-    val upper = new RAMInterface(addr_w, cache_w)
-    val lower = Flipped(new RAMInterface(addr_w, cache_w))
+    val upper = new RAMInterface(LGC_ADDR_W, L1_W)
+    val lower = new ICacheAXI
+  
+    val stall     = Input(Bool())
+    val stall_req = Output(Bool())
   })
 
-  // TODO: Debug
-  // This is to prevent Chisel from
-  // optimizing the entire decoder
-  // Remove this when Cache is ready
-  io.lower.addr  := io.upper.addr
-  io.lower.din   := 0.U(cache_w.W)
-  io.upper.dout := io.lower.dout
+  io.lower.addr_in  := io.upper.addr
+  io.lower.en       := !io.stall
+  
+  when (io.lower.valid & !io.lower.stall)
+  {
+    io.upper.dout   := io.lower.data
+    io.stall_req    := false.B
+  }
+  .otherwise {
+    io.upper.dout   := 0.U
+    io.stall_req    := true.B
+  }
 }
