@@ -6,7 +6,6 @@ import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
 
-/*
 class DataPath extends Module  {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
@@ -87,4 +86,3 @@ class DataPath extends Module  {
 
   // TODO: add FUs
 }
-*/

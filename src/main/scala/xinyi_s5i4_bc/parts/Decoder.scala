@@ -86,27 +86,6 @@ object ControlConst {
   val PathBJU       = BJU_PATH_ID.U(2.W)
   val PathLSU       = LSU_PATH_ID.U(2.W)
   
-  val ALUXXX        = 0.U(4.W)
-  val ALUADD        = 0.U(4.W)
-  val ALUADDU       = 1.U(4.W)
-  val ALUSUB        = 2.U(4.W)
-  val ALUSLT        = 3.U(4.W)
-  val ALUSLTU       = 4.U(4.W)
-  val ALUAND        = 5.U(4.W)
-  val ALULUI        = 6.U(4.W)
-  val ALUNOR        = 7.U(4.W)
-  val ALUOR         = 8.U(4.W)
-  val ALUXOR        = 9.U(4.W)
-  val ALUSLL        = 10.U(4.W)
-  val ALUSRA        = 11.U(4.W)
-  val ALUSRL        = 12.U(4.W)
-  val ALUPC         = 15.U(4.W)
-  val alu_op_w      = ALUXXX.getWidth
-
-  val MDUDIV        = 0.U(5.W)
-  val MDUDIVU       = 1.U(5.W)
-  val MDUMUL        = 2.U(5.W)
-  val MDUMULU       = 3.U(5.W)
 }
 
 class ControlSet extends Bundle  {

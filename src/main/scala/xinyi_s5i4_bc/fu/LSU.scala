@@ -10,15 +10,19 @@ import config.config._
  * @param XLEN width of data
  * @param lsu_ctrl_bits
  */
-class LSU(addr_bits: Int, lsu_ctrl_bits: Int) extends Module {
-    val io = IO(new Bundle {
-        val in_data = Input(UInt(XLEN.W))
-        val in_addr = Input(UInt(addr_bits.W))
-        val in_ctrl = Input(UInt(lsu_ctrl_bits.W))
-        val out_data = Output(UInt(XLEN.W))
-        val out_addr = Output(UInt(addr_bits.W))
-        val ready = Output(Bool())
-    })
+
+class LSUIO extends Bundle {
+    val in_data = Input(UInt(XLEN.W))
+    val in_addr = Input(UInt(XLEN.W))
+    val in_ctrl = Input(UInt(XLEN.W))
+    val out_data = Output(UInt(XLEN.W))
+    val out_addr = Output(UInt(XLEN.W))
+    val ready = Output(Bool())
+}
+
+
+class LSU extends Module {
+    val io = IO(new LSUIO)
 
     // TODO LSU by ziyue
 }

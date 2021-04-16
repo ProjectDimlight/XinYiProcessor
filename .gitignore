@@ -3,6 +3,8 @@ src/main/scala/Driver.scala
 output/
 verilog/
 test_run_dir/*
+null/
+
 ### XilinxISE template
 # intermediate build files
 *.bgn
