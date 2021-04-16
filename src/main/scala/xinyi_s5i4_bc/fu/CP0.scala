@@ -6,6 +6,16 @@ import config.config._
 import xinyi_s5i4_bc.parts.ControlConst._
 import chisel3.experimental.BundleLiterals._
 
+object ExcCode {
+    final val EX_Int    = 0x0
+    final val EX_AdEL   = 0x4
+    final val EX_AdES   = 0x5
+    final val EX_OV     = 0xC
+    final val EX_Sys    = 0x8
+    final val EX_Bp     = 0x9
+    final val EX_RI     = 0xa
+}
+
 trait CP0Config {
     //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     // CP0 Register Configurations

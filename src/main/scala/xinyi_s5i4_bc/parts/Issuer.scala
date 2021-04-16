@@ -7,7 +7,7 @@ import xinyi_s5i4_bc.stages._
 import ControlConst._
 import config.config._
 
-class Issuer(path_id: Int, path_num: Int) extends Module  {
+class Issuer(path_type: Int, path_num: Int) extends Module {
   val io = IO(new Bundle{
     val inst      = Input(Vec(ISSUE_NUM, new Instruction))
     val target    = Input(Vec(ISSUE_NUM, UInt(PATH_W.W)))
@@ -47,10 +47,10 @@ class Issuer(path_id: Int, path_num: Int) extends Module  {
           // It must have the correct type
           // And it's id must be greater than the last issued instruction with the same type
           // That is, it must havn not yet been issued
-          available(i)      := (io.target(i) === path_id.U) & !issued(j-1)(i)
+          available(i)      := (io.target(i) === path_type.U) & !issued(j-1)(i)
         }
         else
-          available(i)      := (io.target(i) === path_id.U)
+          available(i)      := (io.target(i) === path_type.U)
       }
 
       available_pass(0) := true.B
@@ -75,21 +75,22 @@ class Issuer(path_id: Int, path_num: Int) extends Module  {
 
 object Issuer {
   def apply(
-    path_id  : Int,
-    path_num : Int,
-    inst     : Vec[Instruction],
-    target   : Vec[UInt],
-    issue    : Vec[Bool],
-    path     : Vec[PathInterface]
+    path_type : Int,
+    path_base : Int,
+    path_num  : Int,
+    inst      : Vec[Instruction],
+    target    : Vec[UInt],
+    issue     : Vec[Bool],
+    path      : Vec[PathInterface]
   ) = {
-    val issuer = Module(new Issuer(path_id, path_num))
+    val issuer = Module(new Issuer(path_type, path_num))
     issuer.io.inst   <> inst
     issuer.io.target <> target
     issuer.io.issue  <> issue
     for (i <- 0 until path_num) {
-      issuer.io.ready(i)  <> path(i).out.ready
-      issuer.io.path(i)   <> path(i).in.inst
-      issuer.io.id(i)     <> path(i).in.id
+      issuer.io.ready(i)  <> path(i + path_base).out.ready
+      issuer.io.path(i)   <> path(i + path_base).in.inst
+      issuer.io.id(i)     <> path(i + path_base).in.id
     }
   }
 }

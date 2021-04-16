@@ -6,25 +6,39 @@ import xinyi_s5i4_bc.parts._
 import ControlConst._
 import config.config._
 
-class PCIFReg extends Module  {
+class PCIFReg extends Module {
   val io = IO(new Bundle{
     val pc_out    = Input(UInt(LGC_ADDR_W.W))
     val if_in     = Flipped(new IFIn)
+
+    val stall     = Input(Bool())
   })
 
   val pc = RegInit(BOOT_ADDR.U(LGC_ADDR_W.W))
-  pc := io.pc_out
+
+  when (!io.stall) {
+    pc := io.pc_out
+  }
   
   io.if_in.pc := pc
 }
 
-class IFIDReg extends Module  {
+class IFIDReg extends Module {
   val io = IO(new Bundle{
-    val if_out = Flipped(new IFOut)
-    val id_in = Flipped(Vec(FETCH_NUM, new IDIn))
+    val if_out  = Flipped(new IFOut)
+    val id_in   = Flipped(Vec(FETCH_NUM, new IDIn))
+
+    val stall   = Input(Bool())
   })
 
-  val reg = RegNext(io.if_out)
+  var init = Wire(new IFOut)
+  init.pc   := BOOT_ADDR.U(LGC_ADDR_W.W)
+  init.inst := 0.U(DATA_W.W)
+
+  val reg = RegInit(init)
+  when (!io.stall) {
+    reg := io.if_out
+  }
 
   for (i <- 0 until FETCH_NUM) {
     io.id_in(i).pc := reg.pc + (i * 4).U(DATA_W.W)
@@ -33,7 +47,7 @@ class IFIDReg extends Module  {
 }
 
 // Issue Queue
-class IssueQueue extends Module  {
+class IssueQueue extends Module {
   val io = IO(new Bundle{
     val in                = Input(Vec(FETCH_NUM, Flipped(new Instruction)))
     val bc                = Flipped(new BranchCacheOut)
@@ -41,6 +55,8 @@ class IssueQueue extends Module  {
     val full              = Output(Bool())
     val issue_cnt         = Output(UInt(ISSUE_NUM_W.W))
     val inst              = Output(Vec(ISSUE_NUM, new Instruction))
+
+    val stall             = Input(Bool())
   })
 
   def Step(base: UInt, offset: UInt) = {
@@ -72,7 +88,7 @@ class IssueQueue extends Module  {
   )
 
   // Input
-  when (size < (QUEUE_LEN - FETCH_NUM).U +& io.actual_issue_cnt) {
+  when (!io.stall & (size < (QUEUE_LEN - FETCH_NUM).U +& io.actual_issue_cnt)) {
     for (i <- 0 until FETCH_NUM) {
       when (tail_b + i.U(QUEUE_LEN_w.W) < QUEUE_LEN.U(QUEUE_LEN_w.W)) {
         queue(tail_b + i.U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
@@ -86,6 +102,7 @@ class IssueQueue extends Module  {
     io.full := false.B
   }
   .otherwise {
+    tail := tail_b
     io.full := true.B
   }
 
@@ -121,4 +138,20 @@ class IssueQueue extends Module  {
   
   head_n := Step(head, io.actual_issue_cnt)
   head   := head_n
+}
+
+class ISFUReg extends Module {
+  val io = IO(new Bundle{
+    val is_out = Vec(TOT_PATH_NUM, new ISInterface)
+    val fu_in  = Flipped(Vec(TOT_PATH_NUM, new ISInterface))
+  })
+  
+  for (j <- 0 until TOT_PATH_NUM) {
+    val reg_in   = RegNext(io.is_out(j).in)
+    val reg_data = RegNext(io.is_out(j).data)
+
+    io.fu_in(j).in    := reg_in
+    io.fu_in(j).data  := reg_data
+    io.is_out(j).out  := io.fu_in(j).out
+  }
 }

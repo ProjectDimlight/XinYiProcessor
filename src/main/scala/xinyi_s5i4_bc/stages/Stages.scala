@@ -8,12 +8,12 @@ import xinyi_s5i4_bc.caches._
 import ControlConst._
 import config.config._
 
-class PCInterface extends Bundle  {
-  val enable = Input(UInt(LGC_ADDR_W.W))
+class PCInterface extends Bundle {
+  val enable = Input(Bool())
   val target = Input(UInt(LGC_ADDR_W.W))
 }
 
-class PCStage extends Module  {
+class PCStage extends Module {
   val io = IO(new Bundle{
     val pc        = Input(UInt(LGC_ADDR_W.W))
     val branch    = new PCInterface
@@ -21,22 +21,27 @@ class PCStage extends Module  {
     val next_pc   = Output(UInt(LGC_ADDR_W.W))
   })
 
-  //when (exception)
-  io.next_pc := io.pc + 4.U(LGC_ADDR_W.W)
+  io.next_pc := MuxCase(
+    (io.pc & 0xFFFFFFFC.U) + 4.U(LGC_ADDR_W.W),
+    Array(
+      io.exception.enable -> io.exception.target,
+      io.branch.enable    -> io.branch.target
+    )
+  )
 }
 
-class IFIn extends Bundle  {
+class IFIn extends Bundle {
   val pc = Input(UInt(LGC_ADDR_W.W))
 }
 
-class IFOut extends Bundle  {
+class IFOut extends Bundle {
   val pc   = Output(UInt(LGC_ADDR_W.W))
   val inst = Output(UInt(L1_W.W))
 }
 
 // Load load_num instructions at a time
 // Branch Cache
-class IFStage extends Module  {
+class IFStage extends Module {
   val io = IO(new Bundle{
     val in    = new IFIn
     val cache = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
@@ -54,14 +59,14 @@ class IFStage extends Module  {
   io.out.inst := io.cache.dout
 }
 
-class IDIn extends Bundle  {
+class IDIn extends Bundle {
   val pc   = Input(UInt(LGC_ADDR_W.W))
   val inst = Input(UInt(DATA_W.W))
 }
 
 // Decode 1 instruction
 // Generate multiple instances to support multi-issuing
-class IDStage extends Module  {
+class IDStage extends Module {
   val io = IO(new Bundle{
     val in    = Vec(FETCH_NUM, new IDIn)
     val out   = Output(Vec(FETCH_NUM, new Instruction))
@@ -76,125 +81,145 @@ class IDStage extends Module  {
   }
 }
 
-class PathIn extends Bundle  {
+class PathIn extends Bundle {
   val inst        = Input(new Instruction)
   val id          = Input(UInt(ISSUE_NUM_W.W))
 }
 
-class PathOut extends Bundle  {
-  val wt          = Output(UInt(write_target_w.W))
+class PathOut extends Bundle {
+  val wt          = Output(UInt(WRITE_TARGET_W.W))
   val rd          = Output(UInt(REG_ID_W.W))
+  val data        = Output(UInt(DATA_W.W))
+  val hi          = Output(UInt(DATA_W.W))
   val ready       = Output(Bool())
 }
 
-class PathData extends Bundle  {
+class PathData extends Bundle {
   val rs1         = Input(UInt(DATA_W.W))
   val rs2         = Input(UInt(DATA_W.W))
 }
 
-class PathInterface extends Bundle  {
+class PathInterface extends Bundle {
   val in   = new PathIn
   val out  = new PathOut
 }
 
-class PathInterfaceWithData extends PathInterface {
+class ISInterface extends PathInterface {
   val data = new PathData
 }
 
-class BJUPathInterface extends Bundle  {
+class WBInterface extends PathInterface {
+}
+
+class BJUPathInterface extends Bundle {
   val in   = new PathIn
   val data = new PathData
 }
 
+class ForwardingPath extends Bundle {
+  val rs1  = UInt(TOT_PATH_NUM_W.W)
+  val rs2  = UInt(TOT_PATH_NUM_W.W)
+}
+
 // Issue Stage
-class ISStage extends Module  {
+class ISStage extends Module {
   val io = IO(new Bundle{
     val issue_cnt = Input(UInt(QUEUE_LEN_w.W))
     val inst      = Input(Vec(ISSUE_NUM, new Instruction))
 
-    val alu_paths = Flipped(Vec(ALU_PATH_NUM, new PathInterface))
-    val bju_paths = Flipped(Vec(BJU_PATH_NUM, new PathInterface))   // bju path num = 0
-    val lsu_paths = Flipped(Vec(LSU_PATH_NUM, new PathInterface))
-    val actual_issue_cnt = Output(UInt(ISSUE_NUM_W.W))
+    // To Param Fetcher 
+    val forwarding_path     = Output(Vec(ISSUE_NUM, new ForwardingPath))
+
+    // To common FUs
+    val paths               = Flipped(Vec(TOT_PATH_NUM, new PathInterface))
+    val actual_issue_cnt    = Output(UInt(ISSUE_NUM_W.W))
 
     // To BJU
-    val branch_jump_id = Output(UInt(ALU_PATH_NUM_W.W))
-    val delay_slot_pending = Output(Bool())
+    val branch_jump_id      = Output(UInt(ALU_PATH_NUM_W.W))
+    val delay_slot_pending  = Output(Bool())
   })
 
   // Hazard Detect Logic  
-
-  val inst = Wire(Vec(ISSUE_NUM, new Instruction))
   val filtered_inst = Wire(Vec(ISSUE_NUM, new Instruction))
+  val inst = Wire(Vec(ISSUE_NUM, new Instruction))
   inst := io.inst
 
   // For each instruction, decide which path it should go
   val target = Wire(Vec(ISSUE_NUM, UInt(PATH_W.W)))
 
-  val issued_by_alu = Wire(Vec(ISSUE_NUM, Bool()))
-  val issued_by_bju = Wire(Vec(ISSUE_NUM, Bool()))
-  val issued_by_lsu = Wire(Vec(ISSUE_NUM, Bool()))
-  val issued        = Wire(Vec(ISSUE_NUM, Bool()))
-  val no_raw        = Wire(Vec(ISSUE_NUM, Bool()))
+  val issued            = Wire(Vec(PATH_TYPE_NUM, Vec(ISSUE_NUM, Bool())))
+  val raw               = Wire(Vec(ISSUE_NUM, Bool()))
+  val structural_hazard = Wire(Bool())
 
   // Begin
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
-  def RAWPath(i: Instruction, j: PathInterface) = {
-    !j.out.ready & (j.out.rd === i.dec.rs1 | j.out.rd === i.dec.rs2)
+  def RAWPath(i: Int, j: Int) {
+    when ((io.paths(j).out.wt   === 5.U & inst(i).dec.param_a === BitPat("b01?") |  // HiLo
+           io.paths(j).out.wt   === inst(i).dec.param_a) &  // Same source
+           io.paths(j).out.rd   === inst(i).dec.rs1 &       // Same ID
+          (inst(i).dec.param_a  =/= 0.U | inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
+      when (io.paths(j).out.ready) {
+        io.forwarding_path(i).rs1 := j.U
+      }
+      .otherwise {
+        raw(i) := true.B
+      }
+    }
+    when ( io.paths(j).out.wt   === 0.U &   // rs2 ONLY comes from regs
+           io.paths(j).out.rd   === inst(i).dec.rs2 &
+           inst(i).dec.rs2      =/= 0.U) {  // Not Reg 0
+      when (io.paths(j).out.ready) {
+        io.forwarding_path(i).rs2 := j.U
+      }
+      .otherwise {
+        raw(i) := true.B
+      }
+    }
   }
 
-  def RAWInst(i: Instruction, k: Instruction) = {
-    (k.dec.rd === i.dec.rs1 | k.dec.rd === i.dec.rs2)
+  def RAWInst(i: Int, k: Int) {
+    when (inst(k).dec.rd === inst(i).dec.rs1 | inst(k).dec.rd === inst(i).dec.rs2) {
+      raw(i) := true.B
+    }
   }
+
+  structural_hazard := false.B
+  for (j <- 0 until TOT_PATH_NUM)
+    when (!io.paths(j).out.ready) {
+      structural_hazard := true.B
+    }
 
   // i is the id of the currect instruction to be detected
   for (i <- 0 until ISSUE_NUM) {
     // Detect hazards
 
     // RAW Data hazard
-
     // From path (issued)
-    no_raw(i) := true.B
-    for (j <- 0 until ALU_PATH_NUM) {
-      when (RAWPath(inst(i), io.alu_paths(j))) {
-        no_raw(i) := false.B
-      }
+    io.forwarding_path(i).rs1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    io.forwarding_path(i).rs2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    raw(i) := false.B
+    for (j <- 0 until TOT_PATH_NUM) {
+      RAWPath(i, j)
     }
-    for (j <- 0 until BJU_PATH_NUM) {
-      when (RAWPath(inst(i), io.bju_paths(j))) {
-        no_raw(i) := false.B
-      }
-    }
-    for (j <- 0 until LSU_PATH_NUM) {
-      when (RAWPath(inst(i), io.lsu_paths(j))) {
-        no_raw(i) := false.B
-      }
-    }
-
     // From queue (going to issue)
     for (k <- 0 until i) {
-      when (RAWInst(inst(i), inst(k))) {
-        no_raw(i) := false.B
-      }
+      RAWInst(i, k)
     }
 
+    // Structural hazard
     // Target filter
     target(i) := Mux(
-      (!no_raw(i) | (i.U >= io.issue_cnt)),
+      (raw(i) | structural_hazard | (i.U >= io.issue_cnt)),
       0.U,
       inst(i).dec.path
     )
 
-    // Structural hazard
-    issued(i) := issued_by_alu(i) | issued_by_bju(i) | issued_by_lsu(i)
-
-    // If an instruction cannot be issued
-    // Mark its ID
-    // Every following instruction (with a greater ID) will be replaced by an NOP Bubble
-    when (issued(i) === false.B) {
-      io.actual_issue_cnt := i.U(ISSUE_NUM_W.W)
-    }
+    issued(0)(i) := false.B
+    for (path_type <- 1 until PATH_TYPE_NUM)
+      when (issued(path_type)(i)) {
+        issued(0)(i) := true.B
+      }
 
     // Ordered issuing
     // If an instruction fails to issue
@@ -203,7 +228,16 @@ class ISStage extends Module  {
       filtered_inst(i) := NOPBubble()
     }
     .otherwise {
-      filtered_inst(i) := inst(i)
+      filtered_inst(i) := io.inst(i)
+    }
+  }
+
+  for (i <- ISSUE_NUM - 1 to 0 by -1) {
+    // If an instruction cannot be issued
+    // Mark its ID
+    // Every following instruction (with a greater ID) will be replaced by an NOP Bubble
+    when (issued(0)(i) === false.B) {
+      io.actual_issue_cnt := i.U(ISSUE_NUM_W.W)
     }
   }
 
@@ -213,17 +247,20 @@ class ISStage extends Module  {
 
   // Put instructions into paths
   // Parameterized issuing
-  Issuer(ALU_PATH_ID, ALU_PATH_NUM, filtered_inst, target, issued_by_alu, io.alu_paths)
-  Issuer(BJU_PATH_ID, BJU_PATH_NUM, filtered_inst, target, issued_by_bju, io.bju_paths)
-  Issuer(LSU_PATH_ID, LSU_PATH_NUM, filtered_inst, target, issued_by_lsu, io.lsu_paths)
+  var base = 0
+  for (path_type <- 1 until PATH_TYPE_NUM) {
+    Issuer(path_type, base, PATH_NUM(path_type), filtered_inst, target, issued(path_type), io.paths)
+    base += PATH_NUM(path_type)
+  }
   
-  io.branch_jump_id := ALU_PATH_NUM.U(ALU_PATH_NUM_W.W)
+  io.branch_jump_id := ALU_PATH_NUM.U(TOT_PATH_NUM_W.W)
   io.delay_slot_pending := false.B
   for (j <- 0 until ALU_PATH_NUM) {
     // Branch
-    when (io.alu_paths(j).in.inst.dec.next_pc =/= PC4) {
+    when (io.paths(j).in.inst.dec.next_pc =/= PC4) {
       io.branch_jump_id := j.U(ALU_PATH_NUM_W.W)
-      io.delay_slot_pending := (io.alu_paths(j).in.id + 1.U) === io.actual_issue_cnt
+      io.delay_slot_pending := (io.paths(j).in.id + 1.U) === io.actual_issue_cnt
     }
   }
 }
+

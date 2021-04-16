@@ -3,24 +3,24 @@ package xinyi_s5i4_bc.parts
 import chisel3._
 import config.config._
 
-class BranchCacheRecord extends Bundle  {
+class BranchCacheRecord extends Bundle {
   
 }
 
-class BranchCacheIn extends Bundle  {
+class BranchCacheIn extends Bundle {
   val branch = Input(Bool())
   val delay_slot_pending = Input(Bool())
   val target = Input(UInt(LGC_ADDR_W.W))
 }
 
-class BranchCacheOut extends Bundle  {
+class BranchCacheOut extends Bundle {
   val inst = Output(Vec(FETCH_NUM, new Instruction))
   val overwrite = Output(new Bool)
   val flush = Output(new Bool)
   val keep_delay_slot = Output(new Bool)
 }
 
-class BranchCache extends Module  {
+class BranchCache extends Module {
   val io = IO(new Bundle{
     val in  = new BranchCacheIn
     val out = new BranchCacheOut

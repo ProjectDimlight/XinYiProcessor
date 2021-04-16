@@ -9,7 +9,7 @@ import ControlConst._
 import ISAPatterns._
 import config.config._
 
-class Instruction extends Bundle  {
+class Instruction extends Bundle {
   val pc = UInt(LGC_ADDR_W.W)
   val inst = UInt(DATA_W.W)
   val dec = new ControlSet
@@ -32,7 +32,7 @@ object ControlConst {
   val JRType        = 9.U(4.W)
   val SType         = 10.U(4.W)   // Supervisor
   val Illegal       = 15.U(4.W)
-  val inst_type_w   = InstXXX.getWidth
+  val INST_TYPE_W   = InstXXX.getWidth
 
   val PC4           = 0.U(3.W)
   val PCReg         = 1.U(3.W)
@@ -40,7 +40,7 @@ object ControlConst {
   val Jump          = 3.U(3.W)
   val Trap          = 4.U(3.W)
   val Ret           = 5.U(3.W)
-  val next_pc_w     = PC4.getWidth
+  val NEXT_PC_W     = PC4.getWidth
 
   val BrXXX         = 0.U(4.W)
   val BrEQ          = 1.U(4.W)
@@ -50,7 +50,7 @@ object ControlConst {
   val BrLE          = 5.U(4.W)
   val BrLT          = 6.U(4.W)
   val Except        = 9.U(4.W)
-  val branch_type_w = BrXXX.getWidth
+  val BRANCH_TYPE_W = BrXXX.getWidth
 
   val AXXX          = 0.U(3.W)
   val AReg          = 0.U(3.W)
@@ -58,20 +58,21 @@ object ControlConst {
   val AHi           = 2.U(3.W)
   val ALo           = 3.U(3.W)
   val AShamt        = 4.U(3.W)
-  val param_a_w     = AXXX.getWidth
+  val PARAM_A_W     = AXXX.getWidth
 
   val BXXX          = 0.U(1.W)
   val BReg          = 0.U(1.W)
   val BImm          = 1.U(1.W)
-  val param_b_w     = BXXX.getWidth
+  val PARAM_B_W     = BXXX.getWidth
 
   val DXXX          = 0.U(3.W)
-  val DMem          = 1.U(3.W)
-  val DReg          = 2.U(3.W)
-  val DCP0          = 3.U(3.W)
-  val DHi           = 4.U(3.W)
-  val DLo           = 5.U(3.W)
-  val write_target_w= DXXX.getWidth
+  val DReg          = 0.U(3.W)
+  val DCP0          = 1.U(3.W)
+  val DHi           = 2.U(3.W)
+  val DLo           = 3.U(3.W)
+  val DMem          = 4.U(3.W)
+  val DHiLo         = 5.U(3.W)
+  val WRITE_TARGET_W= DXXX.getWidth
 
   val MemXXX        = 0.U(3.W)
   val MemWord       = 1.U(3.W)
@@ -79,31 +80,31 @@ object ControlConst {
   val MemByteU      = 3.U(3.W)
   val MemHalf       = 4.U(3.W)
   val MemHalfU      = 5.U(3.W)
-  val mem_width_w   = MemXXX.getWidth
+  val MEM_WIDTH_W   = MemXXX.getWidth
 
-  val PathXXX       = N_A_PATH_ID.U(2.W)
-  val PathALU       = ALU_PATH_ID.U(2.W)
-  val PathBJU       = BJU_PATH_ID.U(2.W)
-  val PathLSU       = LSU_PATH_ID.U(2.W)
+  val PathXXX       = N_A_PATH_TYPE.U(2.W)
+  val PathALU       = ALU_PATH_TYPE.U(2.W)
+  val PathBJU       = BJU_PATH_TYPE.U(2.W)
+  val PathLSU       = LSU_PATH_TYPE.U(2.W)
   
 }
 
-class ControlSet extends Bundle  {
-  val inst_type     = UInt(inst_type_w.W)
-  val next_pc       = UInt(next_pc_w.W)
-  val branch_type   = UInt(branch_type_w.W)
-  val param_a       = UInt(param_a_w.W)
-  val param_b       = UInt(param_b_w.W)
-  val write_target  = UInt(write_target_w.W)
-  val alu_op        = UInt(alu_op_w.W)
-  val mem_width     = UInt(mem_width_w.W)
+class ControlSet extends Bundle {
+  val inst_type     = UInt(INST_TYPE_W.W)
+  val next_pc       = UInt(NEXT_PC_W.W)
+  val branch_type   = UInt(BRANCH_TYPE_W.W)
+  val param_a       = UInt(PARAM_A_W.W)
+  val param_b       = UInt(PARAM_B_W.W)
+  val write_target  = UInt(WRITE_TARGET_W.W)
+  val alu_op        = UInt(ALU_OP_W.W)
+  val mem_width     = UInt(MEM_WIDTH_W.W)
   val path          = UInt(PATH_W.W)
   val rs1           = UInt(REG_ID_W.W)
   val rs2           = UInt(REG_ID_W.W)
   val rd            = UInt(REG_ID_W.W)
 }
 
-class MIPSDecoder extends Module  {
+class MIPSDecoder extends Module {
   val io = IO(new Bundle{
     val inst = Input(UInt(DATA_W.W))
     val dec = Output(new ControlSet)
@@ -212,14 +213,14 @@ object NOPBubble {
     val item = Wire(new Instruction)
     item.pc               := 0.U(LGC_ADDR_W.W)
     item.inst             := 0.U(DATA_W.W)
-    item.dec.inst_type    := 0.U(inst_type_w.W)
-    item.dec.next_pc      := 0.U(next_pc_w.W)
-    item.dec.branch_type  := 0.U(branch_type_w.W)
-    item.dec.param_a      := 0.U(param_a_w.W)
-    item.dec.param_b      := 0.U(param_b_w.W)
-    item.dec.write_target := 0.U(write_target_w.W)
-    item.dec.alu_op       := 0.U(alu_op_w.W)
-    item.dec.mem_width    := 0.U(mem_width_w.W)
+    item.dec.inst_type    := 0.U(INST_TYPE_W.W)
+    item.dec.next_pc      := 0.U(NEXT_PC_W.W)
+    item.dec.branch_type  := 0.U(BRANCH_TYPE_W.W)
+    item.dec.param_a      := 0.U(PARAM_A_W.W)
+    item.dec.param_b      := 0.U(PARAM_B_W.W)
+    item.dec.write_target := 0.U(WRITE_TARGET_W.W)
+    item.dec.alu_op       := 0.U(ALU_OP_W.W)
+    item.dec.mem_width    := 0.U(MEM_WIDTH_W.W)
     item.dec.path         := 0.U(PATH_W.W)
     item.dec.rs1          := 0.U(REG_ID_W.W)
     item.dec.rs2          := 0.U(REG_ID_W.W)

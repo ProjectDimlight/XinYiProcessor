@@ -3,27 +3,21 @@ package xinyi_s5i4_bc.fu
 import chisel3._
 import chisel3.util._
 import config.config._
-
+import xinyi_s5i4_bc.stages._
 
 /**
  * @module LSU
  * @param XLEN width of data
  * @param lsu_ctrl_bits
  */
+class LSU(addr_bits: Int, lsu_ctrl_bits: Int) extends Module {
+  val io = IO(new Bundle {
+    val input   = new PathInterface 
+    val output  = Flipped(new WBInterface)
 
-class LSUIO extends Bundle {
-    val in_data = Input(UInt(XLEN.W))
-    val in_addr = Input(UInt(XLEN.W))
-    val in_ctrl = Input(UInt(XLEN.W))
-    val out_data = Output(UInt(XLEN.W))
-    val out_addr = Output(UInt(XLEN.W))
-    val ready = Output(Bool())
-}
+    val exception_id  = Input(UInt(ISSUE_NUM.W))
+    val exception     = Output(UInt(ISSUE_NUM.W))
+  })
 
-
-class LSU extends Module {
-    val io = IO(new LSUIO)
-
-    // TODO LSU by ziyue
 }
 

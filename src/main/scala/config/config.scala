@@ -29,17 +29,23 @@ object config {
   final val ISSUE_NUM       = 2
   final val ISSUE_NUM_W     = 3
   
-  final val N_A_PATH_ID     = 0
+  final val N_A_PATH_TYPE   = 0
 
   final val ALU_PATH_NUM    = 2
-  final val ALU_PATH_ID     = 1
+  final val ALU_PATH_TYPE   = 1
   final val ALU_PATH_NUM_W  = 2
 
   final val BJU_PATH_NUM    = 0
-  final val BJU_PATH_ID     = 2
+  final val BJU_PATH_TYPE   = 2
   
   final val LSU_PATH_NUM    = 2
-  final val LSU_PATH_ID     = 3
+  final val LSU_PATH_TYPE   = 3
+
+  final val TOT_PATH_NUM    = ALU_PATH_NUM + BJU_PATH_NUM + LSU_PATH_NUM
+  final val TOT_PATH_NUM_W  = 3
+  final val PATH_TYPE_NUM   = 4
+
+  final val PATH_NUM        = Seq(0, ALU_PATH_NUM, BJU_PATH_NUM, LSU_PATH_NUM)
 
   final val QUEUE_LEN_w     = 4
   final val PATH_W          = 2
