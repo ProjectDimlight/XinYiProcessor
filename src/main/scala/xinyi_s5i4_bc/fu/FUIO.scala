@@ -18,6 +18,7 @@ class FUIn extends Bundle {
   val imm = Input(UInt(XLEN.W))
 
   // meta
+  val pc = Input(UInt(LGC_ADDR_W.W))
   val order = Input(UInt(ISSUE_NUM_W.W))
 }
 

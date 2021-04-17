@@ -16,6 +16,6 @@ class CoreIO extends Bundle {
 
 object Generate {
   def main(args: Array[String]): Unit = {
-    chisel3.Driver.execute(Array("--target-dir", "verilog"), () => new Test())
+    chisel3.Driver.execute(Array("--target-dir", "verilog"), () => new DataPath())
   }
 }

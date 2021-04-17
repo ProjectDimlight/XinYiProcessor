@@ -22,35 +22,35 @@ import xinyi_s5i4_bc.fu._
  */
 
 trait ALUConfig {
-  final val ALU_XXX        = 0.U(5.W)
-  final val ALU_CTRL_WIDTH = ALU_XXX.getWidth // width of ALU control signal
+    final val ALU_XXX = 0.U(5.W)
+    final val FU_CTRL_W = ALU_XXX.getWidth // width of ALU control signal
 
-  final val ALU_ADD  = 0.U(ALU_CTRL_WIDTH.W)
-  final val ALU_ADDU = 1.U(ALU_CTRL_WIDTH.W)
-  final val ALU_SUB  = 2.U(ALU_CTRL_WIDTH.W)
-  final val ALU_SLT  = 3.U(ALU_CTRL_WIDTH.W)
-  final val ALU_SLTU = 4.U(ALU_CTRL_WIDTH.W)
-  final val ALU_AND  = 5.U(ALU_CTRL_WIDTH.W)
-  final val ALU_LUI  = 6.U(ALU_CTRL_WIDTH.W)
-  final val ALU_NOR  = 7.U(ALU_CTRL_WIDTH.W)
-  final val ALU_OR   = 8.U(ALU_CTRL_WIDTH.W)
-  final val ALU_XOR  = 9.U(ALU_CTRL_WIDTH.W)
-  final val ALU_SLL  = 10.U(ALU_CTRL_WIDTH.W)
-  final val ALU_SRA  = 11.U(ALU_CTRL_WIDTH.W)
-  final val ALU_SRL  = 12.U(ALU_CTRL_WIDTH.W)
-  final val ALU_PC   = 15.U(ALU_CTRL_WIDTH.W)
-  final val ALU_DIV  = 16.U(ALU_CTRL_WIDTH.W)
-  final val ALU_DIVU = 17.U(ALU_CTRL_WIDTH.W)
-  final val ALU_MUL  = 18.U(ALU_CTRL_WIDTH.W)
-  final val ALU_MULU = 19.U(ALU_CTRL_WIDTH.W)
+    final val ALU_ADD = 0.U(FU_CTRL_W.W)
+    final val ALU_ADDU = 1.U(FU_CTRL_W.W)
+    final val ALU_SUB = 2.U(FU_CTRL_W.W)
+    final val ALU_SLT = 3.U(FU_CTRL_W.W)
+    final val ALU_SLTU = 4.U(FU_CTRL_W.W)
+    final val ALU_AND = 5.U(FU_CTRL_W.W)
+    final val ALU_LUI = 6.U(FU_CTRL_W.W)
+    final val ALU_NOR = 7.U(FU_CTRL_W.W)
+    final val ALU_OR = 8.U(FU_CTRL_W.W)
+    final val ALU_XOR = 9.U(FU_CTRL_W.W)
+    final val ALU_SLL = 10.U(FU_CTRL_W.W)
+    final val ALU_SRA = 11.U(FU_CTRL_W.W)
+    final val ALU_SRL = 12.U(FU_CTRL_W.W)
+
+    final val ALU_DIV = 16.U(FU_CTRL_W.W)
+    final val ALU_DIVU = 17.U(FU_CTRL_W.W)
+    final val ALU_MUL = 18.U(FU_CTRL_W.W)
+    final val ALU_MULU = 19.U(FU_CTRL_W.W)
 }
-
 
 class ALU extends Module with ALUConfig {
   val io = IO(new Bundle {
     val in  = new FUIn
     val out = new FUOut
   })
+
 
   val a = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a)
   val b = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b)
@@ -78,7 +78,9 @@ class ALU extends Module with ALUConfig {
       ALU_DIVU -> a % b,
       ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
       ALU_MULU -> mul_ab(XLEN - 1, 0),
-      ALU_PC -> io.in.pc,
+      JPC -> io.in.pc,
+            BrGEPC -> io.in_pc,
+            BrLTPC -> io.in_pc,
     )
   )
 

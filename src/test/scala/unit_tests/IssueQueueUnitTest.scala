@@ -19,7 +19,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
   behavior of "IssueQueue Unit Test"
 
   it should "Test Case 1: Input 2, Immediately Issue" in {
-    test(new IssueQueue()) { device =>
+    test(new IssueQueue) { device =>
       val a = InstDecodedLitByPath(1, 1, 1, 2)
       val b = InstDecodedLitByPath(1, 3, 3, 4)
       val z = InstDecodedLitByPath(0, 0, 0, 0)
@@ -40,7 +40,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
   }
 
   it should "Test Case 2: Input 2, Immediately Issue 1, then Issue 1" in {
-    test(new IssueQueue()) { device =>
+    test(new IssueQueue) { device =>
       val a = InstDecodedLitByPath(1, 1, 1, 2)
       val b = InstDecodedLitByPath(1, 3, 3, 4)
       val z = InstDecodedLitByPath(0, 0, 0, 0)
@@ -75,7 +75,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
   }
 
   it should "Test Case 3: Input 8, Issue 0, queue full" in {
-    test(new IssueQueue()) { device =>
+    test(new IssueQueue) { device =>
       //val a = InstDecodedLitByPath(1, 1, 1, 1)
       //val b = InstDecodedLitByPath(1, 2, 2, 2)
       val z = InstDecodedLitByPath(0, 0, 0, 0)
@@ -114,7 +114,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
   }
 
   it should "Test Case 4: Start from head = tail = 4" in {
-    test(new IssueQueue()) { device =>
+    test(new IssueQueue) { device =>
       //val a = InstDecodedLitByPath(1, 1, 1, 1)
       //val b = InstDecodedLitByPath(1, 2, 2, 2)
       val z = InstDecodedLitByPath(0, 0, 0, 0)
@@ -172,7 +172,7 @@ class IssueQueueUnitTest extends AnyFlatSpec with ChiselScalatestTester with Mat
   }
 
   it should "Test Case 5: Branch Cache" in {
-    test(new IssueQueue()) { device =>
+    test(new IssueQueue) { device =>
       val a = InstDecodedLitByPath(1, 1, 1, 1)
       val b = InstDecodedLitByPath(1, 2, 2, 2)
       val c = InstDecodedLitByPath(1, 3, 3, 3)

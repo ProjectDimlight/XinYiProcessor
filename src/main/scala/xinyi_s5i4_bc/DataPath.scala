@@ -12,7 +12,7 @@ class DataPath extends Module {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
     val icache_axi  = new ICacheAXI
-//    val debug_out   = Vec(2, new IDOut)
+//  val debug_out   = Vec(2, new IDOut)
   })
 
   val pc_if_reg     = Module(new PCIFReg)
@@ -82,30 +82,26 @@ class DataPath extends Module {
     val inst = Wire(new Instruction)
     inst := issue_queue.io.inst(i)
 
-    when (is_stage.io.forwarding_path(i).rs1 =/= TOT_PATH_NUM.U) {
-      val j = is_stage.io.forwarding_path(i).rs1
+    when (is_stage.io.forwarding_path_id(i).rs1 =/= TOT_PATH_NUM.U) {
+      val j = is_stage.io.forwarding_path_id(i).rs1
       val path = is_fu_reg.io.is_out(j)
-      inst_params(i).rs1 <> Mux(inst.dec.param_a === AHi, path.out.hi, path.out.data)
+      inst_params(i).rs1 <> Mux(inst.dec.param_a === AHi, forwarding.hi, forwarding.data)
     }
 
-    when (is_stage.io.forwarding_path(i).rs2 =/= TOT_PATH_NUM.U) {
-      val j = is_stage.io.forwarding_path(i).rs2
+    when (is_stage.io.forwarding_path_id(i).rs2 =/= TOT_PATH_NUM.U) {
+      val j = is_stage.io.forwarding_path_id(i).rs2
       val path = is_fu_reg.io.is_out(j)
-      inst_params(i).rs2 <> path.out.data
+      inst_params(i).rs2 <> forwarding.data
     }
   }
 
   // FUs
   for (j <- 0 until TOT_PATH_NUM) {
-    is_fu_reg.io.is_out(j).out  <> is_stage.io.paths(j).out
-
-    is_fu_reg.io.is_out(j).in   <> is_stage.io.paths(j).in
-    is_fu_reg.io.is_out(j).data <> inst_params(is_stage.io.paths(j).in.id)
+    is_fu_reg.io.is_out(j) <> is_stage.io.path(j)
   }
 
   // BJU
-  bju.io.path.in   <> is_fu_reg.io.is_out(is_stage.io.branch_jump_id).in
-  bju.io.path.data <> is_fu_reg.io.is_out(is_stage.io.branch_jump_id).data
+  bju.io.path <> is_fu_reg.io.is_out(is_stage.io.branch_jump_id)
   bju.io.delay_slot_pending <> is_stage.io.delay_slot_pending
 
   // TODO: add FUs
