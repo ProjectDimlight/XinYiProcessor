@@ -23,7 +23,7 @@ class PCStage extends Module {
   })
 
   io.next_pc := MuxCase(
-    (io.pc & 0xFFFFFFFC.U) + 4.U(LGC_ADDR_W.W),
+    (io.pc & 0xFFFFFFFCL.U) + 4.U(LGC_ADDR_W.W),
     Array(
       io.exception.enable -> io.exception.target,
       io.branch.enable -> io.branch.target
@@ -47,9 +47,13 @@ class IFStage extends Module {
     val in = new IFIn
     val cache = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
     val out = new IFOut
+
+    val stall = Input(Bool())
   })
 
   // ICache
+  io.cache.rd := !io.stall
+  io.cache.wr := false.B
   io.cache.addr := io.in.pc
   // If Cache instructions are supported, we might have to write into ICache
   // I don't know
@@ -67,7 +71,7 @@ class IDIn extends Bundle {
 
 // Decode 1 instruction
 // Generate multiple instances to support multi-issuing
-class IDStage extends Module {
+class IDStage extends Module with ALUConfig{
   val io = IO(new Bundle {
     val in = Vec(FETCH_NUM, new IDIn)
     val out = Output(Vec(FETCH_NUM, new Instruction))
@@ -76,45 +80,30 @@ class IDStage extends Module {
   for (i <- 0 until FETCH_NUM) {
     val decoder = Module(new MIPSDecoder)
     decoder.io.inst := io.in(i).inst
+
+    val signed    = SInt(32.W)
+    val signed_x4 = SInt(32.W)
+
+    signed    := io.in(i).inst(15, 0).asSInt()
+    signed_x4 := Cat(io.in(i).inst(15, 0), 0.U(2.W)).asSInt()
+
     io.out(i).pc := io.in(i).pc
-    io.out(i).inst := io.in(i).inst
+    io.out(i).imm := MuxCase(
+      io.in(i).inst(15, 0),
+      Array(
+        ((decoder.io.dec.fu_ctrl === ALU_ADD  | 
+          decoder.io.dec.fu_ctrl === ALU_ADDU | 
+          decoder.io.dec.fu_ctrl === ALU_SUB  | 
+          decoder.io.dec.fu_ctrl === ALU_SLT  | 
+          decoder.io.dec.fu_ctrl === ALU_SLTU 
+         ) & decoder.io.dec.path === PathALU | 
+          decoder.io.dec.path    === PathLSU) -> signed,
+         (decoder.io.dec.next_pc === Branch)  -> signed_x4,
+         (decoder.io.dec.next_pc === Jump)    -> Cat(io.in(i).inst(25, 0), 0.U(2.W))
+      )
+    )
     io.out(i).dec := decoder.io.dec
   }
-}
-
-class PathIn extends Bundle {
-  val inst = Input(new Instruction)
-  val id = Input(UInt(ISSUE_NUM_W.W))
-}
-
-class PathOut extends Bundle {
-  val wt = Output(UInt(WRITE_TARGET_W.W))
-  val rd = Output(UInt(REG_ID_W.W))
-  val data = Output(UInt(DATA_W.W))
-  val hi = Output(UInt(DATA_W.W))
-  val ready = Output(Bool())
-}
-
-class PathData extends Bundle {
-  val rs1 = Input(UInt(DATA_W.W))
-  val rs2 = Input(UInt(DATA_W.W))
-}
-
-class PathInterface extends Bundle {
-  val in = new PathIn
-  val out = new PathOut
-}
-
-class ISInterface extends PathInterface {
-  val data = new PathData
-}
-
-class WBInterface extends PathInterface {
-}
-
-class BJUPathInterface extends Bundle {
-  val in = new PathIn
-  val data = new PathData
 }
 
 class ForwardingPathId extends Bundle {
@@ -152,7 +141,7 @@ class ISStage extends Module {
     val forwarding_path_id  = Output(Vec(ISSUE_NUM, new ForwardingPathId))
 
     // To common FUs
-    val path                = Flipped(Vec(TOT_PATH_NUM, new Path))
+    val path                = Vec(TOT_PATH_NUM, new Path)
     val forwarding          = Flipped(Vec(TOT_PATH_NUM, new Forwarding))
     val actual_issue_cnt    = Output(UInt(ISSUE_NUM_W.W))
 

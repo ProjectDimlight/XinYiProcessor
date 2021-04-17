@@ -22,27 +22,25 @@ import xinyi_s5i4_bc.fu._
  */
 
 trait ALUConfig {
-  final val ALU_XXX   = 0.U(5.W)
-  final val FU_CTRL_W = ALU_XXX.getWidth // width of ALU control signal
 
-  final val ALU_ADD  = 0.U(FU_CTRL_W.W)
-  final val ALU_ADDU = 1.U(FU_CTRL_W.W)
-  final val ALU_SUB  = 2.U(FU_CTRL_W.W)
-  final val ALU_SLT  = 3.U(FU_CTRL_W.W)
-  final val ALU_SLTU = 4.U(FU_CTRL_W.W)
-  final val ALU_AND  = 5.U(FU_CTRL_W.W)
-  final val ALU_LUI  = 6.U(FU_CTRL_W.W)
-  final val ALU_NOR  = 7.U(FU_CTRL_W.W)
-  final val ALU_OR   = 8.U(FU_CTRL_W.W)
-  final val ALU_XOR  = 9.U(FU_CTRL_W.W)
-  final val ALU_SLL  = 10.U(FU_CTRL_W.W)
-  final val ALU_SRA  = 11.U(FU_CTRL_W.W)
-  final val ALU_SRL  = 12.U(FU_CTRL_W.W)
+  val ALU_ADD  = 0.U(FU_CTRL_W.W)
+  val ALU_ADDU = 1.U(FU_CTRL_W.W)
+  val ALU_SUB  = 2.U(FU_CTRL_W.W)
+  val ALU_SLT  = 3.U(FU_CTRL_W.W)
+  val ALU_SLTU = 4.U(FU_CTRL_W.W)
+  val ALU_AND  = 5.U(FU_CTRL_W.W)
+  val ALU_LUI  = 6.U(FU_CTRL_W.W)
+  val ALU_NOR  = 7.U(FU_CTRL_W.W)
+  val ALU_OR   = 8.U(FU_CTRL_W.W)
+  val ALU_XOR  = 9.U(FU_CTRL_W.W)
+  val ALU_SLL  = 10.U(FU_CTRL_W.W)
+  val ALU_SRA  = 11.U(FU_CTRL_W.W)
+  val ALU_SRL  = 12.U(FU_CTRL_W.W)
 
-  final val ALU_DIV  = 16.U(FU_CTRL_W.W)
-  final val ALU_DIVU = 17.U(FU_CTRL_W.W)
-  final val ALU_MUL  = 18.U(FU_CTRL_W.W)
-  final val ALU_MULU = 19.U(FU_CTRL_W.W)
+  val ALU_DIV  = 16.U(FU_CTRL_W.W)
+  val ALU_DIVU = 17.U(FU_CTRL_W.W)
+  val ALU_MUL  = 18.U(FU_CTRL_W.W)
+  val ALU_MULU = 19.U(FU_CTRL_W.W)
 }
 
 class ALU extends Module with ALUConfig with BALConfig {
@@ -67,9 +65,9 @@ class ALU extends Module with ALUConfig with BALConfig {
       ALU_NOR -> (~(io.in.a | io.in.b)),
       ALU_OR -> (io.in.a | io.in.b),
       ALU_XOR -> (io.in.a ^ io.in.b),
-      ALU_SLL -> (io.in.a << io.in.b(4, 0)),
-      ALU_SRA -> (io.in.a.asSInt() >> io.in.b(4, 0)).asUInt(),
-      ALU_SRL -> (io.in.a >> io.in.b(4, 0)),
+      ALU_SLL -> (io.in.b << io.in.a(4, 0)),
+      ALU_SRA -> (io.in.b.asSInt() >> io.in.a(4, 0)).asUInt(),
+      ALU_SRL -> (io.in.b >> io.in.a(4, 0)),
       ALU_DIV -> a % b,
       ALU_DIVU -> a % b,
       ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
