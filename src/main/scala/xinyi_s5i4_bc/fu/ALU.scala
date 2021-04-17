@@ -22,30 +22,30 @@ import xinyi_s5i4_bc.fu._
  */
 
 trait ALUConfig {
-    final val ALU_XXX = 0.U(5.W)
-    final val FU_CTRL_W = ALU_XXX.getWidth // width of ALU control signal
+  final val ALU_XXX   = 0.U(5.W)
+  final val FU_CTRL_W = ALU_XXX.getWidth // width of ALU control signal
 
-    final val ALU_ADD = 0.U(FU_CTRL_W.W)
-    final val ALU_ADDU = 1.U(FU_CTRL_W.W)
-    final val ALU_SUB = 2.U(FU_CTRL_W.W)
-    final val ALU_SLT = 3.U(FU_CTRL_W.W)
-    final val ALU_SLTU = 4.U(FU_CTRL_W.W)
-    final val ALU_AND = 5.U(FU_CTRL_W.W)
-    final val ALU_LUI = 6.U(FU_CTRL_W.W)
-    final val ALU_NOR = 7.U(FU_CTRL_W.W)
-    final val ALU_OR = 8.U(FU_CTRL_W.W)
-    final val ALU_XOR = 9.U(FU_CTRL_W.W)
-    final val ALU_SLL = 10.U(FU_CTRL_W.W)
-    final val ALU_SRA = 11.U(FU_CTRL_W.W)
-    final val ALU_SRL = 12.U(FU_CTRL_W.W)
+  final val ALU_ADD  = 0.U(FU_CTRL_W.W)
+  final val ALU_ADDU = 1.U(FU_CTRL_W.W)
+  final val ALU_SUB  = 2.U(FU_CTRL_W.W)
+  final val ALU_SLT  = 3.U(FU_CTRL_W.W)
+  final val ALU_SLTU = 4.U(FU_CTRL_W.W)
+  final val ALU_AND  = 5.U(FU_CTRL_W.W)
+  final val ALU_LUI  = 6.U(FU_CTRL_W.W)
+  final val ALU_NOR  = 7.U(FU_CTRL_W.W)
+  final val ALU_OR   = 8.U(FU_CTRL_W.W)
+  final val ALU_XOR  = 9.U(FU_CTRL_W.W)
+  final val ALU_SLL  = 10.U(FU_CTRL_W.W)
+  final val ALU_SRA  = 11.U(FU_CTRL_W.W)
+  final val ALU_SRL  = 12.U(FU_CTRL_W.W)
 
-    final val ALU_DIV = 16.U(FU_CTRL_W.W)
-    final val ALU_DIVU = 17.U(FU_CTRL_W.W)
-    final val ALU_MUL = 18.U(FU_CTRL_W.W)
-    final val ALU_MULU = 19.U(FU_CTRL_W.W)
+  final val ALU_DIV  = 16.U(FU_CTRL_W.W)
+  final val ALU_DIVU = 17.U(FU_CTRL_W.W)
+  final val ALU_MUL  = 18.U(FU_CTRL_W.W)
+  final val ALU_MULU = 19.U(FU_CTRL_W.W)
 }
 
-class ALU extends Module with ALUConfig {
+class ALU extends Module with ALUConfig with BALConfig {
   val io = IO(new Bundle {
     val in  = new FUIn
     val out = new FUOut
@@ -79,8 +79,8 @@ class ALU extends Module with ALUConfig {
       ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
       ALU_MULU -> mul_ab(XLEN - 1, 0),
       JPC -> io.in.pc,
-            BrGEPC -> io.in_pc,
-            BrLTPC -> io.in_pc,
+      BrGEPC -> io.in.pc,
+      BrLTPC -> io.in.pc,
     )
   )
 
