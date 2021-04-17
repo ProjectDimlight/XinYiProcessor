@@ -4,41 +4,39 @@ import chisel3._
 import config.config._
 import xinyi_s5i4_bc.parts.ControlConst._
 
+
 class FUIn extends Bundle {
-  // target
-  val write_target = Input(Input(UInt(WRITE_TARGET_W.W)))
-  val rd = Input(UInt(REG_ID_W.W))
-
-  // control param
-  val fu_ctrl = Input(UInt(FU_CTRL_W.W))
-
+  val write_target = UInt(WRITE_TARGET_W.W) // write target
+  val rd           = UInt(REG_ID_W.W) // destination register
+  val fu_ctrl      = UInt(FU_CTRL_W.W) // control param
   // operation params
-  val a = Input(UInt(XLEN.W))
-  val b = Input(UInt(XLEN.W))
-  val imm = Input(UInt(XLEN.W))
-
+  val a            = UInt(XLEN.W)
+  val b            = UInt(XLEN.W)
+  val imm          = UInt(XLEN.W)
   // meta
-  val pc = Input(UInt(LGC_ADDR_W.W))
-  val order = Input(UInt(ISSUE_NUM_W.W))
+  val pc           = UInt(LGC_ADDR_W.W)
+  val order        = UInt(ISSUE_NUM_W.W)
 }
 
 
 class Forwarding extends Bundle {
   // target
-  val write_target = Output(UInt(WRITE_TARGET_W.W))
-  val rd = Output(UInt(REG_ID_W.W))
-
+  val write_target = UInt(WRITE_TARGET_W.W)
+  val rd           = UInt(REG_ID_W.W)
   // data
-  val data = Output(UInt(XLEN.W))
-  val hi = Output(UInt(XLEN.W))
-
+  val data         = UInt(XLEN.W)
+  val hi           = UInt(XLEN.W)
   // ready
-  val ready = Output(Bool())
-
-  val order = Output(UInt(ISSUE_NUM_W.W))
+  val ready        = Bool()
+  val order        = UInt(ISSUE_NUM_W.W)
 }
 
 class FUOut extends Forwarding {
-  val pc = Output(UInt(XLEN.W))
+  val pc        = Output(UInt(XLEN.W))
   val exception = Output(Bool())
+}
+
+class FUIO extends Bundle {
+  val in  = Input(new FUIn)
+  val out = Output(new FUOut)
 }
