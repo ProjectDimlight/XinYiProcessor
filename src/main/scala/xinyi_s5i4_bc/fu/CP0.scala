@@ -7,13 +7,13 @@ import xinyi_s5i4_bc.parts.ControlConst._
 import chisel3.experimental.BundleLiterals._
 
 object ExcCode {
-  val EX_Int = 0x0
+  val EX_Int  = 0x0
   val EX_AdEL = 0x4
   val EX_AdES = 0x5
-  val EX_OV = 0xC
-  val EX_Sys = 0x8
-  val EX_Bp = 0x9
-  val EX_RI = 0xa
+  val EX_OV   = 0xC
+  val EX_Sys  = 0x8
+  val EX_Bp   = 0x9
+  val EX_RI   = 0xa
 }
 
 trait CP0Config {
@@ -23,17 +23,19 @@ trait CP0Config {
   val CP0_INDEX_WIDTH: Int = 5
 
   val CP0_BADVADDR_INDEX = 8
-  val CP0_COUNT_INDEX = 9
-  val CP0_COMPARE_INDEX = 11
-  val CP0_STATUS_INDEX = 12
-  val CP0_CAUSE_INDEX = 13
-  val CP0_EPC_INDEX = 14
+  val CP0_COUNT_INDEX    = 9
+  val CP0_COMPARE_INDEX  = 11
+  val CP0_STATUS_INDEX   = 12
+  val CP0_CAUSE_INDEX    = 13
+  val CP0_EPC_INDEX      = 14
 
   // reference
-  val EXC_CODE_INT = 0
-  val EXC_CODE_ADEL = 4
-  val EXC_CODE_ADES = 5
-  val EXC_CODE_TR = 13
+  val EXC_CODE_WIDTH = 5
+  val EXC_CODE_INT   = 0
+  val EXC_CODE_ADEL  = 4
+  val EXC_CODE_ADES  = 5
+  val EXC_CODE_TR    = 13
+  val NO_EXCEPTION   = 31
 }
 
 
@@ -43,17 +45,16 @@ trait CP0Config {
  */
 class CP0 extends Module with CP0Config {
   val io = IO(new Bundle {
-    val in_cp0_wen = Input(Bool())
-    val in_read_index = Input(UInt(CP0_INDEX_WIDTH.W))
-    val in_write_index = Input(UInt(CP0_INDEX_WIDTH.W))
-    val in_write_val = Input(UInt(XLEN.W))
-    val in_eret_en = Input(Bool())
+    val in_cp0_wen              = Input(Bool())
+    val in_read_index           = Input(UInt(CP0_INDEX_WIDTH.W))
+    val in_write_index          = Input(UInt(CP0_INDEX_WIDTH.W))
+    val in_write_val            = Input(UInt(XLEN.W))
+    val in_eret_en              = Input(Bool())
     val in_delay_slot_exception = Input(Bool())
-    val in_exc_code = Input(UInt(5.W))
-    val in_epc = Input(UInt(XLEN.W))
-    val in_ls_badvaddr = Input(UInt(XLEN.W))
-    val in_has_exception = Input(Bool())
-    val out_read_val = Output(UInt(XLEN.W))
+    val in_exc_code             = Input(UInt(EXC_CODE_WIDTH.W))
+    val in_epc                  = Input(UInt(XLEN.W))
+    val in_ls_badvaddr          = Input(UInt(XLEN.W))
+    val out_read_val            = Output(UInt(XLEN.W))
   })
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -62,8 +63,8 @@ class CP0 extends Module with CP0Config {
   val cp0_reg_count = RegInit(0.U(XLEN.W))
 
   val cp0_reg_cause = RegInit(WireInit(new Bundle {
-    val BD = UInt(1.W)
-    val IP7 = UInt(1.W)
+    val BD       = UInt(1.W)
+    val IP7      = UInt(1.W)
     val EXC_CODE = UInt(5.W)
     0.U(2.W)
   }.Lit(_.IP7 -> 0.U, _.BD -> 0.U)))
@@ -73,7 +74,7 @@ class CP0 extends Module with CP0Config {
   val cp0_reg_status = RegInit(WireInit(new Bundle {
     val IM7 = UInt(1.W)
     val EXL = UInt(1.W)
-    val IE = UInt(1.W)
+    val IE  = UInt(1.W)
   }.Lit(_.IE -> 1.U, _.IM7 -> 0.U, _.EXL -> 0.U)))
 
   val cp0_reg_badvaddr = RegInit(0.U(XLEN.W))
@@ -85,9 +86,7 @@ class CP0 extends Module with CP0Config {
   //<<<<<<<<<<<<<<<<<<<<<<<<<
   val has_exception = Wire(Bool())
 
-  has_exception := !cp0_reg_status.EXL && io.in_has_exception
-
-
+  has_exception := !cp0_reg_status.EXL && io.in_exc_code =/= NO_EXCEPTION.U(EXC_CODE_WIDTH.W)
 
 
 

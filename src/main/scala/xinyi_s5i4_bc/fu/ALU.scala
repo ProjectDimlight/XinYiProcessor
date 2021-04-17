@@ -46,11 +46,7 @@ trait ALUConfig {
 }
 
 class ALU extends Module with ALUConfig with BALConfig {
-  val io = IO(new Bundle {
-    val in  = new FUIn
-    val out = new FUOut
-  })
-
+  val io = IO(new FUIO)
 
   val a = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a)
   val b = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b)
