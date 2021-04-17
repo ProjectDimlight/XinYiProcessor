@@ -14,13 +14,14 @@ trait BALConfig {
 }
 
 trait BJUConfig extends BALConfig {
-  val BrXXX         = 0.U(FU_CTRL_W.W)
+  // 0 for unconditioned jump
   val BrEQ          = 1.U(FU_CTRL_W.W)
   val BrNE          = 2.U(FU_CTRL_W.W)
   val BrGE          = 3.U(FU_CTRL_W.W)
   val BrGT          = 4.U(FU_CTRL_W.W)
   val BrLE          = 5.U(FU_CTRL_W.W)
   val BrLT          = 6.U(FU_CTRL_W.W)
+  val BrERET        = 28.U(FU_CTRL_W.W)
 }
 
 class BJU extends Module with BJUConfig {
@@ -34,19 +35,23 @@ class BJU extends Module with BJUConfig {
   })
 
   val branch = Wire(Bool())
-  branch := io.branch_next_pc &
+  branch := io.branch_next_pc =/= PC4 &
     MuxLookup(
       io.path.fu_ctrl,
       true.B,
       Array(
-        BrEQ -> (io.path.a === io.path.b),
-        BrNE -> (io.path.a =/= io.path.b),
-        BrGE -> (io.path.a >=  io.path.b),
-        BrGT -> (io.path.a >   io.path.b),
-        BrLE -> (io.path.a <=  io.path.b),
-        BrLT -> (io.path.a <   io.path.b)
+        BrEQ    -> (io.path.a === io.path.b),
+        BrNE    -> (io.path.a =/= io.path.b),
+        BrGE    -> (io.path.a >=  io.path.b),
+        BrGT    -> (io.path.a >   io.path.b),
+        BrLE    -> (io.path.a <=  io.path.b),
+        BrLT    -> (io.path.a <   io.path.b),
+        BrGEPC  -> (io.path.a >=  io.path.b),
+        BrLTPC  -> (io.path.a <   io.path.b)
       )
     )
+
+  val pc4 = io.path.pc + 4.U(LGC_ADDR_W.W)
 
   val target = Wire(UInt(LGC_ADDR_W.W))
   target := MuxLookup(
@@ -55,8 +60,9 @@ class BJU extends Module with BJUConfig {
     Array(
       // Note that syscall, trap, and all other exceptions will not be handled here
       // They will be triggered and managed in FU
-      Branch -> (io.path.pc + 4.U(LGC_ADDR_W.W) + io.path.imm),
-      Jump -> Cat(io.path.pc(31, 28), io.path.imm(27, 0))
+      Branch -> (pc4 + io.path.imm),
+      Jump   -> Cat(pc4(31, 28), io.path.imm(27, 0)),
+      PCReg  -> io.path.a
     )
   )
 

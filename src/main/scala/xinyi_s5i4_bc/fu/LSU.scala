@@ -3,14 +3,20 @@ package xinyi_s5i4_bc.fu
 import chisel3._
 import chisel3.util._
 import config.config._
+import xinyi_s5i4_bc.caches._
 import xinyi_s5i4_bc.stages._
+import xinyi_s5i4_bc.parts._
+import ControlConst._
 
-/**
- * @module LSU
- * @param XLEN width of data
- * @param lsu_ctrl_bits
- */
-class LSU(addr_bits: Int, lsu_ctrl_bits: Int) extends Module {
+trait LSUConfig {
+  val MemByte       = 0.U(FU_CTRL_W.W)
+  val MemByteU      = 1.U(FU_CTRL_W.W)
+  val MemHalf       = 2.U(FU_CTRL_W.W)
+  val MemHalfU      = 3.U(FU_CTRL_W.W)
+  val MemWord       = 4.U(FU_CTRL_W.W)
+}
+
+class LSU extends Module with LSUConfig {
   val io = IO(new Bundle {
     val in   = new FUIn 
     val out  = new FUOut
@@ -23,32 +29,32 @@ class LSU(addr_bits: Int, lsu_ctrl_bits: Int) extends Module {
   })
 
   val addr = Wire(UInt(LGC_ADDR_W.W))
-  addr := in.a + in.imm
+  addr := io.in.a + io.in.imm
 
-  val normal = exception_order > in.order
+  val normal = io.exception_order > io.in.order
 
-  io.cache.wt   := normal & (in.write_target === DMem)
-  io.cache.rd   := normal & (in.rd =/= 0.U)  
+  io.cache.wr   := normal & (io.in.write_target === DMem)
+  io.cache.rd   := normal & (io.in.rd =/= 0.U)  
   io.cache.addr := addr
-  io.cache.din  := rt
+  io.cache.din  := io.in.b
   
-  out.hi        := addr
-  out.data      := io.cache.dout
-  out.ready     := !cache.stall_req
+  io.out.hi        := addr
+  io.out.data      := io.cache.dout
+  io.out.ready     := !io.stall_req
 
-  out.write_target := in.write_target
-  out.rd           := in.rd
-  out.order        := in.order
-  out.pc           := in.pc
-  out.exception    := MuxLookup(
-    in.fu_ctrl,
+  io.out.write_target := io.in.write_target
+  io.out.rd           := io.in.rd
+  io.out.order        := io.in.order
+  io.out.pc           := io.in.pc
+  io.out.exception    := MuxLookup(
+    io.in.fu_ctrl,
     false.B,
     Array(
-      MemHalf  -> addr(0) === 0.U(1.W),
-      MemHalfH -> addr(0) === 0.U(1.W),
-      MemWord  -> addr(1, 0) === 0.U(2.W)
+      MemHalf  -> (addr(0) === 0.U(1.W)),
+      MemHalfU -> (addr(0) === 0.U(1.W)),
+      MemWord  -> (addr(1, 0) === 0.U(2.W))
     )
   )
-  
+
 }
 

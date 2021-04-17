@@ -10,36 +10,16 @@ import config.config._
 import xinyi_s5i4_bc.fu._
 
 class Instruction extends Bundle {
-  val pc = UInt(LGC_ADDR_W.W)
-  val inst = UInt(DATA_W.W)
+  val pc  = UInt(LGC_ADDR_W.W)
+  val imm = UInt(DATA_W.W)
   val dec = new ControlSet
 }
 
 object ControlConst {
-  val PATH_ALU      = 1.U(2.W)
-  val PATH_MDU      = 2.U(2.W)
-  val PATH_LSU      = 3.U(2.W)
-
-  val InstXXX       = 0.U(4.W)
-  val RType         = 1.U(4.W)
-  val RSType        = 2.U(4.W)    // RType with shamt
-  val RTType        = 3.U(4.W)    // RType with Trap
-  val RMDType       = 4.U(4.W)    // RType with MDU
-  val IType         = 5.U(4.W)
-  val IBType        = 6.U(4.W)    // IType with branch / jump
-  val IMType        = 7.U(4.W)    // IType with memory
-  val JType         = 8.U(4.W)
-  val JRType        = 9.U(4.W)
-  val SType         = 10.U(4.W)   // Supervisor
-  val Illegal       = 15.U(4.W)
-  val INST_TYPE_W   = InstXXX.getWidth
-
-  val PC4           = 0.U(3.W)
-  val PCReg         = 1.U(3.W)
-  val Branch        = 2.U(3.W)
-  val Jump          = 3.U(3.W)
-  val Trap          = 4.U(3.W)
-  val Ret           = 5.U(3.W)
+  val PC4           = 0.U(2.W)
+  val PCReg         = 1.U(2.W)
+  val Branch        = 2.U(2.W)
+  val Jump          = 3.U(2.W)
   val NEXT_PC_W     = PC4.getWidth
 
   val AXXX          = 0.U(3.W)
@@ -64,18 +44,14 @@ object ControlConst {
   val DHiLo         = 5.U(3.W)
   val WRITE_TARGET_W= DXXX.getWidth
 
-  val MemXXX        = 0.U(3.W)
-  val MemWord       = 1.U(3.W)
-  val MemByte       = 2.U(3.W)
-  val MemByteU      = 3.U(3.W)
-  val MemHalf       = 4.U(3.W)
-  val MemHalfU      = 5.U(3.W)
-  val MEM_WIDTH_W   = MemXXX.getWidth
-
   val PathXXX       = N_A_PATH_TYPE.U(2.W)
   val PathALU       = ALU_PATH_TYPE.U(2.W)
   val PathBJU       = BJU_PATH_TYPE.U(2.W)
   val PathLSU       = LSU_PATH_TYPE.U(2.W)
+
+  val FU_BREAK      = 29.U(FU_CTRL_W.W)
+  val FU_SYSCALL    = 30.U(FU_CTRL_W.W)
+  val FU_XXX        = 31.U(FU_CTRL_W.W)
 
   val FU_CTRL_W     = 5
 }
@@ -92,7 +68,7 @@ class ControlSet extends Bundle {
   val rd            = UInt(REG_ID_W.W)
 }
 
-class MIPSDecoder extends Module with ALUConfig with BJUConfig {
+class MIPSDecoder extends Module with ALUConfig with BJUConfig with LSUConfig with CP0Config {
   val io = IO(new Bundle{
     val inst = Input(UInt(DATA_W.W))
     val dec = Output(new ControlSet)
@@ -109,7 +85,7 @@ class MIPSDecoder extends Module with ALUConfig with BJUConfig {
   // Decode
 
 val control_signal = ListLookup(io.inst,
-                    List(  PC4     ,  AXXX   ,  BXXX   ,  DXXX   , ALU_ADD   ,  PathALU   , IXX , IXX , IXX),
+                    List(  PC4     ,  AXXX   ,  BXXX   ,  DXXX   , FU_XXX    ,  PathALU   , IXX , IXX , IXX),
     Array(         //   |   PC     |   A     |   B     |  D      | Operation |  Path id   | rs1 | rs2 | rd |
                    //   | Select   | use rs1 | use rs2 | write   |   Type    |   Select   |     |     |    |
                    //   | next_pc  | param_a | param_b | wrt_tgt | fu_ctrl   | MultiIssue |     |     |    |
@@ -156,7 +132,7 @@ val control_signal = ListLookup(io.inst,
            
       J          -> List(  Jump    ,  AXXX   ,  BXXX   ,  DXXX   , ALU_ADD   ,  PathALU   , IXX , IXX , IXX),
       JAL        -> List(  Jump    ,  AXXX   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IXX , IXX , IRA),
-      JR         -> List(  PCReg   ,  AReg   ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IRS , IXX , IRD),
+      JR         -> List(  PCReg   ,  AReg   ,  BXXX   ,  DXXX   , ALU_ADD   ,  PathALU   , IRS , IXX , IXX),
       JALR       -> List(  PCReg   ,  AReg   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IRS , IXX , IRA),
            
       MFHI       -> List(  PC4     ,  AHi    ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IXX , IXX , IRD),
@@ -164,8 +140,8 @@ val control_signal = ListLookup(io.inst,
       MTHI       -> List(  PC4     ,  AReg   ,  BXXX   ,  DHi    , ALU_ADD   ,  PathALU   , IRS , IXX , IXX),
       MTLO       -> List(  PC4     ,  AReg   ,  BXXX   ,  DLo    , ALU_ADD   ,  PathALU   , IRS , IXX , IXX),
            
-      BREAK      -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IXX , IXX , IXX),
-      SYSCALL    -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IXX , IXX , IXX),
+      BREAK      -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , FU_BREAK  ,  PathALU   , IXX , IXX , IXX),
+      SYSCALL    -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , FU_SYSCALL,  PathALU   , IXX , IXX , IXX),
            
       LB         -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemByte   ,  PathLSU   , IRS , IXX , IRT),
       LBU        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemByteU  ,  PathLSU   , IRS , IXX , IRT),
@@ -176,7 +152,7 @@ val control_signal = ListLookup(io.inst,
       SH         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemHalf   ,  PathLSU   , IRS , IRT , IXX),
       SW         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemWord   ,  PathLSU   , IRS , IRT , IXX),
            
-      ERET       -> List(  PC4     ,  AXXX   ,  BXXX   ,  DXXX   , ALU_ADD   ,  PathALU   , IXX , IXX , IXX),
+      ERET       -> List(  PCReg   ,  ACP0   ,  BXXX   ,  DCP0   , ALU_AND   ,  PathALU   , CP0_EPC_INDEX.U(5.W) , IXX , CP0_STATUS_INDEX.U(5.W)),
       MFC0       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IRD , IXX , IRT),
       MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_ADD   ,  PathALU   , IRT , IXX , IRD)
   ))
@@ -198,7 +174,7 @@ object NOPBubble {
   def apply() = {
     val item = Wire(new Instruction)
     item.pc               := 0.U(LGC_ADDR_W.W)
-    item.inst             := 0.U(DATA_W.W)
+    item.imm              := 0.U(DATA_W.W)
     item.dec.next_pc      := 0.U(NEXT_PC_W.W)
     item.dec.param_a      := 0.U(PARAM_A_W.W)
     item.dec.param_b      := 0.U(PARAM_B_W.W)
@@ -221,7 +197,7 @@ object InstDecodedLitByPath extends ALUConfig with BJUConfig{
     if (path_type == 1) {
       inst.Lit(
         _.pc               -> 0.U(LGC_ADDR_W.W),
-        _.inst             -> 0.U(DATA_W.W),
+        _.imm              -> 0.U(DATA_W.W),
         _.dec.next_pc      -> PC4,
         _.dec.param_a      -> AReg,
         _.dec.param_b      -> BReg,
@@ -237,7 +213,7 @@ object InstDecodedLitByPath extends ALUConfig with BJUConfig{
     else if (path_type == 5) {
       inst.Lit(
         _.pc               -> 0x20.U(LGC_ADDR_W.W),
-        _.inst             -> (rd & 0x0000FFFF).U(DATA_W.W),
+        _.imm              -> rd.S(DATA_W.W).asUInt(),
         _.dec.next_pc      -> Branch,
         _.dec.param_a      -> AReg,
         _.dec.param_b      -> BReg,
@@ -253,7 +229,7 @@ object InstDecodedLitByPath extends ALUConfig with BJUConfig{
     else if (path_type == 2) {
       inst.Lit(
         _.pc               -> 0.U(LGC_ADDR_W.W),
-        _.inst             -> 0.U(DATA_W.W),
+        _.imm              -> 0.U(DATA_W.W),
         _.dec.next_pc      -> Branch,
         _.dec.param_a      -> AReg,
         _.dec.param_b      -> BReg,
@@ -274,12 +250,12 @@ object InstDecodedLitByPath extends ALUConfig with BJUConfig{
     else {
       inst.Lit(
         _.pc               -> 0.U(LGC_ADDR_W.W),
-        _.inst             -> 0.U(DATA_W.W),
+        _.imm              -> 0.U(DATA_W.W),
         _.dec.next_pc      -> PC4,
         _.dec.param_a      -> AXXX,
         _.dec.param_b      -> BXXX,
         _.dec.write_target -> DXXX,
-        _.dec.fu_ctrl      -> ALU_XXX,
+        _.dec.fu_ctrl      -> FU_XXX,
         _.dec.path         -> PathXXX,
         _.dec.rs1          -> rs1.U(5.W),
         _.dec.rs2          -> rs2.U(5.W),

@@ -39,7 +39,7 @@ class DCacheAXI extends Bundle {
   val data_in     = Output(UInt(DATA_W.W))
   val wr          = Output(Bool())
   val rd          = Output(Bool())
-  val size        = Output(UInt(2.U))
+  val size        = Output(UInt(3.W))
   val addr_out    = Input(UInt(PHY_ADDR_W.W))
   val data_out    = Input(UInt(DATA_W.W))
   val stall       = Input(Bool())
@@ -57,7 +57,7 @@ class DummyDCache extends Module {
   io.lower.addr_in  := io.upper.addr
   io.lower.data_in  := io.upper.din
   io.lower.rd       := io.upper.rd
-  io.lower.wt       := io.upper.wt
+  io.lower.wr       := io.upper.wr
   
   when (io.lower.valid) {
     io.upper.dout   := io.lower.data_out

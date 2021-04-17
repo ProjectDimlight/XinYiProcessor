@@ -11,7 +11,7 @@ class ROMInterface(val addr_w: Int, val cache_w: Int) extends Bundle {
 
 class RAMInterface(val addr_w: Int, val cache_w: Int) extends Bundle {
   val rd   = Input (Bool())
-  val wt   = Input (Bool())
+  val wr   = Input (Bool())
   val addr = Input (UInt(addr_w.W))
   val din  = Input (UInt(cache_w.W))
   val dout = Output(UInt(cache_w.W))
