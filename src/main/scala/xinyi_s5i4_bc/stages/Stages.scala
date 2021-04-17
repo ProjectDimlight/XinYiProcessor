@@ -5,6 +5,7 @@ import chisel3.util._
 
 import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
+import xinyi_s5i4_bc.fu._
 import ControlConst._
 import config.config._
 
@@ -131,7 +132,7 @@ class Path extends Bundle {
   
   // meta
   val pc            = Output(UInt(LGC_ADDR_W.W))
-  val order         = Output(UInt(ISSUE_NUM_W))
+  val order         = Output(UInt(ISSUE_NUM_W.W))
 }
 
 class ISOut extends Path {
@@ -156,8 +157,9 @@ class ISStage extends Module {
     val actual_issue_cnt    = Output(UInt(ISSUE_NUM_W.W))
 
     // To BJU
-    val branch_jump_id = Output(UInt(ALU_PATH_NUM_W.W))
-    val delay_slot_pending = Output(Bool())
+    val branch_jump_id      = Output(UInt(ALU_PATH_NUM_W.W))
+    val branch_next_pc      = Output(UInt(NEXT_PC_W.W))
+    val delay_slot_pending  = Output(Bool())
   })
 
   // Hazard Detect Logic  
@@ -175,15 +177,15 @@ class ISStage extends Module {
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
   def RAWPath(i: Int, j: Int) {
-    io.forwarding_path(i).rs1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
-    io.forwarding_path(i).rs2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    io.forwarding_path_id(i).rs1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    io.forwarding_path_id(i).rs2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
 
     when ((io.forwarding(j).write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") |  // HiLo
            io.forwarding(j).write_target === io.inst(i).dec.param_a) &      // Same source
            io.forwarding(j).rd === io.inst(i).dec.rs1 &                     // Same ID
           (io.inst(i).dec.param_a =/= 0.U | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
 //    when (io.forwarding(j).ready) {
-        io.forwarding_path(i).rs1 := j.U
+        io.forwarding_path_id(i).rs1 := j.U
 //    }
 //    .otherwise {
 //      raw(i) := true.B
@@ -193,7 +195,7 @@ class ISStage extends Module {
            io.forwarding(j).rd === inst(i).dec.rs2 &  // Same ID
            io.inst(i).dec.rs2 =/= 0.U) {              // Not Reg 0
 //    when (io.forwarding(j).ready) {
-        io.forwarding_path(i).rs2 := j.U
+        io.forwarding_path_id(i).rs2 := j.U
 //    }
 //    .otherwise {
 //      raw(i) := true.B
@@ -202,8 +204,8 @@ class ISStage extends Module {
   }
 
   def RAWInst(i: Int, k: Int) {
-    when ((io.inst(k).write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") |  // HiLo
-           io.inst(k).write_target === io.inst(i).dec.param_a) &            // Same source
+    when ((io.inst(k).dec.write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") |  // HiLo
+           io.inst(k).dec.write_target === io.inst(i).dec.param_a) &            // Same source
            io.inst(k).dec.rd === io.inst(i).dec.rs1 &                       // Same id
           (io.inst(i).dec.param_a =/= 0.U | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
       raw(i) := true.B
@@ -284,11 +286,13 @@ class ISStage extends Module {
   }
 
   io.branch_jump_id := ALU_PATH_NUM.U(TOT_PATH_NUM_W.W)
+  io.branch_next_pc := PC4
   io.delay_slot_pending := false.B
   for (j <- 0 until ALU_PATH_NUM) {
     // Branch
-    when (io.path(j).in.inst.dec.next_pc =/= PC4) {
+    when (io.inst(io.path(j).order).dec.next_pc =/= PC4) {
       io.branch_jump_id := j.U(ALU_PATH_NUM_W.W)
+      io.branch_next_pc := io.inst(io.path(j).order).dec.next_pc
       io.delay_slot_pending := (io.path(j).order + 1.U) === io.actual_issue_cnt
     }
   }

@@ -3,6 +3,7 @@ package xinyi_s5i4_bc.stages
 import chisel3._
 
 import xinyi_s5i4_bc.parts._
+import xinyi_s5i4_bc.fu._
 import ControlConst._
 import config.config._
 
@@ -142,16 +143,10 @@ class IssueQueue extends Module {
 
 class ISFUReg extends Module {
   val io = IO(new Bundle{
-    val is_out = Vec(TOT_PATH_NUM, new ISInterface)
-    val fu_in  = Flipped(Vec(TOT_PATH_NUM, new ISInterface))
+    val is_out = Flipped(Vec(TOT_PATH_NUM, new ISOut))
+    val fu_in  = Flipped(Vec(TOT_PATH_NUM, new FUIn))
   })
-  
-  for (j <- 0 until TOT_PATH_NUM) {
-    val reg_in   = RegNext(io.is_out(j).in)
-    val reg_data = RegNext(io.is_out(j).data)
 
-    io.fu_in(j).in    := reg_in
-    io.fu_in(j).data  := reg_data
-    io.is_out(j).out  := io.fu_in(j).out
-  }
+  val reg_in   = RegNext(io.is_out)
+  io.fu_in := reg_in
 }

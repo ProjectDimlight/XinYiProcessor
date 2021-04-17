@@ -7,7 +7,7 @@ import chisel3.experimental.BundleLiterals._
 import ControlConst._
 import ISAPatterns._
 import config.config._
-import xinyi_s5i4_bc.fu.ALUConfig
+import xinyi_s5i4_bc.fu._
 
 class Instruction extends Bundle {
   val pc = UInt(LGC_ADDR_W.W)
@@ -155,9 +155,9 @@ val control_signal = ListLookup(io.inst,
       BLTZAL     -> List(  Branch  ,  AReg   ,  BXXX   ,  DReg   , BrLTPC    ,  PathALU   , IRS , IRT , IRA),
            
       J          -> List(  Jump    ,  AXXX   ,  BXXX   ,  DXXX   , ALU_ADD   ,  PathALU   , IXX , IXX , IXX),
-      JAL        -> List(  Jump    ,  AXXX   ,  BXXX   ,  DReg   , ALU_PC    ,  PathALU   , IXX , IXX , IRA),
+      JAL        -> List(  Jump    ,  AXXX   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IXX , IXX , IRA),
       JR         -> List(  PCReg   ,  AReg   ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IRS , IXX , IRD),
-      JALR       -> List(  PCReg   ,  AReg   ,  BXXX   ,  DReg   , ALU_PC    ,  PathALU   , IRS , IXX , IRA),
+      JALR       -> List(  PCReg   ,  AReg   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IRS , IXX , IRA),
            
       MFHI       -> List(  PC4     ,  AHi    ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IXX , IXX , IRD),
       MFLO       -> List(  PC4     ,  ALo    ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IXX , IXX , IRD),
@@ -194,7 +194,7 @@ val control_signal = ListLookup(io.inst,
 
 // Construct an NOP instruction
 // To issue a bubble, or as debug input
-object NOPBubble extends ALUConfig {
+object NOPBubble {
   def apply() = {
     val item = Wire(new Instruction)
     item.pc               := 0.U(LGC_ADDR_W.W)
@@ -213,7 +213,7 @@ object NOPBubble extends ALUConfig {
 }
 
 // Construct a decoded Instruction with given functions
-object InstDecodedLitByPath extends ALUConfig {
+object InstDecodedLitByPath extends ALUConfig with BJUConfig{
   // Construction By path
   def apply(path_type: Int, rs1: Int, rs2: Int, rd: Int): Instruction = {
     val inst = new Instruction
@@ -226,7 +226,7 @@ object InstDecodedLitByPath extends ALUConfig {
         _.dec.param_a      -> AReg,
         _.dec.param_b      -> BReg,
         _.dec.write_target -> DReg,
-        _.dec.alu_op       -> ALU_ADD,
+        _.dec.fu_ctrl      -> ALU_ADD,
         _.dec.path         -> PathALU,
         _.dec.rs1          -> rs1.U(REG_ID_W.W),
         _.dec.rs2          -> rs2.U(REG_ID_W.W),
@@ -242,7 +242,7 @@ object InstDecodedLitByPath extends ALUConfig {
         _.dec.param_a      -> AReg,
         _.dec.param_b      -> BReg,
         _.dec.write_target -> DXXX,
-        _.dec.alu_op       -> BrEQ,
+        _.dec.fu_ctrl      -> BrEQ,
         _.dec.path         -> PathALU,
         _.dec.rs1          -> rs1.U(REG_ID_W.W),
         _.dec.rs2          -> rs2.U(REG_ID_W.W),
@@ -258,7 +258,7 @@ object InstDecodedLitByPath extends ALUConfig {
         _.dec.param_a      -> AReg,
         _.dec.param_b      -> BReg,
         _.dec.write_target -> DXXX,
-        _.dec.alu_op       -> ALU_ADD,
+        _.dec.fu_ctrl      -> ALU_ADD,
         _.dec.path         -> PathBJU,
         _.dec.rs1          -> rs1.U(REG_ID_W.W),
         _.dec.rs2          -> rs2.U(REG_ID_W.W),
@@ -279,7 +279,7 @@ object InstDecodedLitByPath extends ALUConfig {
         _.dec.param_a      -> AXXX,
         _.dec.param_b      -> BXXX,
         _.dec.write_target -> DXXX,
-        _.dec.alu_op       -> ALU_XXX,
+        _.dec.fu_ctrl      -> ALU_XXX,
         _.dec.path         -> PathXXX,
         _.dec.rs1          -> rs1.U(5.W),
         _.dec.rs2          -> rs2.U(5.W),

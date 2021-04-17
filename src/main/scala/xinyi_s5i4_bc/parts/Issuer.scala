@@ -58,14 +58,14 @@ class Issuer(path_type: Int, path_num: Int) extends Module {
       // find the FIRST fitting instruction (which hasn't been issued yet)
       for (i <- 0 until ISSUE_NUM) {
         when (available(i) & available_pass(i)) {
-          order(j) := i.U(4.W)
+          io.order(j) := i.U(4.W)
         }
       }
 
-      when (order(j) < ISSUE_NUM.U(ISSUE_NUM_W.W)) {
-        io.path(j) := io.inst(order(j))
-        io.issue(order(j)) := true.B
-        issued(j)(order(j)) := true.B
+      when (io.order(j) < ISSUE_NUM.U(ISSUE_NUM_W.W)) {
+        io.path(j) := io.inst(io.order(j))
+        io.issue(io.order(j)) := true.B
+        issued(j)(io.order(j)) := true.B
       }
 //  } // End when (io.ready(j))
   } // End for
@@ -89,15 +89,12 @@ object Issuer {
     for (i <- 0 until path_num) {
 //    issuer.io.ready(i)   <> forwarding(i + path_base).ready
 
-      issuer.io.path(i).write_target  <> path
-      issuer.io.path(i).rd            <> path
-      issuer.io.path(i).ctrl          <> path
-      issuer.io.path(i).a             <> path
-      issuer.io.path(i).b             <> path
-      issuer.io.path(i).imm           <> path
+      issuer.io.path(i).dec.write_target  <> path(i + path_base).write_target
+      issuer.io.path(i).dec.rd            <> path(i + path_base).rd
+      issuer.io.path(i).dec.fu_ctrl       <> path(i + path_base).fu_ctrl
 
-      issuer.io.path(i).pc            <> path(i + path_base).pc
-      issuer.io.order(i)              <> path(i + path_base).in.order
+      issuer.io.path(i).pc                <> path(i + path_base).pc
+      issuer.io.order(i)                  <> path(i + path_base).order
     }
   }
 }
