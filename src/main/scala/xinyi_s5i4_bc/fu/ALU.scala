@@ -7,53 +7,100 @@ import config.config._
 
 /**
  * @module ALU
- * ---
+ *         ---
  * @param alu_ctrl_bits width of control
- * ---
+ *                      ---
  * @IO
  * @input in_a         value a
  * @input in_b         value b
  * @input in_ctrl      control signal
  * @output out_res     result
- * @output err_overflow    bool signal indicating an overflow
- * ---
+ * @output exception   bool signal indicating an overflow
+ *         ---
  * @Status can emit verilog code successfully.
  */
-class ALU extends Module {
+
+trait ALUConfig {
+    final val ALU_XXX = 0.U(5.W)
+    final val FU_CTRL_W = ALU_XXX.getWidth // width of ALU control signal
+
+    final val ALU_ADD = 0.U(FU_CTRL_W.W)
+    final val ALU_ADDU = 1.U(FU_CTRL_W.W)
+    final val ALU_SUB = 2.U(FU_CTRL_W.W)
+    final val ALU_SLT = 3.U(FU_CTRL_W.W)
+    final val ALU_SLTU = 4.U(FU_CTRL_W.W)
+    final val ALU_AND = 5.U(FU_CTRL_W.W)
+    final val ALU_LUI = 6.U(FU_CTRL_W.W)
+    final val ALU_NOR = 7.U(FU_CTRL_W.W)
+    final val ALU_OR = 8.U(FU_CTRL_W.W)
+    final val ALU_XOR = 9.U(FU_CTRL_W.W)
+    final val ALU_SLL = 10.U(FU_CTRL_W.W)
+    final val ALU_SRA = 11.U(FU_CTRL_W.W)
+    final val ALU_SRL = 12.U(FU_CTRL_W.W)
+
+    final val ALU_DIV = 16.U(FU_CTRL_W.W)
+    final val ALU_DIVU = 17.U(FU_CTRL_W.W)
+    final val ALU_MUL = 18.U(FU_CTRL_W.W)
+    final val ALU_MULU = 19.U(FU_CTRL_W.W)
+}
+
+class ALU extends Module with ALUConfig with BALConfig {
     val io = IO(new Bundle {
         val in_a = Input(UInt(XLEN.W))
         val in_b = Input(UInt(XLEN.W))
-        val in_ctrl = Input(UInt(ALU_OP_W.W))
-
-        val out_res = Output(UInt(XLEN.W))
-        val err_overflow = Output(Bool())
+        val in_ctrl = Input(UInt(FU_CTRL_W.W))
+        val in_pc = Input(UInt(XLEN.W))
+        val out_lo = Output(UInt(XLEN.W))
+        val out_hi = Output(UInt(XLEN.W))
+        val exception = Output(Bool())
     })
 
+    val a = Cat((io.in_ctrl === ALU_DIV || io.in_ctrl === ALU_MUL) && io.in_a(XLEN - 1), io.in_a)
+    val b = Cat((io.in_ctrl === ALU_DIV || io.in_ctrl === ALU_MUL) && io.in_b(XLEN - 1), io.in_b)
 
-    io.out_res := MuxLookup(
+    val mul_ab = a * b
+
+    io.out_lo := MuxLookup(
         io.in_ctrl,
         "hcafebabe".U,
         Seq(
-            ALUADD -> (io.in_a + io.in_b),
-            ALUADDU -> (io.in_a + io.in_b),
-            ALUSUB -> (io.in_a - io.in_b),
-            ALUSLT -> (io.in_a.asSInt() < io.in_b.asSInt()),
-            ALUSLTU -> (io.in_a < io.in_b),
-            ALUAND -> (io.in_a & io.in_b),
-            ALULUI -> Cat(io.in_b(XLEN - 1, XLEN / 2), 0.U((XLEN / 2).W)),
-            ALUNOR -> (~(io.in_a | io.in_b)),
-            ALUOR -> (io.in_a | io.in_b),
-            ALUXOR -> (io.in_a ^ io.in_b),
-            ALUSLL -> (io.in_a << io.in_b(4, 0)),
-            ALUSRA -> (io.in_a.asSInt() >> io.in_b(4, 0)).asUInt(),
-            ALUSRL -> (io.in_a >> io.in_b(4, 0))
+            ALU_ADD -> (io.in_a + io.in_b),
+            ALU_ADDU -> (io.in_a + io.in_b),
+            ALU_SUB -> (io.in_a - io.in_b),
+            ALU_SLT -> (io.in_a.asSInt() < io.in_b.asSInt()),
+            ALU_SLTU -> (io.in_a < io.in_b),
+            ALU_AND -> (io.in_a & io.in_b),
+            ALU_LUI -> Cat(io.in_b(XLEN - 1, XLEN / 2), 0.U((XLEN / 2).W)),
+            ALU_NOR -> (~(io.in_a | io.in_b)),
+            ALU_OR -> (io.in_a | io.in_b),
+            ALU_XOR -> (io.in_a ^ io.in_b),
+            ALU_SLL -> (io.in_a << io.in_b(4, 0)),
+            ALU_SRA -> (io.in_a.asSInt() >> io.in_b(4, 0)).asUInt(),
+            ALU_SRL -> (io.in_a >> io.in_b(4, 0)),
+            ALU_DIV -> a % b,
+            ALU_DIVU -> a % b,
+            ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
+            ALU_MULU -> mul_ab(XLEN - 1, 0),
+            BrGEPC -> io.in_pc,
+            BrLTPC -> io.in_pc,
         )
     )
 
-    io.err_overflow := ((io.in_ctrl === ALUADD) &&
+    io.out_hi := MuxLookup(
+        io.in_ctrl,
+        "hcafebabe".U,
+        Seq(
+            ALU_DIV -> (a / b),
+            ALU_DIVU -> (a / b),
+            ALU_MUL -> mul_ab(XLEN - 1, 0),
+            ALU_MULU -> mul_ab(XLEN - 1, 0),
+        )
+    )
+
+    io.exception := ((io.in_ctrl === ALU_ADD) &&
         (io.in_a(XLEN - 1) === io.in_b(XLEN - 1)) &&
-        (io.in_a(XLEN - 1) =/= io.out_res(XLEN - 1))) ||
-        ((io.in_ctrl === ALUSUB) &&
+        (io.in_a(XLEN - 1) =/= io.out_lo(XLEN - 1))) ||
+        ((io.in_ctrl === ALU_SUB) &&
             (io.in_a(XLEN - 1) =/= io.in_b(XLEN - 1)) &&
-            (io.in_a(XLEN - 1) =/= io.out_res(XLEN - 1)))
+            (io.in_a(XLEN - 1) =/= io.out_lo(XLEN - 1)))
 }

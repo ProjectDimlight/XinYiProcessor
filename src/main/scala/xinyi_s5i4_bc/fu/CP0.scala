@@ -53,11 +53,6 @@ class CP0 extends Module with CP0Config {
         val in_epc = Input(UInt(XLEN.W))
         val in_ls_badvaddr = Input(UInt(XLEN.W))
         val in_has_exception = Input(Bool())
-        //        val in_exception_en = Input(Bool())
-        //
-        //        val out_epc = Output(UInt(CP0_REG_WIDTH.W))
-        //        val out_cause = Output(UInt(CP0_REG_WIDTH.W))
-        //        val out_status = Output(UInt(CP0_REG_WIDTH.W))
         val out_read_val = Output(UInt(XLEN.W))
     })
 

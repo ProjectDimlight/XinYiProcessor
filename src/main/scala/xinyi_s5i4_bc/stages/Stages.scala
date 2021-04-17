@@ -116,9 +116,29 @@ class BJUPathInterface extends Bundle {
   val data = new PathData
 }
 
-class ForwardingPath extends Bundle {
+class ForwardingPathId extends Bundle {
   val rs1  = UInt(TOT_PATH_NUM_W.W)
   val rs2  = UInt(TOT_PATH_NUM_W.W)
+}
+
+class Path extends Bundle {
+  // target
+  val write_target  = Output(UInt(WRITE_TARGET_W.W))
+  val rd            = Output(UInt(REG_ID_W.W))
+
+  // control
+  val fu_ctrl       = Output(UInt(FU_CTRL_W.W))
+  
+  // meta
+  val pc            = Output(UInt(LGC_ADDR_W.W))
+  val order         = Output(UInt(ISSUE_NUM_W))
+}
+
+class ISOut extends Path {
+  // params
+  val a             = Output(UInt(XLEN.W))
+  val b             = Output(UInt(XLEN.W))
+  val imm           = Output(UInt(XLEN.W))
 }
 
 // Issue Stage
@@ -128,10 +148,11 @@ class ISStage extends Module {
     val inst      = Input(Vec(ISSUE_NUM, new Instruction))
 
     // To Param Fetcher 
-    val forwarding_path     = Output(Vec(ISSUE_NUM, new ForwardingPath))
+    val forwarding_path_id  = Output(Vec(ISSUE_NUM, new ForwardingPathId))
 
     // To common FUs
-    val paths               = Flipped(Vec(TOT_PATH_NUM, new PathInterface))
+    val path                = Flipped(Vec(TOT_PATH_NUM, new Path))
+    val forwarding          = Flipped(Vec(TOT_PATH_NUM, new Forwarding))
     val actual_issue_cnt    = Output(UInt(ISSUE_NUM_W.W))
 
     // To BJU
@@ -142,7 +163,6 @@ class ISStage extends Module {
   // Hazard Detect Logic  
   val filtered_inst = Wire(Vec(ISSUE_NUM, new Instruction))
   val inst = Wire(Vec(ISSUE_NUM, new Instruction))
-  inst := io.inst
 
   // For each instruction, decide which path it should go
   val target = Wire(Vec(ISSUE_NUM, UInt(PATH_W.W)))
@@ -155,38 +175,50 @@ class ISStage extends Module {
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
   def RAWPath(i: Int, j: Int) {
-    when ((io.paths(j).out.wt   === 5.U & inst(i).dec.param_a === BitPat("b01?") |  // HiLo
-           io.paths(j).out.wt   === inst(i).dec.param_a) &  // Same source
-           io.paths(j).out.rd   === inst(i).dec.rs1 &       // Same ID
-          (inst(i).dec.param_a  =/= 0.U | inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
-      when (io.paths(j).out.ready) {
+    io.forwarding_path(i).rs1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    io.forwarding_path(i).rs2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+
+    when ((io.forwarding(j).write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") |  // HiLo
+           io.forwarding(j).write_target === io.inst(i).dec.param_a) &      // Same source
+           io.forwarding(j).rd === io.inst(i).dec.rs1 &                     // Same ID
+          (io.inst(i).dec.param_a =/= 0.U | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
+//    when (io.forwarding(j).ready) {
         io.forwarding_path(i).rs1 := j.U
-      }
-      .otherwise {
-        raw(i) := true.B
-      }
+//    }
+//    .otherwise {
+//      raw(i) := true.B
+//    }
     }
-    when ( io.paths(j).out.wt   === 0.U &   // rs2 ONLY comes from regs
-           io.paths(j).out.rd   === inst(i).dec.rs2 &
-           inst(i).dec.rs2      =/= 0.U) {  // Not Reg 0
-      when (io.paths(j).out.ready) {
+    when ( io.forwarding(j).write_target === 0.U &    // rs2 ONLY relies on regs
+           io.forwarding(j).rd === inst(i).dec.rs2 &  // Same ID
+           io.inst(i).dec.rs2 =/= 0.U) {              // Not Reg 0
+//    when (io.forwarding(j).ready) {
         io.forwarding_path(i).rs2 := j.U
-      }
-      .otherwise {
-        raw(i) := true.B
-      }
+//    }
+//    .otherwise {
+//      raw(i) := true.B
+//    }
     }
   }
 
   def RAWInst(i: Int, k: Int) {
-    when (inst(k).dec.rd === inst(i).dec.rs1 | inst(k).dec.rd === inst(i).dec.rs2) {
+    when ((io.inst(k).write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") |  // HiLo
+           io.inst(k).write_target === io.inst(i).dec.param_a) &            // Same source
+           io.inst(k).dec.rd === io.inst(i).dec.rs1 &                       // Same id
+          (io.inst(i).dec.param_a =/= 0.U | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
+      raw(i) := true.B
+    }
+
+    when ( io.inst(k).dec.write_target === 0.U &    // rs2 ONLY relies on regs
+           io.inst(k).dec.rd === inst(i).dec.rs2 &  // Same id
+           io.inst(i).dec.rs2 =/= 0.U) {
       raw(i) := true.B
     }
   }
 
   structural_hazard := false.B
   for (j <- 0 until TOT_PATH_NUM)
-    when (!io.paths(j).out.ready) {
+    when (!io.forwarding(j).ready) {
       structural_hazard := true.B
     }
 
@@ -196,8 +228,6 @@ class ISStage extends Module {
 
     // RAW Data hazard
     // From path (issued)
-    io.forwarding_path(i).rs1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
-    io.forwarding_path(i).rs2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
     raw(i) := false.B
     for (j <- 0 until TOT_PATH_NUM) {
       RAWPath(i, j)
@@ -212,7 +242,7 @@ class ISStage extends Module {
     target(i) := Mux(
       (raw(i) | structural_hazard | (i.U >= io.issue_cnt)),
       0.U,
-      inst(i).dec.path
+      io.inst(i).dec.path
     )
 
     issued(0)(i) := false.B
@@ -249,7 +279,7 @@ class ISStage extends Module {
   // Parameterized issuing
   var base = 0
   for (path_type <- 1 until PATH_TYPE_NUM) {
-    Issuer(path_type, base, PATH_NUM(path_type), filtered_inst, target, issued(path_type), io.paths)
+    Issuer(path_type, base, PATH_NUM(path_type), filtered_inst, target, issued(path_type), io.path /*, io.forwarding*/)
     base += PATH_NUM(path_type)
   }
   
@@ -257,9 +287,9 @@ class ISStage extends Module {
   io.delay_slot_pending := false.B
   for (j <- 0 until ALU_PATH_NUM) {
     // Branch
-    when (io.paths(j).in.inst.dec.next_pc =/= PC4) {
+    when (io.path(j).in.inst.dec.next_pc =/= PC4) {
       io.branch_jump_id := j.U(ALU_PATH_NUM_W.W)
-      io.delay_slot_pending := (io.paths(j).in.id + 1.U) === io.actual_issue_cnt
+      io.delay_slot_pending := (io.path(j).order + 1.U) === io.actual_issue_cnt
     }
   }
 }
