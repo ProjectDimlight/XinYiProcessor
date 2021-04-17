@@ -54,6 +54,7 @@ class DummyDCache extends Module {
     val stall_req = Output(Bool())
   })
 
+  io.lower.size     := 0.U
   io.lower.addr_in  := io.upper.addr
   io.lower.data_in  := io.upper.din
   io.lower.rd       := io.upper.rd

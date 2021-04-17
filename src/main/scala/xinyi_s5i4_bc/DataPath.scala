@@ -14,6 +14,7 @@ class DataPath extends Module {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
     val icache_axi  = new ICacheAXI
+    val dcache_axi  = new DCacheAXI
 //  val debug_out   = Vec(2, new IDOut)
   })
 
@@ -23,6 +24,7 @@ class DataPath extends Module {
   val is_fu_reg     = Module(new ISFUReg)
 
   val icache = Module(new DummyICache)
+  val dcache = Module(new DummyDCache)
 
   val stall_frontend = Wire(Bool())
 
@@ -68,8 +70,9 @@ class DataPath extends Module {
   issue_queue.io.actual_issue_cnt <> is_stage.io.actual_issue_cnt
 
   // ISStage
-  is_stage.io.issue_cnt <> issue_queue.io.issue_cnt
-  is_stage.io.inst <> issue_queue.io.inst
+  is_stage.io.issue_cnt  <> issue_queue.io.issue_cnt
+  is_stage.io.inst       <> issue_queue.io.inst
+  is_stage.io.forwarding <> forwarding 
   
   // Fetch instruction params
   val inst_params = Wire(Vec(FETCH_NUM , Vec(2, UInt(XLEN.W))))
@@ -101,49 +104,62 @@ class DataPath extends Module {
   }
 
   // IS-FU regs
+  val is_out = Wire(Vec(TOT_PATH_NUM, new ISOut))
   for (j <- 0 until TOT_PATH_NUM) {
-    is_fu_reg.io.is_out(j).Lit(
-      _.write_target -> is_stage.io.path(j).write_target,
-      _.rd           -> is_stage.io.path(j).rd,
-      _.fu_ctrl      -> is_stage.io.path(j).fu_ctrl,
-      _.pc           -> is_stage.io.path(j).pc,
-      _.order        -> is_stage.io.path(j).order,
-      _.a            -> inst_params(is_stage.io.path(j).order)(0),
-      _.b            -> inst_params(is_stage.io.path(j).order)(1),
-      _.imm          -> issue_queue.io.inst(is_stage.io.path(j).order).imm
-    )
+    is_out(j).write_target := is_stage.io.path(j).write_target
+    is_out(j).rd           := is_stage.io.path(j).rd
+    is_out(j).fu_ctrl      := is_stage.io.path(j).fu_ctrl
+    is_out(j).pc           := is_stage.io.path(j).pc
+    is_out(j).order        := is_stage.io.path(j).order
+    is_out(j).a            := inst_params(is_stage.io.path(j).order)(0)
+    is_out(j).b            := inst_params(is_stage.io.path(j).order)(1)
+    is_out(j).imm          := issue_queue.io.inst(is_stage.io.path(j).order).imm
   }
+  is_fu_reg.io.is_out := is_out
 
   // BJU
-  bju.io.path <> is_fu_reg.io.is_out(is_stage.io.branch_jump_id)
+  bju.io.path <> is_out(is_stage.io.branch_jump_id)
+  bju.io.branch_next_pc <> is_stage.io.branch_next_pc
   bju.io.delay_slot_pending <> is_stage.io.delay_slot_pending
 
-  def PathType(path_type: Int) = {
-    if (path_type == 1) {
-      Module(new ALU)
-    }
-    else if (path_type == 3) {
-      Module(new LSU)
+  // FUs
+  dcache.io.lower <> io.dcache_axi
+
+  def CreatePath(path_type: Int, j: Int) = {
+    if (path_type == 3) {
+      var fu = Module(new LSU)
+      fu.io.cache     <> dcache.io.upper
+      fu.io.stall_req <> dcache.io.stall_req
+
+      fu.io.in := is_fu_reg.io.fu_in(j)
+      forwarding(j).write_target := fu.io.out.write_target
+      forwarding(j).rd           := fu.io.out.rd
+      forwarding(j).data         := fu.io.out.data
+      forwarding(j).hi           := fu.io.out.hi
+      forwarding(j).ready        := fu.io.out.ready
+      forwarding(j).order        := fu.io.out.order
+
+      fu
     }
     else {
-      Module(new ALU)
+      var fu = Module(new ALU)
+
+      fu.io.in := is_fu_reg.io.fu_in(j)
+      forwarding(j).write_target := fu.io.out.write_target
+      forwarding(j).rd           := fu.io.out.rd
+      forwarding(j).data         := fu.io.out.data
+      forwarding(j).hi           := fu.io.out.hi
+      forwarding(j).ready        := fu.io.out.ready
+      forwarding(j).order        := fu.io.out.order
+      
+      fu
     }
   }
 
-  // FUs
   var base = 0
   for (path_type <- 1 until PATH_TYPE_NUM) {
     for (j <- base until base + PATH_NUM(path_type)) {
-      val fu = PathType(path_type)
-      fu.io.in := is_fu_reg.io.fu_in(j)
-      forwarding(j).Lit(
-        _.write_target  -> fu.io.out.write_target,
-        _.rd            -> fu.io.out.rd,
-        _.data          -> fu.io.out.data,
-        _.hi            -> fu.io.out.hi,
-        _.ready         -> fu.io.out.ready,
-        _.order         -> fu.io.out.order
-      )
+      CreatePath(path_type, j)
     }
     
     base += PATH_NUM(path_type)

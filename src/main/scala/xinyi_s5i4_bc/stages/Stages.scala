@@ -81,8 +81,8 @@ class IDStage extends Module with ALUConfig{
     val decoder = Module(new MIPSDecoder)
     decoder.io.inst := io.in(i).inst
 
-    val signed    = SInt(32.W)
-    val signed_x4 = SInt(32.W)
+    val signed    = Wire(SInt(32.W))
+    val signed_x4 = Wire(SInt(32.W))
 
     signed    := io.in(i).inst(15, 0).asSInt()
     signed_x4 := Cat(io.in(i).inst(15, 0), 0.U(2.W)).asSInt()
@@ -97,8 +97,8 @@ class IDStage extends Module with ALUConfig{
           decoder.io.dec.fu_ctrl === ALU_SLT  | 
           decoder.io.dec.fu_ctrl === ALU_SLTU 
          ) & decoder.io.dec.path === PathALU | 
-          decoder.io.dec.path    === PathLSU) -> signed,
-         (decoder.io.dec.next_pc === Branch)  -> signed_x4,
+          decoder.io.dec.path    === PathLSU) -> signed.asUInt(),
+         (decoder.io.dec.next_pc === Branch)  -> signed_x4.asUInt(),
          (decoder.io.dec.next_pc === Jump)    -> Cat(io.in(i).inst(25, 0), 0.U(2.W))
       )
     )
@@ -153,7 +153,6 @@ class ISStage extends Module {
 
   // Hazard Detect Logic  
   val filtered_inst = Wire(Vec(ISSUE_NUM, new Instruction))
-  val inst = Wire(Vec(ISSUE_NUM, new Instruction))
 
   // For each instruction, decide which path it should go
   val target = Wire(Vec(ISSUE_NUM, UInt(PATH_W.W)))
@@ -181,7 +180,7 @@ class ISStage extends Module {
 //    }
     }
     when ( io.forwarding(j).write_target === 0.U &    // rs2 ONLY relies on regs
-           io.forwarding(j).rd === inst(i).dec.rs2 &  // Same ID
+           io.forwarding(j).rd === io.inst(i).dec.rs2 &  // Same ID
            io.inst(i).dec.rs2 =/= 0.U) {              // Not Reg 0
 //    when (io.forwarding(j).ready) {
         io.forwarding_path_id(i).rs2 := j.U
@@ -201,7 +200,7 @@ class ISStage extends Module {
     }
 
     when ( io.inst(k).dec.write_target === 0.U &    // rs2 ONLY relies on regs
-           io.inst(k).dec.rd === inst(i).dec.rs2 &  // Same id
+           io.inst(k).dec.rd === io.inst(i).dec.rs2 &  // Same id
            io.inst(i).dec.rs2 =/= 0.U) {
       raw(i) := true.B
     }

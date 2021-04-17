@@ -93,6 +93,12 @@ class ALU extends Module with ALUConfig with BALConfig {
     )
   )
 
+  io.out.ready        := true.B
+  io.out.write_target := io.in.write_target
+  io.out.rd           := io.in.rd
+  io.out.order        := io.in.order
+  io.out.pc           := io.in.pc
+
   io.out.exception := ((io.in.fu_ctrl === ALU_ADD) &&
     (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) &&
     (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1))) ||
