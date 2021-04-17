@@ -1,5 +1,7 @@
 package config
 
+import chisel3.util._
+
 /**
  * @module config
  * @author ziyue
@@ -27,7 +29,7 @@ object config {
 
   final val FETCH_NUM       = 2
   final val ISSUE_NUM       = 2
-  final val ISSUE_NUM_W     = 3
+  final val ISSUE_NUM_W     = log2Up(ISSUE_NUM)
   
   final val N_A_PATH_TYPE   = 0
 
