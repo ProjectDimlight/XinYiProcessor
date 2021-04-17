@@ -16,12 +16,12 @@ class Instruction extends Bundle {
 }
 
 object ControlConst {
-  val PATH_ALU      = 1.U(2.W) 
-  val PATH_MDU      = 2.U(2.W) 
+  val PATH_ALU      = 1.U(2.W)
+  val PATH_MDU      = 2.U(2.W)
   val PATH_LSU      = 3.U(2.W)
 
   val InstXXX       = 0.U(4.W)
-  val RType         = 1.U(4.W)   
+  val RType         = 1.U(4.W)
   val RSType        = 2.U(4.W)    // RType with shamt
   val RTType        = 3.U(4.W)    // RType with Trap
   val RMDType       = 4.U(4.W)    // RType with MDU
