@@ -10,7 +10,7 @@ class FUIn extends Bundle {
   val rd = Input(UInt(REG_ID_W.W))
 
   // control param
-  val ctrl = Input(UInt(FU_CTRL_W.W))
+  val fu_ctrl = Input(UInt(FU_CTRL_W.W))
 
   // operation params
   val a = Input(UInt(XLEN.W))

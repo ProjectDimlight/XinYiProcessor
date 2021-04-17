@@ -37,6 +37,7 @@ class WB extends Module {
   for (i <- 0 until TOT_PATH_NUM) {
     when(io.fu_res_vec(i).order < io.actual_issue_cnt) {
       // TODO handle the write back
+
     }
   }
 }
