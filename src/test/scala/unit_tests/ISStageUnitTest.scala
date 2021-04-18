@@ -178,4 +178,26 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.actual_issue_cnt.expect(0.U)
     }
   }
+
+  it should "Test Case 8: 2ALU with WAW" in {
+    test(new ISStage()) { device =>
+      val a = InstDecodedLitByPath(1, 1, 1, 2)
+      val b = InstDecodedLitByPath(1, 3, 3, 2)
+      val c = InstDecodedLitByPath(0, 0, 0, 0)
+
+      device.io.issue_cnt.poke(2.U)
+      device.io.inst(0).poke(a)
+      device.io.inst(1).poke(b)
+
+      for (i <- 0 until TOT_PATH_NUM) {
+        device.io.forwarding(i).write_target.poke(DReg)
+        device.io.forwarding(i).rd.          poke(0.U(5.W))
+        device.io.forwarding(i).ready.       poke(true.B)
+      }
+
+      device.io.path(0).order.expect(0.U)
+      device.io.path(1).order.expect(2.U)
+      device.io.actual_issue_cnt.expect(1.U)
+    }
+  }
 }
