@@ -4,7 +4,6 @@ package xinyi_s5i4_bc.parts
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
-import ControlConst._
 import ISAPatterns._
 import config.config._
 import xinyi_s5i4_bc.fu._
@@ -50,12 +49,14 @@ object ControlConst {
   val PathBJU       = BJU_PATH_TYPE.U(2.W)
   val PathLSU       = LSU_PATH_TYPE.U(2.W)
 
+  val FU_CTRL_W     = 5
+
   val FU_BREAK      = 29.U(FU_CTRL_W.W)
   val FU_SYSCALL    = 30.U(FU_CTRL_W.W)
   val FU_XXX        = 31.U(FU_CTRL_W.W)
-
-  val FU_CTRL_W     = 5
 }
+
+import ControlConst._
 
 class ControlSet extends Bundle {
   val next_pc       = UInt(NEXT_PC_W.W)

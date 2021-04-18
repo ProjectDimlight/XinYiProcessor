@@ -51,12 +51,12 @@ class ALU extends Module with ALUConfig with BALConfig {
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   // connect some unchanged wires
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
+  
+  io.out.ready        := true.B  //always ready, operations are finished in one cycle
   io.out.write_target := io.in.write_target
-  io.out.pc := io.in.pc
-  io.out.rd := io.in.rd
-  io.out.ready := 1.U //always ready, operations are finished in one cycle
-  io.out.order := io.in.order
+  io.out.rd           := io.in.rd
+  io.out.order        := io.in.order
+  io.out.pc           := io.in.pc
 
 
   //>>>>>>>>>>>>>>>>
