@@ -4,7 +4,6 @@ import chisel3._
 import config.config._
 import xinyi_s5i4_bc.parts.ControlConst._
 
-
 class FUIn extends Bundle {
   val write_target = UInt(WRITE_TARGET_W.W) // write target
   val rd           = UInt(REG_ID_W.W) // destination register
@@ -18,8 +17,7 @@ class FUIn extends Bundle {
   val order        = UInt(ISSUE_NUM_W.W)
 }
 
-
-class Forwarding extends Bundle with CP0Config {
+class Forwarding extends Bundle {
   // target
   val write_target = UInt(WRITE_TARGET_W.W)
   val rd           = UInt(REG_ID_W.W)

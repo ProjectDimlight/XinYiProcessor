@@ -144,7 +144,7 @@ class IssueQueue extends Module {
 class ISFUReg extends Module {
   val io = IO(new Bundle{
     val is_out = Flipped(Vec(TOT_PATH_NUM, new ISOut))
-    val fu_in  = Flipped(Vec(TOT_PATH_NUM, new FUIn))
+    val fu_in  = Output(Vec(TOT_PATH_NUM, new FUIn))
   })
 
   val reg_in   = RegNext(io.is_out)

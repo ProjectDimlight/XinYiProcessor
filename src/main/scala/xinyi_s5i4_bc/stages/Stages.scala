@@ -142,7 +142,7 @@ class ISStage extends Module {
 
     // To common FUs
     val path                = Vec(TOT_PATH_NUM, new Path)
-    val forwarding          = Flipped(Vec(TOT_PATH_NUM, new Forwarding))
+    val forwarding          = Input(Flipped(Vec(TOT_PATH_NUM, new Forwarding)))
     val actual_issue_cnt    = Output(UInt(ISSUE_NUM_W.W))
 
     // To BJU
@@ -159,19 +159,18 @@ class ISStage extends Module {
 
   val issued = Wire(Vec(PATH_TYPE_NUM, Vec(ISSUE_NUM, Bool())))
   val raw = Wire(Vec(ISSUE_NUM, Bool()))
+  val waw = Wire(Vec(ISSUE_NUM, Bool()))
   val structural_hazard = Wire(Bool())
 
   // Begin
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
   def RAWPath(i: Int, j: Int) {
-    io.forwarding_path_id(i).rs1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
-    io.forwarding_path_id(i).rs2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
 
     when ((io.forwarding(j).write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") |  // HiLo
-           io.forwarding(j).write_target === io.inst(i).dec.param_a) &      // Same source
-           io.forwarding(j).rd === io.inst(i).dec.rs1 &                     // Same ID
-          (io.inst(i).dec.param_a =/= 0.U | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
+           io.forwarding(j).write_target === io.inst(i).dec.param_a) &       // Same source
+           io.forwarding(j).rd === io.inst(i).dec.rs1 &                      // Same ID
+          (io.inst(i).dec.param_a =/= AReg | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
 //    when (io.forwarding(j).ready) {
         io.forwarding_path_id(i).rs1 := j.U
 //    }
@@ -179,9 +178,9 @@ class ISStage extends Module {
 //      raw(i) := true.B
 //    }
     }
-    when ( io.forwarding(j).write_target === 0.U &    // rs2 ONLY relies on regs
+    when ( io.forwarding(j).write_target === 0.U &       // rs2 ONLY relies on regs
            io.forwarding(j).rd === io.inst(i).dec.rs2 &  // Same ID
-           io.inst(i).dec.rs2 =/= 0.U) {              // Not Reg 0
+           io.inst(i).dec.rs2 =/= 0.U) {                 // Not Reg 0
 //    when (io.forwarding(j).ready) {
         io.forwarding_path_id(i).rs2 := j.U
 //    }
@@ -193,16 +192,26 @@ class ISStage extends Module {
 
   def RAWInst(i: Int, k: Int) {
     when ((io.inst(k).dec.write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") |  // HiLo
-           io.inst(k).dec.write_target === io.inst(i).dec.param_a) &            // Same source
-           io.inst(k).dec.rd === io.inst(i).dec.rs1 &                       // Same id
-          (io.inst(i).dec.param_a =/= 0.U | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
+           io.inst(k).dec.write_target === io.inst(i).dec.param_a) &         // Same source
+           io.inst(k).dec.rd === io.inst(i).dec.rs1 &                        // Same id
+          (io.inst(i).dec.param_a =/= AReg | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
       raw(i) := true.B
     }
 
-    when ( io.inst(k).dec.write_target === 0.U &    // rs2 ONLY relies on regs
+    when ( io.inst(k).dec.write_target === 0.U &       // rs2 ONLY relies on regs
            io.inst(k).dec.rd === io.inst(i).dec.rs2 &  // Same id
            io.inst(i).dec.rs2 =/= 0.U) {
       raw(i) := true.B
+    }
+  }
+
+  def WAWInst(i: Int, k: Int) {
+    when ((io.inst(k).dec.write_target === 5.U & io.inst(i).dec.write_target === BitPat("b01?") |  // HiLo
+           io.inst(i).dec.write_target === 5.U & io.inst(k).dec.write_target === BitPat("b01?") |  // HiLo
+           io.inst(k).dec.write_target === io.inst(i).dec.write_target) &        // Same source
+           io.inst(k).dec.rd === io.inst(i).dec.rd &                             // Same id
+          (io.inst(i).dec.write_target =/= DReg | io.inst(i).dec.rd =/= 0.U)) {  // Not Reg 0
+      waw(i) := true.B
     }
   }
 
@@ -217,8 +226,11 @@ class ISStage extends Module {
     // Detect hazards
 
     // RAW Data hazard
+    io.forwarding_path_id(i).rs1 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
+    io.forwarding_path_id(i).rs2 := TOT_PATH_NUM.U(TOT_PATH_NUM_W.W)
     // From path (issued)
     raw(i) := false.B
+    waw(i) := false.B
     for (j <- 0 until TOT_PATH_NUM) {
       RAWPath(i, j)
     }
@@ -226,11 +238,15 @@ class ISStage extends Module {
     for (k <- 0 until i) {
       RAWInst(i, k)
     }
+    // From queue (going to issue)
+    for (k <- 0 until i) {
+      WAWInst(i, k)
+    }
 
     // Structural hazard
     // Target filter
     target(i) := Mux(
-      (raw(i) | structural_hazard | (i.U >= io.issue_cnt)),
+      (raw(i) | waw(i) | structural_hazard | (i.U >= io.issue_cnt)),
       0.U,
       io.inst(i).dec.path
     )

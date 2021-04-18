@@ -191,7 +191,7 @@ object NOPBubble {
 }
 
 // Construct a decoded Instruction with given functions
-object InstDecodedLitByPath extends ALUConfig with BJUConfig{
+object InstDecodedLitByPath extends ALUConfig with BJUConfig {
   // Construction By path
   def apply(path_type: Int, rs1: Int, rs2: Int, rd: Int): Instruction = {
     val inst = new Instruction
@@ -257,7 +257,7 @@ object InstDecodedLitByPath extends ALUConfig with BJUConfig{
         _.dec.param_a      -> AXXX,
         _.dec.param_b      -> BXXX,
         _.dec.write_target -> DXXX,
-        _.dec.fu_ctrl      -> FU_XXX,
+        _.dec.fu_ctrl      -> ALU_ADD,
         _.dec.path         -> PathXXX,
         _.dec.rs1          -> rs1.U(5.W),
         _.dec.rs2          -> rs2.U(5.W),
