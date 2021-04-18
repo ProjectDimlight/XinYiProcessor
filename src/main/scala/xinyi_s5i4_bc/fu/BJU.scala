@@ -26,7 +26,7 @@ trait BJUConfig extends BALConfig {
 
 class BJU extends Module with BJUConfig {
   val io = IO(new Bundle {
-    val path = new FUIn
+    val path = Input(new FUIn)
     val branch_next_pc = Input(UInt(NEXT_PC_W.W))
     val delay_slot_pending = Input(Bool())
 
@@ -34,20 +34,22 @@ class BJU extends Module with BJUConfig {
     val pc_interface = Flipped(new PCInterface)
   })
 
+  val a = io.path.a.asSInt()
+  val b = io.path.b.asSInt()
   val branch = Wire(Bool())
   branch := io.branch_next_pc =/= PC4 &
     MuxLookup(
       io.path.fu_ctrl,
       true.B,
       Array(
-        BrEQ    -> (io.path.a === io.path.b),
-        BrNE    -> (io.path.a =/= io.path.b),
-        BrGE    -> (io.path.a >=  io.path.b),
-        BrGT    -> (io.path.a >   io.path.b),
-        BrLE    -> (io.path.a <=  io.path.b),
-        BrLT    -> (io.path.a <   io.path.b),
-        BrGEPC  -> (io.path.a >=  io.path.b),
-        BrLTPC  -> (io.path.a <   io.path.b)
+        BrEQ    -> (a === b),
+        BrNE    -> (a =/= b),
+        BrGE    -> (a >=  b),
+        BrGT    -> (a >   b),
+        BrLE    -> (a <=  b),
+        BrLT    -> (a <   b),
+        BrGEPC  -> (a >=  b),
+        BrLTPC  -> (a <   b)
       )
     )
 

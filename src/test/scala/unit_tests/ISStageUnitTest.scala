@@ -28,16 +28,14 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.inst(1).poke(b)
 
       for (i <- 0 until TOT_PATH_NUM) {
-        device.io.paths(i).out.wt.     poke(DReg)
-        device.io.paths(i).out.rd.     poke(0.U(5.W))
-        device.io.paths(i).out.ready.  poke(true.B)
+        device.io.forwarding(i).write_target.poke(DReg)
+        device.io.forwarding(i).rd.          poke(0.U(5.W))
+        device.io.forwarding(i).ready.       poke(true.B)
       }
 
-      device.io.paths(0).in.inst.expect(a)
-      device.io.paths(0).in.id.expect(0.U)
-      device.io.paths(1).in.inst.expect(b)
-      device.io.paths(1).in.id.expect(1.U)
-      device.io.paths(2).in.id.expect(2.U)
+      device.io.path(0).order.expect(0.U)
+      device.io.path(1).order.expect(1.U)
+      device.io.path(2).order.expect(2.U)
       device.io.actual_issue_cnt.expect(2.U)
     }
   }
@@ -53,22 +51,19 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.inst(1).poke(b)
 
       for (i <- 0 until TOT_PATH_NUM) {
-        device.io.paths(i).out.wt.     poke(DReg)
-        device.io.paths(i).out.rd.     poke(0.U(5.W))
-        device.io.paths(i).out.ready.  poke(true.B)
+        device.io.forwarding(i).write_target.poke(DReg)
+        device.io.forwarding(i).rd.          poke(0.U(5.W))
+        device.io.forwarding(i).ready.       poke(true.B)
       }
 
-      device.io.paths(0).in.inst.expect(c)
-      device.io.paths(0).in.id.expect(2.U)
-      device.io.paths(1).in.inst.expect(c)
-      device.io.paths(1).in.id.expect(2.U)
-      device.io.paths(0).in.inst.expect(c)
+      device.io.path(0).order.expect(2.U)
+      device.io.path(1).order.expect(2.U)
       device.io.actual_issue_cnt.expect(0.U)
     }
   }
 
   it should "Test Case 3: 1ALU 1BJU" in {
-    // As there are no BJU paths, these instructions cannot issue at all
+    // As there are no BJU path, these instructions cannot issue at all
     test(new ISStage()) { device =>
       val a = InstDecodedLitByPath(2, 1, 1, 2)
       val b = InstDecodedLitByPath(1, 3, 3, 4)
@@ -79,16 +74,13 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.inst(1).poke(b)
 
       for (i <- 0 until TOT_PATH_NUM) {
-        device.io.paths(i).out.wt.     poke(DReg)
-        device.io.paths(i).out.rd.     poke(0.U(5.W))
-        device.io.paths(i).out.ready.  poke(true.B)
+        device.io.forwarding(i).write_target.poke(DReg)
+        device.io.forwarding(i).rd.          poke(0.U(5.W))
+        device.io.forwarding(i).ready.       poke(true.B)
       }
 
-      device.io.paths(0).in.inst.expect(c)
-      device.io.paths(0).in.id.expect(1.U)
-      device.io.paths(1).in.inst.expect(c)
-      device.io.paths(1).in.id.expect(2.U)
-      device.io.paths(2).in.inst.expect(c)
+      device.io.path(0).order.expect(1.U)
+      device.io.path(1).order.expect(2.U)
       device.io.actual_issue_cnt.expect(0.U)
     }
   }
@@ -104,19 +96,18 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.inst(1).poke(b)
 
       for (i <- 0 until TOT_PATH_NUM) {
-        device.io.paths(i).out.wt.     poke(DReg)
-        device.io.paths(i).out.rd.     poke(0.U(5.W))
-        device.io.paths(i).out.ready.  poke(true.B)
+        device.io.forwarding(i).write_target.poke(DReg)
+        device.io.forwarding(i).rd.          poke(0.U(5.W))
+        device.io.forwarding(i).ready.       poke(true.B)
       }
 
-      device.io.paths(0).in.inst.expect(a)
-      device.io.paths(1).in.inst.expect(c)
-      device.io.paths(2).in.inst.expect(c)
+      device.io.path(0).order.expect(0.U)
+      device.io.path(1).order.expect(2.U)
       device.io.actual_issue_cnt.expect(1.U)
     }
   }
 
-  it should "Test Case 5: 2ALU with RAW, 1 solved with FWD" in {
+  it should "Test Case 5: 2ALU with RAW, solved with FWD" in {
     test(new ISStage()) { device =>
       val a = InstDecodedLitByPath(1, 1, 1, 2)
       val b = InstDecodedLitByPath(1, 3, 3, 4)
@@ -126,26 +117,24 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.inst(0).poke(a)
       device.io.inst(1).poke(b)
       
-      device.io.paths(1).out.wt.     poke(DReg)
-      device.io.paths(1).out.rd.     poke(1.U(5.W))
-      device.io.paths(1).out.ready.  poke(true.B)
-      device.io.paths(0).out.wt.     poke(DReg)
-      device.io.paths(0).out.rd.     poke(3.U(5.W))
-      device.io.paths(0).out.ready.  poke(true.B)
+      device.io.forwarding(1).write_target.poke(DReg)
+      device.io.forwarding(1).rd.          poke(1.U(5.W))
+      device.io.forwarding(1).ready.       poke(true.B)
+      device.io.forwarding(0).write_target.poke(DReg)
+      device.io.forwarding(0).rd.          poke(3.U(5.W))
+      device.io.forwarding(0).ready.       poke(true.B)
+      
       for (i <- 2 until TOT_PATH_NUM) {
-        device.io.paths(i).out.wt.     poke(DReg)
-        device.io.paths(i).out.rd.     poke(0.U(5.W))
-        device.io.paths(i).out.ready.  poke(true.B)
+        device.io.forwarding(i).write_target.poke(DReg)
+        device.io.forwarding(i).rd.          poke(0.U(5.W))
+        device.io.forwarding(i).ready.       poke(true.B)
       }
 
-      device.io.forwarding_path(0).rs1.expect(1.U)
-      device.io.forwarding_path(0).rs2.expect(1.U)
-      device.io.forwarding_path(1).rs1.expect(0.U)
-      device.io.forwarding_path(1).rs2.expect(0.U)
+      device.io.forwarding_path_id(0).rs1.expect(1.U)
+      device.io.forwarding_path_id(0).rs2.expect(1.U)
+      device.io.forwarding_path_id(1).rs1.expect(0.U)
+      device.io.forwarding_path_id(1).rs2.expect(0.U)
 
-      device.io.paths(0).in.inst.expect(a)
-      device.io.paths(1).in.inst.expect(b)
-      device.io.paths(2).in.inst.expect(c)
       device.io.actual_issue_cnt.expect(2.U)
     }
   }
@@ -161,13 +150,11 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.inst(1).poke(b)
 
       for (i <- 0 until TOT_PATH_NUM) {
-        device.io.paths(i).out.wt.     poke(DReg)
-        device.io.paths(i).out.rd.     poke(0.U(5.W))
-        device.io.paths(i).out.ready.  poke(true.B)
+        device.io.forwarding(i).write_target.poke(DReg)
+        device.io.forwarding(i).rd.               poke(0.U(5.W))
+        device.io.forwarding(i).ready.            poke(true.B)
       }
 
-      device.io.paths(0).in.inst.expect(a)
-      device.io.paths(1).in.inst.expect(c)
       device.io.actual_issue_cnt.expect(1.U)
     }
   }
@@ -183,13 +170,11 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.inst(1).poke(b)
 
       for (i <- 0 until TOT_PATH_NUM) {
-        device.io.paths(i).out.wt.     poke(DReg)
-        device.io.paths(i).out.rd.     poke(0.U(5.W))
-        device.io.paths(i).out.ready.  poke(false.B)
+        device.io.forwarding(i).write_target.poke(DReg)
+        device.io.forwarding(i).rd.          poke(0.U(5.W))
+        device.io.forwarding(i).ready.       poke(false.B)
       }
 
-      device.io.paths(0).in.inst.expect(c)
-      device.io.paths(1).in.inst.expect(c)
       device.io.actual_issue_cnt.expect(0.U)
     }
   }

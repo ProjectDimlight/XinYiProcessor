@@ -37,7 +37,7 @@ class WB extends Module {
 
 
   // filter the write back results
-  val wb_vec = Wire(Vec(ISSUE_NUM, Module(new FUOut)))
+  val wb_vec = Wire(Vec(ISSUE_NUM, new FUOut))
 
   var count: Int = 0
   for (i <- 0 until TOT_PATH_NUM) {

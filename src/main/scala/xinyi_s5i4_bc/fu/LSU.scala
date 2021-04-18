@@ -16,17 +16,17 @@ trait LSUConfig {
   val MemWord       = 4.U(FU_CTRL_W.W)
 }
 
-class LSU extends Module with LSUConfig {
-  val io = IO(new Bundle {
-    val in   = new FUIn 
-    val out  = new FUOut
+class LSUIO extends FUIO {
+  // To DCache
+  val cache           = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
+  val stall_req       = Input(Bool())
+  
+  // Exception
+  val exception_order = Input(UInt(ISSUE_NUM.W))
+}
 
-    // To DCache
-    val cache           = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
-    val stall_req       = Input(Bool())
-    
-    val exception_order = Input(UInt(ISSUE_NUM.W))
-  })
+class LSU extends Module with LSUConfig {
+  val io = IO(new LSUIO)
 
   val addr = Wire(UInt(LGC_ADDR_W.W))
   addr := io.in.a + io.in.imm
