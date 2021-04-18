@@ -19,7 +19,7 @@ class FUIn extends Bundle {
 }
 
 
-class Forwarding extends Bundle {
+class Forwarding extends Bundle with CP0Config {
   // target
   val write_target = UInt(WRITE_TARGET_W.W)
   val rd           = UInt(REG_ID_W.W)
@@ -32,8 +32,8 @@ class Forwarding extends Bundle {
 }
 
 class FUOut extends Forwarding {
-  val pc        = Output(UInt(XLEN.W))
-  val exception = Output(Bool())
+  val pc       = UInt(XLEN.W)
+  val exc_code = UInt(EXC_CODE_W.W)
 }
 
 class FUIO extends Bundle {

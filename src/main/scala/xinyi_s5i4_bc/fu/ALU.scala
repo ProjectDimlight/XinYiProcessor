@@ -5,6 +5,7 @@ import chisel3.util._
 import xinyi_s5i4_bc.parts.ControlConst._
 import config.config._
 import xinyi_s5i4_bc.fu._
+import xinyi_s5i4_bc.stages.WBOut
 
 /**
  * @module ALU
@@ -45,6 +46,22 @@ trait ALUConfig {
 
 class ALU extends Module with ALUConfig with BALConfig {
   val io = IO(new FUIO)
+
+
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  // connect some unchanged wires
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+  io.out.write_target := io.in.write_target
+  io.out.pc := io.in.pc
+  io.out.rd := io.in.rd
+  io.out.ready := 1.U //always ready, operations are finished in one cycle
+  io.out.order := io.in.order
+
+
+  //>>>>>>>>>>>>>>>>
+  // ALU operations
+  //<<<<<<<<<<<<<<<<
 
   val a = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a)
   val b = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b)
@@ -89,7 +106,8 @@ class ALU extends Module with ALUConfig with BALConfig {
     )
   )
 
-  io.out.exception := ((io.in.fu_ctrl === ALU_ADD) &&
+  // TODO update exception in ALU
+  io.out.exc_code := ((io.in.fu_ctrl === ALU_ADD) &&
     (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) &&
     (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1))) ||
     ((io.in.fu_ctrl === ALU_SUB) &&
