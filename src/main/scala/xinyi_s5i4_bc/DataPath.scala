@@ -125,6 +125,18 @@ class DataPath extends Module {
   // FUs
   dcache.io.lower <> io.dcache_axi
 
+  val exception_by_order = Wire(Vec(ISSUE_NUM, Bool()))
+  for (i <- 0 until ISSUE_NUM)
+    exception_by_order(i) := false.B
+  
+  val min_exception_order = Wire(UInt(ISSUE_NUM_W.W))
+  min_exception_order := ISSUE_NUM.U
+  for (i <- ISSUE_NUM - 1 to 0 by -1) {
+    when (exception_by_order(i)) {
+      min_exception_order := i.U
+    }
+  }
+
   def CreatePath(path_type: Int, j: Int) = {
     if (path_type == 3) {
       var fu = Module(new LSU)
@@ -139,6 +151,12 @@ class DataPath extends Module {
       forwarding(j).ready        := fu.io.out.ready
       forwarding(j).order        := fu.io.out.order
 
+      fu.io.exception_order := min_exception_order
+
+      when (fu.io.out.exception) {
+        exception_by_order(fu.io.out.order) := true.B
+      }
+
       fu
     }
     else {
@@ -152,6 +170,10 @@ class DataPath extends Module {
       forwarding(j).ready        := fu.io.out.ready
       forwarding(j).order        := fu.io.out.order
       
+      when (fu.io.out.exception) {
+        exception_by_order(fu.io.out.order) := true.B
+      }
+
       fu
     }
   }
@@ -159,9 +181,9 @@ class DataPath extends Module {
   var base = 0
   for (path_type <- 1 until PATH_TYPE_NUM) {
     for (j <- base until base + PATH_NUM(path_type)) {
-      CreatePath(path_type, j)
+      val fu = CreatePath(path_type, j)
     }
-    
     base += PATH_NUM(path_type)
   }
+
 }

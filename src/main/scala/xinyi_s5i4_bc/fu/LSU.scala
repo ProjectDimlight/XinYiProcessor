@@ -31,7 +31,16 @@ class LSU extends Module with LSUConfig {
   val addr = Wire(UInt(LGC_ADDR_W.W))
   addr := io.in.a + io.in.imm
 
-  val normal = io.exception_order > io.in.order
+  val exception = MuxLookup(
+    io.in.fu_ctrl,
+    false.B,
+    Array(
+      MemHalf  -> (addr(0) === 0.U(1.W)),
+      MemHalfU -> (addr(0) === 0.U(1.W)),
+      MemWord  -> (addr(1, 0) === 0.U(2.W))
+    )
+  )
+  val normal = (io.exception_order > io.in.order) & !exception
 
   io.cache.wr   := normal & (io.in.write_target === DMem)
   io.cache.rd   := normal & (io.in.rd =/= 0.U)  
@@ -46,15 +55,7 @@ class LSU extends Module with LSUConfig {
   io.out.rd           := io.in.rd
   io.out.order        := io.in.order
   io.out.pc           := io.in.pc
-  io.out.exception    := MuxLookup(
-    io.in.fu_ctrl,
-    false.B,
-    Array(
-      MemHalf  -> (addr(0) === 0.U(1.W)),
-      MemHalfU -> (addr(0) === 0.U(1.W)),
-      MemWord  -> (addr(1, 0) === 0.U(2.W))
-    )
-  )
+  io.out.exception    := exception
 
 }
 
