@@ -30,12 +30,12 @@ trait CP0Config {
   val CP0_EPC_INDEX      = 14
 
   // reference
-  val EXC_CODE_WIDTH = 5
-  val EXC_CODE_INT   = 0
-  val EXC_CODE_ADEL  = 4
-  val EXC_CODE_ADES  = 5
-  val EXC_CODE_TR    = 13
-  val NO_EXCEPTION   = 31
+  val EXC_CODE_W    = 5 //width of EXC field
+  val EXC_CODE_INT  = 0
+  val EXC_CODE_ADEL = 4
+  val EXC_CODE_ADES = 5
+  val EXC_CODE_TR   = 13
+  val NO_EXCEPTION  = 31
 }
 
 
@@ -51,7 +51,7 @@ class CP0 extends Module with CP0Config {
     val in_write_val            = Input(UInt(XLEN.W))
     val in_eret_en              = Input(Bool())
     val in_delay_slot_exception = Input(Bool())
-    val in_exc_code             = Input(UInt(EXC_CODE_WIDTH.W))
+    val in_exc_code             = Input(UInt(EXC_CODE_W.W))
     val in_epc                  = Input(UInt(XLEN.W))
     val in_ls_badvaddr          = Input(UInt(XLEN.W))
     val out_read_val            = Output(UInt(XLEN.W))
@@ -86,7 +86,7 @@ class CP0 extends Module with CP0Config {
   //<<<<<<<<<<<<<<<<<<<<<<<<<
   val has_exception = Wire(Bool())
 
-  has_exception := !cp0_reg_status.EXL && io.in_exc_code =/= NO_EXCEPTION.U(EXC_CODE_WIDTH.W)
+  has_exception := !cp0_reg_status.EXL && io.in_exc_code =/= NO_EXCEPTION.U(EXC_CODE_W.W)
 
 
 

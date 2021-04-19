@@ -41,6 +41,7 @@ object ControlConst {
   val DLo           = 3.U(3.W)
   val DMem          = 4.U(3.W)
   val DHiLo         = 5.U(3.W)
+  val D_NONE        = 6.U(3.W)
   val WRITE_TARGET_W= DXXX.getWidth
 
   val PathXXX       = N_A_PATH_TYPE.U(2.W)
