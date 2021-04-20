@@ -9,8 +9,9 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
 import xinyi_s5i4_bc.fu._
 import ControlConst._
+import EXCCodeConfig._
 
-class DataPath extends Module with CP0Config {
+class DataPath extends Module {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
     val icache_axi  = new ICacheAXI
@@ -170,7 +171,7 @@ class DataPath extends Module with CP0Config {
       fu.io.exception_order := min_exception_order
       fu_wb_reg.io.fu_out(j) := fu.io.out
 
-      when (fu.io.out.exc_code =/= NO_EXCEPTION.U) {
+      when (fu.io.out.exc_code =/= NO_EXCEPTION) {
         exception_by_order(fu.io.out.order) := true.B
       }
 
@@ -189,7 +190,7 @@ class DataPath extends Module with CP0Config {
       
       fu_wb_reg.io.fu_out(j) := fu.io.out
 
-      when (fu.io.out.exc_code =/= NO_EXCEPTION.U) {
+      when (fu.io.out.exc_code =/= NO_EXCEPTION) {
         exception_by_order(fu.io.out.order) := true.B
       }
 

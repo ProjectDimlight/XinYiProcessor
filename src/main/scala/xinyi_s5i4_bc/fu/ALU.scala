@@ -6,6 +6,8 @@ import xinyi_s5i4_bc.parts.ControlConst._
 import config.config._
 import xinyi_s5i4_bc.fu._
 import xinyi_s5i4_bc.stages.WBOut
+import EXCCodeConfig._
+
 
 /**
  * @module ALU
@@ -44,7 +46,7 @@ trait ALUConfig {
   val ALU_MULU = 19.U(FU_CTRL_W.W)
 }
 
-class ALU extends Module with ALUConfig with BALConfig with CP0Config {
+class ALU extends Module with ALUConfig with BALConfig {
   val io = IO(new FUIO)
 
   io.out.is_delay_slot := io.in.is_delay_slot

@@ -6,8 +6,9 @@ import chisel3.util._
 import config.config._
 import xinyi_s5i4_bc.fu._
 import xinyi_s5i4_bc.parts.ControlConst._
+import EXCCodeConfig._
 
-class WBOut extends Bundle with CP0Config {
+class WBOut extends Bundle {
   val write_hi_en   = Bool()
   val write_lo_en   = Bool()
   val write_hi_data = UInt(XLEN.W)
@@ -15,9 +16,11 @@ class WBOut extends Bundle with CP0Config {
 
   val write_regs_en   = Bool()
   val write_regs_data = UInt(XLEN.W)
+  val write_regs_rd   = UInt(XLEN.W)
 
   val write_cp0_en        = Bool()
-  val write_cp0_exception = UInt(EXC_CODE_INT.W)
+  val write_cp0_rd        = UInt(XLEN.W)
+  val write_cp0_exception = UInt(EXC_CODE_W.W)
   val write_cp0_data      = UInt(XLEN.W)
   val write_cp0_pc        = UInt(XLEN.W)
 }
@@ -26,14 +29,20 @@ class WBOut extends Bundle with CP0Config {
 class WBIO extends Bundle {
   val fu_res_vec        = Input(Vec(TOT_PATH_NUM, new FUOut)) // fu result vector
   val actual_issue_cnt  = Input(UInt(ISSUE_NUM_W.W)) // issue param
-  val write_channel_vec = Output(Vec(ISSUE_NUM, WireInit(0.U.asTypeOf(new WBOut))))
+  val write_channel_vec = Output(Vec(ISSUE_NUM, new WBOut))
 }
 
 class WBStage extends Module {
   val io = IO(new WBIO)
 
   for (i <- 0 until ISSUE_NUM) {
-    when(io.fu_res_vec(i).ready && i.U < io.actual_issue_cnt) {
+
+    val previous_exception = Wire(Vec(i, Bool()))
+    for (j <- 0 until i) {
+      previous_exception(j) := io.fu_res_vec(i).exc_code =/= NO_EXCEPTION
+    }
+
+    when(io.fu_res_vec(i).ready && i.U < io.actual_issue_cnt && !previous_exception.asUInt.orR) {
       // params from input
       val fu_tmp_res = io.fu_res_vec(i)
       val order      = fu_tmp_res.order
@@ -43,6 +52,7 @@ class WBStage extends Module {
           when(fu_tmp_res.rd =/= 0.U) {
             io.write_channel_vec(order).write_regs_en := 1.U
             io.write_channel_vec(order).write_regs_data := fu_tmp_res.data
+            io.write_channel_vec(order).write_regs_rd := fu_tmp_res.rd
           }
         }
         is(DCP0) {
@@ -68,6 +78,5 @@ class WBStage extends Module {
       }
     }
   }
-
 
 }

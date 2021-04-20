@@ -142,7 +142,7 @@ class IssueQueue extends Module {
   head   := head_n
 }
 
-class ISFUReg extends Module {
+class ISFUReg extends Module with ALUConfig {
   val io = IO(new Bundle{
     val is_out = Flipped(Vec(TOT_PATH_NUM, new ISOut))
     val is_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
@@ -173,7 +173,7 @@ class ISFUReg extends Module {
   
   reg_stall := io.stall
   when (!io.stall) {
-    reg_out := is_out
+    reg_out := io.is_out
     reg_actual_issue_cnt := io.is_actual_issue_cnt
   }
 

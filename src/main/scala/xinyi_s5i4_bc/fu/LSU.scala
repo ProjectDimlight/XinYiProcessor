@@ -7,6 +7,7 @@ import xinyi_s5i4_bc.caches._
 import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.parts._
 import ControlConst._
+import EXCCodeConfig._
 
 trait LSUConfig {
   val MemByte       = 0.U(FU_CTRL_W.W)
@@ -16,19 +17,19 @@ trait LSUConfig {
   val MemWord       = 4.U(FU_CTRL_W.W)
 }
 
-class LSUIO extends FUIO with CP0Config {
+class LSUIO extends FUIO {
   // Stall 
   val stall           = Input(Bool())
 
   // To DCache
   val cache           = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
   val stall_req       = Input(Bool())
-  
+
   // Exception
   val exception_order = Input(UInt(ISSUE_NUM.W))
 }
 
-class LSU extends Module with LSUConfig with CP0Config {
+class LSU extends Module with LSUConfig {
   val io = IO(new LSUIO)
 
   io.out.is_delay_slot := io.in.is_delay_slot
@@ -54,7 +55,7 @@ class LSU extends Module with LSUConfig with CP0Config {
   io.cache.rd   := normal & rd
   io.cache.addr := addr
   io.cache.din  := io.in.b
-  
+
   io.out.hi        := addr
   io.out.data      := io.cache.dout
   io.out.ready     := !io.stall_req
