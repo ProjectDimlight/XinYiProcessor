@@ -16,9 +16,11 @@ class WBOut extends Bundle with CP0Config {
 
   val write_regs_en   = Bool()
   val write_regs_data = UInt(XLEN.W)
+  val write_regs_rd   = UInt(XLEN.W)
 
   val write_cp0_en        = Bool()
-  val write_cp0_exception = UInt(EXC_CODE_INT.W)
+  val write_cp0_rd        = UInt(XLEN.W)
+  val write_cp0_exception = UInt(EXC_CODE_W.W)
   val write_cp0_data      = UInt(XLEN.W)
   val write_cp0_pc        = UInt(XLEN.W)
 }
@@ -31,12 +33,18 @@ class WBIO extends Bundle {
   val write_channel_vec = Output(Vec(ISSUE_NUM, WireInit(0.U.asTypeOf(new WBOut))))
 }
 
-
-class WB extends Module {
+class WB extends Module with CP0Config {
   val io = IO(new WBIO)
 
+
   for (i <- 0 until ISSUE_NUM) {
-    when(io.fu_res_vec(i).ready && i < io.actual_issue_cnt) {
+
+    val previous_exception = Vec(i, Bool())
+    for (j <- 0 until i) {
+      previous_exception(j) := io.fu_res_vec(i).exc_code =/= NO_EXCEPTION
+    }
+
+    when(io.fu_res_vec(i).ready && i < io.actual_issue_cnt && !previous_exception.asUInt.orR) {
       // params from input
       val fu_tmp_res = io.fu_res_vec(i)
       val order      = fu_tmp_res.order
@@ -46,6 +54,7 @@ class WB extends Module {
           when(fu_tmp_res.rd =/= 0.U) {
             io.write_channel_vec(order).write_regs_en := 1.U
             io.write_channel_vec(order).write_regs_data := fu_tmp_res.data
+            io.write_channel_vec(order).write_regs_rd := fu_tmp_res.rd
           }
         }
         is(DCP0) {
@@ -71,6 +80,5 @@ class WB extends Module {
       }
     }
   }
-
 
 }

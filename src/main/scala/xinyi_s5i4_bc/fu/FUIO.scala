@@ -29,7 +29,7 @@ class Forwarding extends Bundle {
   val order        = UInt(ISSUE_NUM_W.W)
 }
 
-class FUOut extends Forwarding {
+class FUOut extends Forwarding with CP0Config {
   val pc       = UInt(XLEN.W)
   val exc_code = UInt(EXC_CODE_W.W)
 }

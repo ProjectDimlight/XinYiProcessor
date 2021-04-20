@@ -20,7 +20,7 @@ class LSUIO extends FUIO {
   // To DCache
   val cache           = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
   val stall_req       = Input(Bool())
-  
+
   // Exception
   val exception_order = Input(UInt(ISSUE_NUM.W))
 }
@@ -34,10 +34,10 @@ class LSU extends Module with LSUConfig {
   val normal = io.exception_order > io.in.order
 
   io.cache.wr   := normal & (io.in.write_target === DMem)
-  io.cache.rd   := normal & (io.in.rd =/= 0.U)  
+  io.cache.rd   := normal & (io.in.rd =/= 0.U)
   io.cache.addr := addr
   io.cache.din  := io.in.b
-  
+
   io.out.hi        := addr
   io.out.data      := io.cache.dout
   io.out.ready     := !io.stall_req
@@ -46,7 +46,7 @@ class LSU extends Module with LSUConfig {
   io.out.rd           := io.in.rd
   io.out.order        := io.in.order
   io.out.pc           := io.in.pc
-  io.out.exception    := MuxLookup(
+  io.out.exc_code     := MuxLookup(
     io.in.fu_ctrl,
     false.B,
     Array(
