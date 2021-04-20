@@ -16,7 +16,10 @@ trait LSUConfig {
   val MemWord       = 4.U(FU_CTRL_W.W)
 }
 
-class LSUIO extends FUIO {
+class LSUIO extends FUIO with CP0Config {
+  // Stall 
+  val stall           = Input(Bool())
+
   // To DCache
   val cache           = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
   val stall_req       = Input(Bool())
@@ -25,8 +28,10 @@ class LSUIO extends FUIO {
   val exception_order = Input(UInt(ISSUE_NUM.W))
 }
 
-class LSU extends Module with LSUConfig {
+class LSU extends Module with LSUConfig with CP0Config {
   val io = IO(new LSUIO)
+
+  io.out.is_delay_slot := io.in.is_delay_slot
 
   val addr = Wire(UInt(LGC_ADDR_W.W))
   addr := io.in.a + io.in.imm
@@ -40,10 +45,13 @@ class LSU extends Module with LSUConfig {
       MemWord  -> (addr(1, 0) === 0.U(2.W))
     )
   )
-  val normal = (io.exception_order > io.in.order) & !exception
+  val normal = (io.exception_order > io.in.order) & !exception & !io.stall
 
-  io.cache.wr   := normal & (io.in.write_target === DMem)
-  io.cache.rd   := normal & (io.in.rd =/= 0.U)  
+  val wr = (io.in.write_target === DMem)
+  val rd = (io.in.rd =/= 0.U)
+
+  io.cache.wr   := normal & wr
+  io.cache.rd   := normal & rd
   io.cache.addr := addr
   io.cache.din  := io.in.b
   
@@ -55,7 +63,15 @@ class LSU extends Module with LSUConfig {
   io.out.rd           := io.in.rd
   io.out.order        := io.in.order
   io.out.pc           := io.in.pc
-  io.out.exception    := exception
+  io.out.exc_code     := MuxCase(
+    NO_EXCEPTION,
+    Array(
+      (io.in.pc(1, 0) =/= 0.U) -> EXC_CODE_ADEL,
+      (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
+      (rd & exception) -> EXC_CODE_ADEL,
+      (wr & exception) -> EXC_CODE_ADES
+    )
+  )
 
 }
 

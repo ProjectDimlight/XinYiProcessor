@@ -29,11 +29,11 @@ class WBIO extends Bundle {
   val write_channel_vec = Output(Vec(ISSUE_NUM, WireInit(0.U.asTypeOf(new WBOut))))
 }
 
-class WB extends Module {
+class WBStage extends Module {
   val io = IO(new WBIO)
 
   for (i <- 0 until ISSUE_NUM) {
-    when(io.fu_res_vec(i).ready && i < io.actual_issue_cnt) {
+    when(io.fu_res_vec(i).ready && i.U < io.actual_issue_cnt) {
       // params from input
       val fu_tmp_res = io.fu_res_vec(i)
       val order      = fu_tmp_res.order

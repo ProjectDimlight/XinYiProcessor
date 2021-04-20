@@ -32,11 +32,12 @@ class IFIDReg extends Module {
     val stall   = Input(Bool())
   })
 
-  var init = Wire(new IFOut)
-  init.pc   := BOOT_ADDR.U(LGC_ADDR_W.W)
-  init.inst := 0.U(DATA_W.W)
-
-  val reg = RegInit(init)
+  val reg = RegInit({
+    var init = Wire(new IFOut)
+    init.pc   := BOOT_ADDR.U(LGC_ADDR_W.W)
+    init.inst := 0.U(DATA_W.W)
+    init
+  })
   when (!io.stall) {
     reg := io.if_out
   }
@@ -144,9 +145,56 @@ class IssueQueue extends Module {
 class ISFUReg extends Module {
   val io = IO(new Bundle{
     val is_out = Flipped(Vec(TOT_PATH_NUM, new ISOut))
+    val is_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
+    val stall = Input(Bool())
+
     val fu_in  = Output(Vec(TOT_PATH_NUM, new FUIn))
+    val fu_actual_issue_cnt = Output(UInt(ISSUE_NUM_W.W))
+    val stalled = Output(Bool())
   })
 
-  val reg_in   = RegNext(io.is_out)
-  io.fu_in := reg_in
+  val reg_out = RegInit({
+    val init = Wire(Vec(TOT_PATH_NUM, new ISOut))
+    for (i <- 0 until TOT_PATH_NUM) {
+      init(i).write_target  := DXXX
+      init(i).rd            := 0.U
+      init(i).fu_ctrl       := ALU_ADD
+      init(i).pc            := 0.U
+      init(i).order         := ISSUE_NUM.U
+      init(i).a             := 0.U
+      init(i).b             := 0.U
+      init(i).imm           := 0.U
+      init(i).is_delay_slot := false.B
+    }
+    init
+  })
+  val reg_actual_issue_cnt = RegInit(ISSUE_NUM.U)
+  val reg_stall = RegInit(false.B)
+  
+  reg_stall := io.stall
+  when (!io.stall) {
+    reg_out := is_out
+    reg_actual_issue_cnt := io.is_actual_issue_cnt
+  }
+
+  io.fu_in := reg_out
+  io.fu_actual_issue_cnt := reg_actual_issue_cnt
+  io.stalled := reg_stall
+}
+
+class FUWBReg extends Module {
+  val io = IO(new Bundle{
+    val fu_out = Input(Vec(TOT_PATH_NUM, new FUOut))
+    val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
+    val stall  = Input(Bool())
+
+    val wb_in = Output(Vec(TOT_PATH_NUM, new FUOut))
+    val wb_actual_issue_cnt = Output(UInt(ISSUE_NUM_W.W))
+  })
+
+  val reg_out = RegNext(io.fu_out)
+  val reg_actual_issue_cnt = RegNext(io.fu_actual_issue_cnt)
+
+  io.wb_in := reg_out
+  io.wb_actual_issue_cnt := Mux(io.stall, 0.U, reg_actual_issue_cnt)
 }
