@@ -224,7 +224,7 @@ class InterruptReg extends Module {
   })
 
   val pc_reg = RegInit(0.U(LGC_ADDR_W.W))
-  when (io.fu_actual_issue_cnt =/= 0) {
+  when (io.fu_actual_issue_cnt =/= 0.U) {
     pc_reg := io.fu_pc
   }
 

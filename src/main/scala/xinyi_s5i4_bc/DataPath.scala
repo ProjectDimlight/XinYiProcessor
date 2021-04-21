@@ -14,6 +14,7 @@ import EXCCodeConfig._
 class DataPath extends Module {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
+    val interrupt   = Input(Vec(6, Bool())
     val icache_axi  = new ICacheAXI
     val dcache_axi  = new DCacheAXI
 //  val debug_out   = Vec(2, new IDOut)
@@ -51,10 +52,10 @@ class DataPath extends Module {
   val forwarding    = Wire(Vec(TOT_PATH_NUM, new Forwarding))
 
   // Flush
-  if_id_reg.flush := flush
-  issue_queue.flush := flush
-  is_fu_reg.flush := flush
-  fu_wb_reg.flush := flush
+  if_id_reg.  io.flush := flush
+  issue_queue.io.flush := flush
+  is_fu_reg.  io.flush := flush
+  fu_wb_reg.  io.flush := flush
 
   // PC Stage
   pc_stage.io.pc      <> pc_if_reg.io.if_in.pc
@@ -218,14 +219,20 @@ class DataPath extends Module {
   }
 
   // FU Interrupt Reg
-  interrupt_reg.fu_pc := BOOT_ADDR
+  val interrput = Wire(Vec(8, Bool()))
+  for (i <- 2 until 7) {
+    interrput(i) := interrput(i)
+  }
+  interrput(7) := io.interrput(5) | 
+
+  interrupt_reg.io.fu_pc := BOOT_ADDR.U
   for (j <- 0 until TOT_PATH_NUM) {
-    when (is_fu_reg.io.fu_in.order === 0) {
-      interrupt_reg.fu_pc := is_fu_reg.io.fu_in.pc
+    when (is_fu_reg.io.fu_in(j).order === 0.U) {
+      interrupt_reg.io.fu_pc := is_fu_reg.io.fu_in(j).pc
     }
   }
-  interrupt_reg.fu_actual_issue_cnt := is_fu_reg.fu_actual_issue_cnt
-  interrupt_reg.fu_interrupt := io.interrupt
+  interrupt_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
+  interrupt_reg.io.fu_interrupt := io.interrupt
 
   // WB Stage
   for (j <- 0 until TOT_PATH_NUM) {
