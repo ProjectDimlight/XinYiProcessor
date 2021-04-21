@@ -11,10 +11,14 @@ trait CP0Config {
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   // CP0 Register Configurations
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-  val CP0_INDEX_WIDTH: Int = 5
+  val CP0_INDEX_WIDTH    : Int = 5
+  val CP0_STATUS_CU_WIDTH: Int = 4
+  val CP0_STATUS_IP_WIDTH: Int = 8
+  val CP0_CAUSE_IM_WIDTH : Int = 8
 
-  val CP0_BADVADDR_INDEX =  8.U(CP0_INDEX_WIDTH.W)
-  val CP0_COUNT_INDEX    =  9.U(CP0_INDEX_WIDTH.W)
+
+  val CP0_BADVADDR_INDEX = 8.U(CP0_INDEX_WIDTH.W)
+  val CP0_COUNT_INDEX    = 9.U(CP0_INDEX_WIDTH.W)
   val CP0_COMPARE_INDEX  = 11.U(CP0_INDEX_WIDTH.W)
   val CP0_STATUS_INDEX   = 12.U(CP0_INDEX_WIDTH.W)
   val CP0_CAUSE_INDEX    = 13.U(CP0_INDEX_WIDTH.W)
@@ -25,12 +29,12 @@ object EXCCodeConfig {
 
   // reference
   val EXC_CODE_W: Int = 5 // width of EXC field
-  
-  val EXC_CODE_INT  =  0.U(EXC_CODE_W.W) //
-  val EXC_CODE_ADEL =  4.U(EXC_CODE_W.W) // load or an instruction fetch exception
-  val EXC_CODE_ADES =  5.U(EXC_CODE_W.W) // store exception
-  val EXC_CODE_SYS  =  8.U(EXC_CODE_W.W) // Syscall
-  val EXC_CODE_BP   =  9.U(EXC_CODE_W.W) // Break
+
+  val EXC_CODE_INT  = 0.U(EXC_CODE_W.W) // interrupt
+  val EXC_CODE_ADEL = 4.U(EXC_CODE_W.W) // load or an instruction fetch exception
+  val EXC_CODE_ADES = 5.U(EXC_CODE_W.W) // store exception
+  val EXC_CODE_SYS  = 8.U(EXC_CODE_W.W) // Syscall
+  val EXC_CODE_BP   = 9.U(EXC_CODE_W.W) // Break
   val EXC_CODE_RI   = 10.U(EXC_CODE_W.W) // Instruction
   val EXC_CODE_OV   = 12.U(EXC_CODE_W.W) // Overflow
   val EXC_CODE_TR   = 13.U(EXC_CODE_W.W) // trap exception
@@ -64,8 +68,8 @@ class CP0StatusBundle extends Bundle {
   val UM      = Bool()
   val R0      = Bool()
   val ERL     = Bool()
-  val EXL     = UInt(1.W)
-  val IE      = UInt(1.W)
+  val EXL     = Bool()
+  val IE      = Bool()
 }
 
 
@@ -94,6 +98,10 @@ class CP0 extends Module with CP0Config {
     val read         = Vec(ISSUE_NUM, new RegReadInterface)
     val write        = Vec(ISSUE_NUM, new RegWriteInterface)
     val exc_info_vec = Input(Vec(ISSUE_NUM, new ExceptionInfo))
+
+    // interrupt support
+    val soft_int_pending_vec = Output(Vec(2, Bool())) // software interrupt
+    val int_mask_vec         = Output(Vec(8, Bool())) // interrupt mask
   })
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -138,6 +146,22 @@ class CP0 extends Module with CP0Config {
 
   for (i <- 0 until ISSUE_NUM) {
     has_exception_vec(i) := !cp0_reg_status.EXL && io.exc_info_vec(i).exc_code =/= NO_EXCEPTION
+  }
+
+
+
+
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  //    handle software interrupt
+  // output Cause.IP0 ~ Cause.IP7 as
+  // software interrupt source
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+  io.soft_int_pending_vec(1) := cp0_reg_cause.IP(CP0_STATUS_IP_WIDTH - 1)
+  io.soft_int_pending_vec(0) := cp0_reg_cause.IP(CP0_STATUS_IP_WIDTH - 0)
+
+
+  for (i <- 0 until 8) {
+    io.int_mask_vec(i) := cp0_reg_status.IM(CP0_CAUSE_IM_WIDTH - i)
   }
 
 
@@ -218,12 +242,12 @@ class CP0 extends Module with CP0Config {
 
   for (i <- 0 until ISSUE_NUM) {
     when(io.write(i).we && io.write(i).rd === CP0_COMPARE_INDEX) {
-      cp0_reg_cause.IP(7) := 0.U
+      cp0_reg_cause.IP(CP0_STATUS_IP_WIDTH - 1 - 7) := 0.U
     }
   }
 
   when(cp0_reg_count === cp0_reg_compare) {
-    cp0_reg_cause.IP(7) := 1.U
+    cp0_reg_cause.IP(CP0_STATUS_IP_WIDTH - 1 - 7) := 1.U
   }
 
   for (i <- 0 until ISSUE_NUM) {
