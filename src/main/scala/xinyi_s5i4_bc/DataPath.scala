@@ -14,7 +14,7 @@ import EXCCodeConfig._
 class DataPath extends Module {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
-    val interrupt   = Input(Vec(6, Bool())
+    val interrupt   = Input(Vec(6, Bool()))
     val icache_axi  = new ICacheAXI
     val dcache_axi  = new DCacheAXI
 //  val debug_out   = Vec(2, new IDOut)
@@ -219,11 +219,18 @@ class DataPath extends Module {
   }
 
   // FU Interrupt Reg
-  val interrput = Wire(Vec(8, Bool()))
-  for (i <- 2 until 7) {
-    interrput(i) := interrput(i)
+  val interrupt = Wire(Vec(8, Bool()))
+  for (i <- 0 until 2) {
+    interrupt(i) := cp0.io.soft_int_pending_vec(i)
   }
-  interrput(7) := io.interrput(5) | 
+  for (i <- 2 until 7) {
+    interrupt(i) := interrupt(i)
+  }
+  interrupt(7) := io.interrupt(5) | false.B  // TODO: Clock interrupt
+
+  val masked_interrupt = Wire(Vec(8, Bool()))
+  for (i <- 0 until 7)
+    masked_interrupt(i) := interrupt(i) & cp0.io.int_mask_vec(i)
 
   interrupt_reg.io.fu_pc := BOOT_ADDR.U
   for (j <- 0 until TOT_PATH_NUM) {
@@ -232,7 +239,7 @@ class DataPath extends Module {
     }
   }
   interrupt_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
-  interrupt_reg.io.fu_interrupt := io.interrupt
+  interrupt_reg.io.fu_interrupt := masked_interrupt
 
   // WB Stage
   for (j <- 0 until TOT_PATH_NUM) {
@@ -240,6 +247,11 @@ class DataPath extends Module {
   }
   wb_stage.io.actual_issue_cnt  := fu_wb_reg.io.wb_actual_issue_cnt
 
+  wb_stage.io.incoming_epc       := interrupt_reg.io.wb_epc
+  wb_stage.io.incoming_interrupt := interrupt_reg.io.wb_interrupt
+  flush := wb_stage.io.exception_handled
+
+  // Write Back data path
   hilo.io.in_hi_wen := false.B
   hilo.io.in_hi     := 0.U
   hilo.io.in_lo_wen := false.B

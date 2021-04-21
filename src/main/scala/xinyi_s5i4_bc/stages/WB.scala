@@ -30,11 +30,21 @@ class WBIO extends Bundle {
   val fu_res_vec         = Input(Vec(TOT_PATH_NUM, new FUOut)) // fu result vector
   val actual_issue_cnt   = Input(UInt(ISSUE_NUM_W.W)) // issue param
   val write_channel_vec  = Output(Vec(ISSUE_NUM, WireInit(0.U.asTypeOf(new WBOut))))
+  
+  val incoming_epc       = Input(UInt(LGC_ADDR_W.W))
   val incoming_interrupt = Input(Bool())
+  val exception_handled  = Output(Bool())
 }
 
 class WBStage extends Module {
   val io = IO(new WBIO)
+
+  // check if exception handled
+  //    if any exception found in WB, forall will be False
+  // and the whole predicate will be True
+  io.exception_handled := !io.fu_res_vec.forall(p => {
+    p.exc_code === NO_EXCEPTION
+  })
 
   for (i <- 0 until ISSUE_NUM) {
 
