@@ -228,7 +228,7 @@ class InterruptReg extends Module {
     pc_reg := io.fu_pc
   }
 
-  val interrupt_reg = RegInit(false.B)
+  val interrupt_reg = RegInit(VecInit(Seq.fill(8)(false.B)))
   interrupt_reg := io.fu_interrupt
 
   io.wb_epc := pc_reg
