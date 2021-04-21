@@ -47,6 +47,48 @@ class ExceptionInfo extends Bundle with CP0Config {
 }
 
 
+class CP0StatusBundle extends Bundle {
+  val CU      = Vec(4, Bool())
+  val RP      = Bool()
+  val FR      = Bool()
+  val RE      = Bool()
+  val MX      = Bool()
+  val IGNORE1 = Bool()
+  val BEV     = Bool()
+  val TS      = Bool()
+  val SR      = Bool()
+  val NMI     = Bool()
+  val ASE     = Bool()
+  val Impl    = UInt(2.W)
+  val IM      = Vec(8, Bool())
+  val IGNORE3 = UInt(3.W)
+  val UM      = Bool()
+  val R0      = Bool()
+  val ERL     = Bool()
+  val EXL     = UInt(1.W)
+  val IE      = UInt(1.W)
+}
+
+
+class CP0CauseBundle extends Bundle {
+  val BD       = Bool()
+  val TI       = Bool()
+  val CE       = UInt(2.W)
+  val DC       = Bool()
+  val PCI      = Bool()
+  val ASE1     = UInt(2.W)
+  val IV       = Bool()
+  val WP       = Bool()
+  val FDCI     = Bool()
+  val IGNORE3  = UInt(3.W)
+  val ASE2     = UInt(2.W)
+  val IP       = Vec(10, Bool())
+  val IGNORE1  = 0.U(1.W)
+  val EXC_CODE = UInt(5.W)
+  val IGNORE2  = UInt(2.W)
+}
+
+
 // CP0 modules
 class CP0 extends Module with CP0Config {
   val io = IO(new Bundle {
@@ -60,20 +102,29 @@ class CP0 extends Module with CP0Config {
   //<<<<<<<<<<<<<<<<<<<<<<<<<<
   val cp0_reg_count = RegInit(0.U(XLEN.W))
 
-  val cp0_reg_cause = RegInit(WireInit(new Bundle {
-    val BD       = UInt(1.W)
-    val IP7      = UInt(1.W)
-    val EXC_CODE = UInt(5.W)
-    0.U(2.W)
-  }.Lit(_.IP7 -> 0.U, _.BD -> 0.U)))
+
+  def CP0CauseInit: CP0CauseBundle = {
+    val initial_value = Wire(new CP0CauseBundle)
+    initial_value.IGNORE1 := 0.U(1.W)
+    initial_value.IGNORE2 := 0.U(2.W)
+    initial_value.IGNORE3 := 0.U(3.W)
+    initial_value
+  }
+
+  val cp0_reg_cause = RegInit(CP0CauseInit)
 
   val cp0_reg_compare = RegInit(0.U(XLEN.W))
 
-  val cp0_reg_status = RegInit(WireInit(new Bundle {
-    val IM7 = UInt(1.W)
-    val EXL = UInt(1.W)
-    val IE  = UInt(1.W)
-  }.Lit(_.IE -> 1.U, _.IM7 -> 0.U, _.EXL -> 0.U)))
+
+  def CP0StatusInit: CP0StatusBundle = {
+    val initial_value = Wire(new CP0StatusBundle)
+    initial_value.IGNORE1 := 0.U(1.W)
+    initial_value.IGNORE3 := 0.U(3.W)
+    initial_value
+  }
+
+
+  val cp0_reg_status = RegInit(CP0StatusInit)
 
   val cp0_reg_badvaddr = RegInit(0.U(XLEN.W))
 
@@ -145,9 +196,14 @@ class CP0 extends Module with CP0Config {
         }
         is(CP0_CAUSE_INDEX) {
           cp0_reg_cause := io.write(i).data
+          cp0_reg_cause.IGNORE1 := 0.U(1.W)
+          cp0_reg_cause.IGNORE2 := 0.U(2.W)
+          cp0_reg_cause.IGNORE3 := 0.U(3.W)
         }
         is(CP0_STATUS_INDEX) {
           cp0_reg_status := io.write(i).data
+          cp0_reg_status.IGNORE1 := 0.U(1.W)
+          cp0_reg_status.IGNORE3 := 0.U(3.W)
         }
       }
     }
@@ -163,12 +219,12 @@ class CP0 extends Module with CP0Config {
 
   for (i <- 0 until ISSUE_NUM) {
     when(io.write(i).we && io.write(i).rd === CP0_COMPARE_INDEX) {
-      cp0_reg_cause.IP7 := 0.U
+      cp0_reg_cause.IP(7) := 0.U
     }
   }
 
   when(cp0_reg_count === cp0_reg_compare) {
-    cp0_reg_cause.IP7 := 1.U
+    cp0_reg_cause.IP(7) := 1.U
   }
 
   for (i <- 0 until ISSUE_NUM) {
