@@ -24,6 +24,7 @@ class DataPath extends Module {
   val issue_queue   = Module(new IssueQueue)
   val is_fu_reg     = Module(new ISFUReg)
   val fu_wb_reg     = Module(new FUWBReg)
+  val interrupt_reg = Module(new InterruptReg)
 
   val icache = Module(new DummyICache)
   val dcache = Module(new DummyDCache)
@@ -37,16 +38,23 @@ class DataPath extends Module {
   val id_stage      = Module(new IDStage)
   val is_stage      = Module(new ISStage)
   val wb_stage      = Module(new WBStage)
+  val flush         = Wire(Bool())
 
   // FUs
   val bju           = Module(new BJU)
 
-  // Other modules
+  // Regs
   val regs          = Module(new Regs)
   val cp0           = Module(new CP0)
   val hilo          = Module(new HiLo)
   
   val forwarding    = Wire(Vec(TOT_PATH_NUM, new Forwarding))
+
+  // Flush
+  if_id_reg.flush := flush
+  issue_queue.flush := flush
+  is_fu_reg.flush := flush
+  fu_wb_reg.flush := flush
 
   // PC Stage
   pc_stage.io.pc      <> pc_if_reg.io.if_in.pc
@@ -209,8 +217,17 @@ class DataPath extends Module {
     base += PATH_NUM(path_type)
   }
 
-  // WB Stage
+  // FU Interrupt Reg
+  interrupt_reg.fu_pc := BOOT_ADDR
+  for (j <- 0 until TOT_PATH_NUM) {
+    when (is_fu_reg.io.fu_in.order === 0) {
+      interrupt_reg.fu_pc := is_fu_reg.io.fu_in.pc
+    }
+  }
+  interrupt_reg.fu_actual_issue_cnt := is_fu_reg.fu_actual_issue_cnt
+  interrupt_reg.fu_interrupt := io.interrupt
 
+  // WB Stage
   for (j <- 0 until TOT_PATH_NUM) {
     wb_stage.io.fu_res_vec(j)   := fu_wb_reg.io.wb_in(j)
   }
