@@ -129,6 +129,9 @@ class ISOut extends Path {
   val a             = Output(UInt(XLEN.W))
   val b             = Output(UInt(XLEN.W))
   val imm           = Output(UInt(XLEN.W))
+  
+  // Delay Slot Mark
+  val is_delay_slot = Output(Bool())
 }
 
 // Issue Stage
@@ -139,10 +142,12 @@ class ISStage extends Module {
 
     // To Param Fetcher 
     val forwarding_path_id  = Output(Vec(ISSUE_NUM, new ForwardingPathId))
+    val is_delay_slot       = Output(Vec(ISSUE_NUM + 1, Bool()))
 
     // To common FUs
     val path                = Vec(TOT_PATH_NUM, new Path)
     val forwarding          = Input(Flipped(Vec(TOT_PATH_NUM, new Forwarding)))
+    val stall               = Input(Bool())
     val actual_issue_cnt    = Output(UInt(ISSUE_NUM_W.W))
 
     // To BJU
@@ -206,23 +211,36 @@ class ISStage extends Module {
   }
 
   def WAWInst(i: Int, k: Int) {
-    when ((io.inst(k).dec.write_target === 5.U & io.inst(i).dec.write_target === BitPat("b01?") |  // HiLo
-           io.inst(i).dec.write_target === 5.U & io.inst(k).dec.write_target === BitPat("b01?") |  // HiLo
+    when ((io.inst(k).dec.write_target === DHiLo & io.inst(i).dec.write_target === BitPat("b01?") |  // HiLo
+           io.inst(i).dec.write_target === DHiLo & io.inst(k).dec.write_target === BitPat("b01?") |  // HiLo
            io.inst(k).dec.write_target === io.inst(i).dec.write_target) &        // Same source
            io.inst(k).dec.rd === io.inst(i).dec.rd &                             // Same id
-          (io.inst(i).dec.write_target =/= DReg | io.inst(i).dec.rd =/= 0.U)) {  // Not Reg 0
+          (io.inst(i).dec.write_target =/= DReg | io.inst(i).dec.rd =/= 0.U) |
+          (io.inst(k).dec.write_target === DCP0 & io.inst(i).dec.write_target === DCP0)) {  // Not Reg 0
       waw(i) := true.B
     }
   }
 
-  structural_hazard := false.B
-  for (j <- 0 until TOT_PATH_NUM)
-    when (!io.forwarding(j).ready) {
-      structural_hazard := true.B
-    }
+  val delay_slot_reg = RegInit(false.B)
+  val is_delay_slot = Wire(Vec(ISSUE_NUM + 1, Bool()))
+  for (i <- 0 until ISSUE_NUM) {
+    io.is_delay_slot(i) := is_delay_slot(i)
+  }
+  io.is_delay_slot(ISSUE_NUM) := false.B
 
+  is_delay_slot(0) := delay_slot_reg
+  for (i <- 1 to ISSUE_NUM) {
+    is_delay_slot(i) := false.B
+  }
+
+  delay_slot_reg := is_delay_slot(io.actual_issue_cnt + 1.U)
   // i is the id of the currect instruction to be detected
   for (i <- 0 until ISSUE_NUM) {
+    // Detect Delay Slot
+    when (io.inst(i).dec.next_pc =/= PC4){
+      is_delay_slot(i+1) := true.B
+    }
+
     // Detect hazards
 
     // RAW Data hazard
@@ -244,9 +262,11 @@ class ISStage extends Module {
     }
 
     // Structural hazard
+    // Given by input
+
     // Target filter
     target(i) := Mux(
-      (raw(i) | waw(i) | structural_hazard | (i.U >= io.issue_cnt)),
+      (raw(i) | waw(i) | io.stall | (i.U >= io.issue_cnt)),
       0.U,
       io.inst(i).dec.path
     )

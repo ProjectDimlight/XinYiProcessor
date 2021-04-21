@@ -15,6 +15,22 @@ trait TestConfig {
   val QUEUE_LEN_w   = 4
 }
 
+/*
+class Test extends Module {
+  val io = IO(new Bundle{
+    val in   = Input(Vec(4, UInt(3.W)))
+    val out  = Output(UInt(3.W))
+  })
+
+  val o
+  io.out := 7.U
+  for (i <- 0 until 4) {
+    when (io.in(i) < io.out) {
+      io.out := io.in(i)
+    }
+  }
+}
+
 class X extends Bundle {
   val a = Bool()
 }
@@ -30,7 +46,6 @@ class Test extends Module {
   io.x_a := io.in
 }
 
-/*
 class ISIn extends Bundle {
   val pc   = Output(UInt(32.W))
   val inst = Output(UInt(32.W))
@@ -43,7 +58,7 @@ class Test extends Module with TestConfig {
 
   for (i <- 0 until 3)
     for (j <- 0 until 2)
-      io.debug(i)(j) := (i * j).U
+      io.debug(i)(j) := (i * j).Uexception
 }
 
 class Test extends Module with TestConfig {

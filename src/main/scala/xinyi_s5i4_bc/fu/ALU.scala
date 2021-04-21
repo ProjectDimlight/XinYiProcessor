@@ -6,6 +6,8 @@ import xinyi_s5i4_bc.parts.ControlConst._
 import config.config._
 import xinyi_s5i4_bc.fu._
 import xinyi_s5i4_bc.stages.WBOut
+import EXCCodeConfig._
+
 
 /**
  * @module ALU
@@ -47,6 +49,7 @@ trait ALUConfig {
 class ALU extends Module with ALUConfig with BALConfig {
   val io = IO(new FUIO)
 
+  io.out.is_delay_slot := io.in.is_delay_slot
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   // connect some unchanged wires
@@ -107,10 +110,21 @@ class ALU extends Module with ALUConfig with BALConfig {
   )
 
   // TODO update exception in ALU
-  io.out.exc_code := ((io.in.fu_ctrl === ALU_ADD) &&
-    (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) &&
-    (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1))) ||
-    ((io.in.fu_ctrl === ALU_SUB) &&
-      (io.in.a(XLEN - 1) =/= io.in.b(XLEN - 1)) &&
-      (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1)))
+  val ov = ((io.in.fu_ctrl === ALU_ADD) &&
+            (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) &&
+            (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1))) ||
+           ((io.in.fu_ctrl === ALU_SUB) &&
+            (io.in.a(XLEN - 1) =/= io.in.b(XLEN - 1)) &&
+            (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1)))
+
+  io.out.exc_code := MuxCase(
+    NO_EXCEPTION,
+    Array(
+      (io.in.pc(1, 0) =/= 0.U) -> EXC_CODE_ADEL,
+      (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
+      (io.in.fu_ctrl === FU_SYSCALL) -> EXC_CODE_SYS,
+      (io.in.fu_ctrl === FU_BREAK) -> EXC_CODE_BP,
+      (ov) -> EXC_CODE_OV
+    )
+  )
 }

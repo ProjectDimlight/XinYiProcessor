@@ -5,16 +5,7 @@ import chisel3.util._
 import config.config._
 import xinyi_s5i4_bc.parts.ControlConst._
 import chisel3.experimental.BundleLiterals._
-
-object ExcCode {
-  val EX_Int  = 0x0
-  val EX_AdEL = 0x4
-  val EX_AdES = 0x5
-  val EX_OV   = 0xC
-  val EX_Sys  = 0x8
-  val EX_Bp   = 0x9
-  val EX_RI   = 0xa
-}
+import EXCCodeConfig._
 
 trait CP0Config {
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -22,24 +13,32 @@ trait CP0Config {
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
   val CP0_INDEX_WIDTH: Int = 5
 
-  val CP0_BADVADDR_INDEX = 8.U
-  val CP0_COUNT_INDEX    = 9.U
-  val CP0_COMPARE_INDEX  = 11.U
-  val CP0_STATUS_INDEX   = 12.U
-  val CP0_CAUSE_INDEX    = 13.U
-  val CP0_EPC_INDEX      = 14.U
+  val CP0_BADVADDR_INDEX =  8.U(CP0_INDEX_WIDTH.W)
+  val CP0_COUNT_INDEX    =  9.U(CP0_INDEX_WIDTH.W)
+  val CP0_COMPARE_INDEX  = 11.U(CP0_INDEX_WIDTH.W)
+  val CP0_STATUS_INDEX   = 12.U(CP0_INDEX_WIDTH.W)
+  val CP0_CAUSE_INDEX    = 13.U(CP0_INDEX_WIDTH.W)
+  val CP0_EPC_INDEX      = 14.U(CP0_INDEX_WIDTH.W)
+}
+
+object EXCCodeConfig {
 
   // reference
-  val EXC_CODE_W    = 5 // width of EXC field
-  val EXC_CODE_INT  = 0.U //
-  val EXC_CODE_ADEL = 4.U // load or an instruction fetch exception
-  val EXC_CODE_ADES = 5.U // store exception
-  val EXC_CODE_TR   = 13.U // trap exception
-  val NO_EXCEPTION  = 31.U
+  val EXC_CODE_W: Int = 5 // width of EXC field
+  
+  val EXC_CODE_INT  =  0.U(EXC_CODE_W.W) //
+  val EXC_CODE_ADEL =  4.U(EXC_CODE_W.W) // load or an instruction fetch exception
+  val EXC_CODE_ADES =  5.U(EXC_CODE_W.W) // store exception
+  val EXC_CODE_SYS  =  8.U(EXC_CODE_W.W) // Syscall
+  val EXC_CODE_BP   =  9.U(EXC_CODE_W.W) // Break
+  val EXC_CODE_RI   = 10.U(EXC_CODE_W.W) // Instruction
+  val EXC_CODE_OV   = 12.U(EXC_CODE_W.W) // Overflow
+  val EXC_CODE_TR   = 13.U(EXC_CODE_W.W) // trap exception
+  val NO_EXCEPTION  = 31.U(EXC_CODE_W.W)
 }
 
 
-class ExceptionInfo extends Bundle with CP0Config {
+class ExceptionInfo extends Bundle {
   val exc_code             = UInt(EXC_CODE_W.W)
   val pc                   = UInt(XLEN.W)
   val data                 = UInt(XLEN.W)
@@ -135,7 +134,7 @@ class CP0 extends Module with CP0Config {
   //<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
-  val has_exception_vec = Vec(ISSUE_NUM, Wire(Bool()))
+  val has_exception_vec = Wire(Vec(ISSUE_NUM, Bool()))
 
   for (i <- 0 until ISSUE_NUM) {
     has_exception_vec(i) := !cp0_reg_status.EXL && io.exc_info_vec(i).exc_code =/= NO_EXCEPTION

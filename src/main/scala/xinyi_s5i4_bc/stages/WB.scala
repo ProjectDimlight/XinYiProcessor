@@ -6,9 +6,9 @@ import chisel3.util._
 import config.config._
 import xinyi_s5i4_bc.fu._
 import xinyi_s5i4_bc.parts.ControlConst._
+import EXCCodeConfig._
 
-
-class WBOut extends Bundle with CP0Config {
+class WBOut extends Bundle {
   val write_hi_en   = Bool()
   val write_lo_en   = Bool()
   val write_hi_data = UInt(XLEN.W)
@@ -25,7 +25,6 @@ class WBOut extends Bundle with CP0Config {
   val write_cp0_pc        = UInt(XLEN.W)
 }
 
-
 // write back IO
 class WBIO extends Bundle {
   val fu_res_vec         = Input(Vec(TOT_PATH_NUM, new FUOut)) // fu result vector
@@ -35,7 +34,7 @@ class WBIO extends Bundle {
   val exception_handled  = Output(Bool())
 }
 
-class WB extends Module with CP0Config {
+class WBStage extends Module {
   val io = IO(new WBIO)
 
   // check if exception handled
@@ -47,12 +46,12 @@ class WB extends Module with CP0Config {
 
   for (i <- 0 until ISSUE_NUM) {
 
-    val previous_exception = Vec(i, Bool())
+    val previous_exception = Wire(Vec(i, Bool()))
     for (j <- 0 until i) {
       previous_exception(j) := io.fu_res_vec(i).exc_code =/= NO_EXCEPTION
     }
 
-    when(io.fu_res_vec(i).ready && i < io.actual_issue_cnt && !previous_exception.asUInt.orR) {
+    when(io.fu_res_vec(i).ready && i.U < io.actual_issue_cnt && !previous_exception.asUInt.orR) {
       // params from input
       val fu_tmp_res = io.fu_res_vec(i)
       val order      = fu_tmp_res.order

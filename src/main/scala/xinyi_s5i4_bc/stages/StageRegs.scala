@@ -30,13 +30,15 @@ class IFIDReg extends Module {
     val id_in   = Flipped(Vec(FETCH_NUM, new IDIn))
 
     val stall   = Input(Bool())
+    val flush   = Input(Bool())
   })
 
-  var init = Wire(new IFOut)
-  init.pc   := BOOT_ADDR.U(LGC_ADDR_W.W)
-  init.inst := 0.U(DATA_W.W)
-
-  val reg = RegInit(init)
+  val reg = RegInit({
+    var init = Wire(new IFOut)
+    init.pc   := BOOT_ADDR.U(LGC_ADDR_W.W)
+    init.inst := 0.U(DATA_W.W)
+    init
+  })
   when (!io.stall) {
     reg := io.if_out
   }
@@ -58,6 +60,7 @@ class IssueQueue extends Module {
     val inst              = Output(Vec(ISSUE_NUM, new Instruction))
 
     val stall             = Input(Bool())
+    val flush             = Input(Bool())
   })
 
   def Step(base: UInt, offset: UInt) = {
@@ -89,7 +92,11 @@ class IssueQueue extends Module {
   )
 
   // Input
-  when (!io.stall & (size < (QUEUE_LEN - FETCH_NUM).U +& io.actual_issue_cnt)) {
+  when (io.flush) {
+    tail := head_n
+    io.full := false.B
+  }
+  .elsewhen (!io.stall & (size < (QUEUE_LEN - FETCH_NUM).U +& io.actual_issue_cnt)) {
     for (i <- 0 until FETCH_NUM) {
       when (tail_b + i.U(QUEUE_LEN_w.W) < QUEUE_LEN.U(QUEUE_LEN_w.W)) {
         queue(tail_b + i.U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
@@ -141,12 +148,89 @@ class IssueQueue extends Module {
   head   := head_n
 }
 
-class ISFUReg extends Module {
+class ISFUReg extends Module with ALUConfig {
   val io = IO(new Bundle{
     val is_out = Flipped(Vec(TOT_PATH_NUM, new ISOut))
+    val is_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
+    val stall = Input(Bool())
+    val flush = Input(Bool())
+
     val fu_in  = Output(Vec(TOT_PATH_NUM, new FUIn))
+    val fu_actual_issue_cnt = Output(UInt(ISSUE_NUM_W.W))
+    val stalled = Output(Bool())
+  })
+  
+  val init = Wire(Vec(TOT_PATH_NUM, new ISOut))
+  for (i <- 0 until TOT_PATH_NUM) {
+    init(i).write_target  := DXXX
+    init(i).rd            := 0.U
+    init(i).fu_ctrl       := ALU_ADD
+    init(i).pc            := 0.U
+    init(i).order         := ISSUE_NUM.U
+    init(i).a             := 0.U
+    init(i).b             := 0.U
+    init(i).imm           := 0.U
+    init(i).is_delay_slot := false.B
+  }
+
+  val reg_out = RegInit(init)
+  val reg_actual_issue_cnt = RegInit(ISSUE_NUM.U)
+  val reg_stall = RegInit(false.B)
+  
+  when (io.flush) {
+    reg_out := init
+    reg_actual_issue_cnt := 0.U
+    reg_stall := false.B
+  }
+  .otherwise {
+    reg_stall := io.stall
+    when (!io.stall) {
+      reg_out := io.is_out
+      reg_actual_issue_cnt := io.is_actual_issue_cnt
+    }
+  }
+
+  io.fu_in := reg_out
+  io.fu_actual_issue_cnt := reg_actual_issue_cnt
+  io.stalled := reg_stall
+}
+
+class FUWBReg extends Module {
+  val io = IO(new Bundle{
+    val fu_out = Input(Vec(TOT_PATH_NUM, new FUOut))
+    val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
+    val stall = Input(Bool())
+    val flush = Input(Bool())
+
+    val wb_in = Output(Vec(TOT_PATH_NUM, new FUOut))
+    val wb_actual_issue_cnt = Output(UInt(ISSUE_NUM_W.W))
   })
 
-  val reg_in   = RegNext(io.is_out)
-  io.fu_in := reg_in
+  val reg_out = RegNext(io.fu_out)
+  val reg_actual_issue_cnt = RegNext(Mux(io.flush, 0.U, io.fu_actual_issue_cnt))
+
+  io.wb_in := reg_out
+  io.wb_actual_issue_cnt := Mux(io.stall, 0.U, reg_actual_issue_cnt)
+}
+
+class InterruptReg extends Module {
+  val io = IO(new Bundle{
+    val fu_pc = Input(UInt(LGC_ADDR_W.W))
+    val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
+    val fu_interrupt = Input(Bool())
+
+    val wb_epc = Output(UInt(LGC_ADDR_W.W))
+    val wb_interrupt = Output(Bool())
+  })
+
+  val pc_reg = RegInit(0.U(LGC_ADDR_W.W))
+  when (io.fu_actual_issue_cnt =/= 0) {
+    pc_reg := io.fu_pc
+  }
+
+  val interrupt_reg = RegInit(false.B)
+  interrupt_reg := io.fu_interrupt
+
+  io.wb_epc := pc_reg
+  io.wb_interrupt := interrupt_reg
 }

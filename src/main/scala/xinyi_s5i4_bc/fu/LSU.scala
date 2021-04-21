@@ -7,6 +7,7 @@ import xinyi_s5i4_bc.caches._
 import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.parts._
 import ControlConst._
+import EXCCodeConfig._
 
 trait LSUConfig {
   val MemByte       = 0.U(FU_CTRL_W.W)
@@ -17,6 +18,9 @@ trait LSUConfig {
 }
 
 class LSUIO extends FUIO {
+  // Stall 
+  val stall           = Input(Bool())
+
   // To DCache
   val cache           = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
   val stall_req       = Input(Bool())
@@ -28,13 +32,27 @@ class LSUIO extends FUIO {
 class LSU extends Module with LSUConfig {
   val io = IO(new LSUIO)
 
+  io.out.is_delay_slot := io.in.is_delay_slot
+
   val addr = Wire(UInt(LGC_ADDR_W.W))
   addr := io.in.a + io.in.imm
 
-  val normal = io.exception_order > io.in.order
+  val exception = MuxLookup(
+    io.in.fu_ctrl,
+    false.B,
+    Array(
+      MemHalf  -> (addr(0) === 0.U(1.W)),
+      MemHalfU -> (addr(0) === 0.U(1.W)),
+      MemWord  -> (addr(1, 0) === 0.U(2.W))
+    )
+  )
+  val normal = (io.exception_order > io.in.order) & !exception & !io.stall
 
-  io.cache.wr   := normal & (io.in.write_target === DMem)
-  io.cache.rd   := normal & (io.in.rd =/= 0.U)
+  val wr = (io.in.write_target === DMem)
+  val rd = (io.in.rd =/= 0.U)
+
+  io.cache.wr   := normal & wr
+  io.cache.rd   := normal & rd
   io.cache.addr := addr
   io.cache.din  := io.in.b
 
@@ -46,13 +64,13 @@ class LSU extends Module with LSUConfig {
   io.out.rd           := io.in.rd
   io.out.order        := io.in.order
   io.out.pc           := io.in.pc
-  io.out.exc_code     := MuxLookup(
-    io.in.fu_ctrl,
-    false.B,
+  io.out.exc_code     := MuxCase(
+    NO_EXCEPTION,
     Array(
-      MemHalf  -> (addr(0) === 0.U(1.W)),
-      MemHalfU -> (addr(0) === 0.U(1.W)),
-      MemWord  -> (addr(1, 0) === 0.U(2.W))
+      (io.in.pc(1, 0) =/= 0.U) -> EXC_CODE_ADEL,
+      (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
+      (rd & exception) -> EXC_CODE_ADEL,
+      (wr & exception) -> EXC_CODE_ADES
     )
   )
 
