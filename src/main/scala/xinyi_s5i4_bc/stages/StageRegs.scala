@@ -212,3 +212,25 @@ class FUWBReg extends Module {
   io.wb_in := reg_out
   io.wb_actual_issue_cnt := Mux(io.stall, 0.U, reg_actual_issue_cnt)
 }
+
+class InterruptReg extends Module {
+  val io = IO(new Bundle{
+    val fu_pc = Input(UInt(LGC_ADDR_W.W))
+    val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
+    val fu_interrupt = Input(Bool())
+
+    val wb_epc = Output(UInt(LGC_ADDR_W.W))
+    val wb_interrupt = Output(Bool())
+  })
+
+  val pc_reg = RegInit(0.U(LGC_ADDR_W.W))
+  when (io.fu_actual_issue_cnt =/= 0) {
+    pc_reg := io.fu_pc
+  }
+
+  val interrupt_reg = RegInit(false.B)
+  interrupt_reg := io.fu_interrupt
+
+  io.wb_epc := pc_reg
+  io.wb_interrupt := interrupt_reg
+}
