@@ -81,5 +81,6 @@ class CPUAXI3x1 extends BlackBox with PortConfig {
     val bid          = Input(UInt(AXI_W_ID_WIDTH.W))
     val bresp        = Input(UInt(2.W))
     val bvalid       = Input(Bool())
+    val bready       = Output(Bool())
   })
 }

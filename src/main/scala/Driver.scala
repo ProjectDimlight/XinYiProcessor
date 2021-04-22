@@ -1,5 +1,5 @@
 import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
-import xinyi_s5i4_bc.stages.WBStage
+import xinyi_s5i4_bc._
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 //      this is a demo for SOL dalao
@@ -10,7 +10,7 @@ import xinyi_s5i4_bc.stages.WBStage
 object Driver extends App {
   (new ChiselStage).execute(
     Array("-X", "verilog", "-td", "verilog"),
-    Seq(ChiselGeneratorAnnotation(() => new WBStage))
+    Seq(ChiselGeneratorAnnotation(() => new S5I4))
   )
 }
 
