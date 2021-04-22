@@ -1,6 +1,7 @@
 package experiments
 
 import chisel3._
+import chisel3.experimental._
 
 trait TestConfig {
   val QUEUE_LEN  = 3
@@ -15,16 +16,17 @@ trait TestConfig {
   val QUEUE_LEN_w   = 4
 }
 
-class Test extends Module {
-  val io = IO(new Bundle{
-    val a = Input(Bool())
-    val b = Output(Bool())
-  })
-  
-  io.b := io.a
+class Test extends MultiIOModule {
+  val in = IO(Input(UInt(2.W)))
+  val out = IO(Output(UInt()))
+
+  val add = noPrefix { in + in + in }
+
+  out := add
 }
 
 /*
+
 class Test extends Module {
   val io = IO(new Bundle{
     val in   = Input(Vec(4, UInt(3.W)))

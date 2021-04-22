@@ -66,7 +66,7 @@ class IFStage extends Module {
 
 class IDIn extends Bundle {
   val pc = Input(UInt(LGC_ADDR_W.W))
-  val inst = Input(UInt(DATA_W.W))
+  val inst = Input(UInt(XLEN.W))
 }
 
 // Decode 1 instruction

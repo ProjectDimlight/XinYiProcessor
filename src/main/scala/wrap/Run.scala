@@ -10,6 +10,6 @@ import experiments._
 
 object Generate {
   def main(args: Array[String]): Unit = {
-    (new ChiselStage).emitVerilog(new Test)
+    (new ChiselStage).emitVerilog(new S5I4)
   }
 }

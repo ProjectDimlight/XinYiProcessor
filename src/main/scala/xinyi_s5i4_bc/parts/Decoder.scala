@@ -10,7 +10,7 @@ import xinyi_s5i4_bc.fu._
 
 class Instruction extends Bundle {
   val pc  = UInt(LGC_ADDR_W.W)
-  val imm = UInt(DATA_W.W)
+  val imm = UInt(XLEN.W)
   val dec = new ControlSet
 }
 
@@ -72,7 +72,7 @@ class ControlSet extends Bundle {
 
 class MIPSDecoder extends Module with ALUConfig with BJUConfig with LSUConfig with CP0Config {
   val io = IO(new Bundle{
-    val inst = Input(UInt(DATA_W.W))
+    val inst = Input(UInt(XLEN.W))
     val dec = Output(new ControlSet)
   })
 
@@ -176,7 +176,7 @@ object NOPBubble {
   def apply() = {
     val item = Wire(new Instruction)
     item.pc               := 0.U(LGC_ADDR_W.W)
-    item.imm              := 0.U(DATA_W.W)
+    item.imm              := 0.U(XLEN.W)
     item.dec.next_pc      := 0.U(NEXT_PC_W.W)
     item.dec.param_a      := 0.U(PARAM_A_W.W)
     item.dec.param_b      := 0.U(PARAM_B_W.W)
@@ -199,7 +199,7 @@ object InstDecodedLitByPath extends ALUConfig with BJUConfig {
     if (path_type == 1) {
       inst.Lit(
         _.pc               -> 0.U(LGC_ADDR_W.W),
-        _.imm              -> 0.U(DATA_W.W),
+        _.imm              -> 0.U(XLEN.W),
         _.dec.next_pc      -> PC4,
         _.dec.param_a      -> AReg,
         _.dec.param_b      -> BReg,
@@ -215,7 +215,7 @@ object InstDecodedLitByPath extends ALUConfig with BJUConfig {
     else if (path_type == 5) {
       inst.Lit(
         _.pc               -> 0x20.U(LGC_ADDR_W.W),
-        _.imm              -> rd.S(DATA_W.W).asUInt(),
+        _.imm              -> rd.S(XLEN.W).asUInt(),
         _.dec.next_pc      -> Branch,
         _.dec.param_a      -> AReg,
         _.dec.param_b      -> BReg,
@@ -231,7 +231,7 @@ object InstDecodedLitByPath extends ALUConfig with BJUConfig {
     else if (path_type == 2) {
       inst.Lit(
         _.pc               -> 0.U(LGC_ADDR_W.W),
-        _.imm              -> 0.U(DATA_W.W),
+        _.imm              -> 0.U(XLEN.W),
         _.dec.next_pc      -> Branch,
         _.dec.param_a      -> AReg,
         _.dec.param_b      -> BReg,
@@ -252,7 +252,7 @@ object InstDecodedLitByPath extends ALUConfig with BJUConfig {
     else {
       inst.Lit(
         _.pc               -> 0.U(LGC_ADDR_W.W),
-        _.imm              -> 0.U(DATA_W.W),
+        _.imm              -> 0.U(XLEN.W),
         _.dec.next_pc      -> PC4,
         _.dec.param_a      -> AXXX,
         _.dec.param_b      -> BXXX,

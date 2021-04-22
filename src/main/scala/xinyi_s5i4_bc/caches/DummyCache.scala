@@ -7,7 +7,7 @@ class ICacheAXI extends Bundle {
   val addr_in     = Output(UInt(PHY_ADDR_W.W))
   val en          = Output(Bool())
   val addr_out    = Input(UInt(PHY_ADDR_W.W))
-  val data        = Input(UInt(DATA_W.W))
+  val data        = Input(UInt(XLEN.W))
   val stall       = Input(Bool())
   val valid       = Input(Bool())
 }
@@ -36,36 +36,38 @@ class DummyICache extends Module {
 
 class DCacheAXI extends Bundle {
   val addr_in     = Output(UInt(PHY_ADDR_W.W))
-  val data_in     = Output(UInt(DATA_W.W))
+  val data_in     = Output(UInt(XLEN.W))
   val wr          = Output(Bool())
   val rd          = Output(Bool())
   val size        = Output(UInt(3.W))
   val addr_out    = Input(UInt(PHY_ADDR_W.W))
-  val data_out    = Input(UInt(DATA_W.W))
+  val data_out    = Input(UInt(XLEN.W))
   val stall       = Input(Bool())
   val valid       = Input(Bool())
 }
 
 class DummyDCache extends Module {
   val io = IO(new Bundle{
-    val upper = new RAMInterface(LGC_ADDR_W, L1_W)
-    val lower = new DCacheAXI
+    val upper = Vec(LSU_PATH_NUM, new RAMInterface(LGC_ADDR_W, L1_W))
+    val lower = Vec(LSU_PATH_NUM, new DCacheAXI)
 
-    val stall_req = Output(Bool())
+    val stall_req = Output(Vec(LSU_PATH_NUM, Bool()))
   })
 
-  io.lower.size     := 0.U
-  io.lower.addr_in  := io.upper.addr
-  io.lower.data_in  := io.upper.din
-  io.lower.rd       := io.upper.rd
-  io.lower.wr       := io.upper.wr
-  
-  when (io.lower.valid) {
-    io.upper.dout   := io.lower.data_out
-    io.stall_req    := false.B
-  }
-  .otherwise {
-    io.upper.dout   := 0.U
-    io.stall_req    := true.B
+  for (j <- 0 until LSU_PATH_NUM) {
+    io.lower(j).size     := 0.U
+    io.lower(j).addr_in  := io.upper(j).addr
+    io.lower(j).data_in  := io.upper(j).din
+    io.lower(j).rd       := io.upper(j).rd
+    io.lower(j).wr       := io.upper(j).wr
+
+    when (io.lower(j).valid) {
+      io.upper(j).dout   := io.lower(j).data_out
+      io.stall_req(j)    := false.B
+    }
+    .otherwise {
+      io.upper(j).dout   := 0.U
+      io.stall_req(j)    := true.B
+    }
   }
 }

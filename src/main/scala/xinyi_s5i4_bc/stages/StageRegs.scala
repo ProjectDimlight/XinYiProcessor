@@ -36,7 +36,7 @@ class IFIDReg extends Module {
   val reg = RegInit({
     var init = Wire(new IFOut)
     init.pc := BOOT_ADDR.U(LGC_ADDR_W.W)
-    init.inst := 0.U(DATA_W.W)
+    init.inst := 0.U(XLEN.W)
     init
   })
   when(!io.stall) {
@@ -44,8 +44,8 @@ class IFIDReg extends Module {
   }
 
   for (i <- 0 until FETCH_NUM) {
-    io.id_in(i).pc := reg.pc + (i * 4).U(DATA_W.W)
-    io.id_in(i).inst := reg.inst((i + 1) * DATA_W - 1, i * DATA_W)
+    io.id_in(i).pc := reg.pc + (i * 4).U(XLEN.W)
+    io.id_in(i).inst := reg.inst((i + 1) * XLEN - 1, i * XLEN)
   }
 }
 
