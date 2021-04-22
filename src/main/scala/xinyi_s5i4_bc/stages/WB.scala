@@ -42,7 +42,7 @@ class WBStage extends Module with CP0Config {
   // check if exception handled
   //    if any exception found in WB, forall will be False
   // and the whole predicate will be True
-  io.exception_handled := !io.fu_res_vec.forall(p => {
+  io.exception_handled := !io.fu_res_vec.forall((p: FUOut) => {
     p.exc_code === NO_EXCEPTION
   })
 
