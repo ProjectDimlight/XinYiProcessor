@@ -12,11 +12,10 @@ object config {
 
   val XLEN: Int = 32
   val STORE_BUFFER_DEPTH: Int = 32
-  val LOAD_BUFFER_DEPTH: Int = 32
+  val LOAD_BUFFER_DEPTH:  Int = 32
 
   val PHY_ADDR_W      = 32
   val LGC_ADDR_W      = 32
-  val DATA_W          = 32
   val QUEUE_LEN       = 8
   
   val REG_ID_W        = 5

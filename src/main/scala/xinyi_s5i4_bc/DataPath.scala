@@ -16,8 +16,7 @@ class DataPath extends Module {
   val io = IO(new Bundle{
     val interrupt   = Input(Vec(6, Bool()))
     val icache_axi  = new ICacheAXI
-    val dcache_axi  = new DCacheAXI
-//  val debug_out   = Vec(2, new IDOut)
+    val dcache_axi  = Vec(LSU_PATH_NUM, new DCacheAXI)
   })
 
   val pc_if_reg     = Module(new PCIFReg)
@@ -162,11 +161,11 @@ class DataPath extends Module {
     }
   }
 
-  def CreatePath(path_type: Int, j: Int) = {
+  def CreatePath(path_type: Int, j: Int, base: Int) = {
     if (path_type == 3) {
       var fu = Module(new LSU)
-      fu.io.cache     <> dcache.io.upper
-      fu.io.stall_req <> dcache.io.stall_req
+      fu.io.cache     <> dcache.io.upper(j - base)
+      fu.io.stall_req <> dcache.io.stall_req(j - base)
       fu.io.stall     <> is_fu_reg.io.stalled
 
       fu.io.in := is_fu_reg.io.fu_in(j)
@@ -213,7 +212,7 @@ class DataPath extends Module {
   var base = 0
   for (path_type <- 1 until PATH_TYPE_NUM) {
     for (j <- base until base + PATH_NUM(path_type)) {
-      val fu = CreatePath(path_type, j)
+      val fu = CreatePath(path_type, j, base)
     }
     base += PATH_NUM(path_type)
   }
