@@ -5,7 +5,7 @@ import config.config._
 
 trait PortConfig {
   val L1_W = 64
-  val L2_W = 64
+  val L2_W = 32
   val AXI_R_ID_WIDTH  = 4
   val AXI_W_ID_WIDTH  = 4
   val AXI_RQUEUE_SIZE = 4
@@ -54,7 +54,7 @@ class CPUAXI3x1 extends BlackBox with PortConfig {
     val arready      = Input(Bool())
     //r           
     val rid          = Input(UInt(AXI_R_ID_WIDTH.W))
-    val rdata        = Input(UInt(L1_W.W))
+    val rdata        = Input(UInt(L2_W.W))
     val rresp        = Input(UInt(2.W))
     val rlast        = Input(Bool())
     val rvalid       = Input(Bool())
@@ -72,8 +72,8 @@ class CPUAXI3x1 extends BlackBox with PortConfig {
     val awready      = Input(Bool())
     //w          
     val wid          = Output(UInt(AXI_W_ID_WIDTH.W))
-    val wdata        = Output(UInt(L1_W.W))
-    val wstrb        = Output(UInt((L1_W/8).W))
+    val wdata        = Output(UInt(L2_W.W))
+    val wstrb        = Output(UInt((L2_W / 8).W))
     val wlast        = Output(Bool())
     val wvalid       = Output(Bool())
     val wready       = Input(Bool())
