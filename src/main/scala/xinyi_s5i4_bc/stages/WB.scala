@@ -50,16 +50,19 @@ class WBStage extends Module with CP0Config {
 
   // handle interrupt
   when(io.incoming_interrupt.asUInt.orR()) {
+    for (i <- 0 until ISSUE_NUM) {
+      io.write_channel_vec(i) := 0.U.asTypeOf(new WBOut)
+    }
+
     io.exception_handled := 1.U
     io.write_channel_vec(0).write_cp0_en := 1.U
     io.write_channel_vec(0).write_cp0_rd := CP0_CAUSE_INDEX
     io.write_channel_vec(0).write_cp0_pc := io.incoming_epc
     io.write_channel_vec(0).write_cp0_exception := EXC_CODE_INT
-
     io.write_channel_vec(0).write_cp0_data := Cat(Seq(0.U(16.W), Reverse(io.incoming_interrupt.asUInt), 0.U(8.W)))
-
   }.otherwise {
     for (i <- 0 until ISSUE_NUM) {
+      io.write_channel_vec(i) := 0.U.asTypeOf(new WBOut)
 
       val previous_exception = Wire(Vec(i, Bool()))
       for (j <- 0 until i) {
