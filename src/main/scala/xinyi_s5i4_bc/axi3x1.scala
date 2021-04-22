@@ -12,6 +12,8 @@ trait PortConfig {
 }
 
 class CPUAXI3x1 extends BlackBox with PortConfig {
+  override val desiredName = s"AXI_complex"
+
   val io = IO(new Bundle{
     //i
     val i_addr_in    = Input(UInt(PHY_ADDR_W.W))

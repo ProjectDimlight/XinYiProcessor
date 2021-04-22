@@ -53,6 +53,7 @@ class LSU extends Module with LSUConfig {
 
   io.cache.wr   := normal & wr
   io.cache.rd   := normal & rd
+  io.cache.size := io.in.fu_ctrl(2, 1)
   io.cache.addr := addr
   io.cache.din  := io.in.b
 

@@ -101,8 +101,8 @@ module AXI_complex(
     //Read queue size MUST greater than 2
     parameter   PORT_INST_WIDTH     =   64;
     parameter   PORT_DATA_WIDTH     =   64;
-    parameter   AXI_R_BUS_WIDTH     =   64;
-    parameter   AXI_W_BUS_WIDTH     =   64;
+    parameter   AXI_R_BUS_WIDTH     =   32;
+    parameter   AXI_W_BUS_WIDTH     =   32;
     parameter   AXI_R_ID_WIDTH      =   4;
     parameter   AXI_W_ID_WIDTH      =   4;
     parameter   AXI_RQUEUE_SIZE     =   4;

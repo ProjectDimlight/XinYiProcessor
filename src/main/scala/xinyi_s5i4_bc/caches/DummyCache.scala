@@ -3,6 +3,12 @@ package xinyi_s5i4_bc.caches
 import chisel3._
 import config.config._
 
+class ICacheCPU extends Bundle {
+  val rd   = Input (Bool())
+  val addr = Input (UInt(LGC_ADDR_W.W))
+  val dout = Output(UInt(L1_W.W))
+}
+
 class ICacheAXI extends Bundle {
   val addr_in     = Output(UInt(PHY_ADDR_W.W))
   val en          = Output(Bool())
@@ -14,7 +20,7 @@ class ICacheAXI extends Bundle {
 
 class DummyICache extends Module {
   val io = IO(new Bundle{
-    val upper = new RAMInterface(LGC_ADDR_W, L1_W)
+    val upper = new ICacheCPU
     val lower = new ICacheAXI
   
     val stall_req = Output(Bool())
@@ -34,12 +40,21 @@ class DummyICache extends Module {
   }
 }
 
+class DCacheCPU extends Bundle {
+  val rd   = Input (Bool())
+  val wr   = Input (Bool())
+  val size = Input (UInt(2.W))
+  val addr = Input (UInt(PHY_ADDR_W.W))
+  val din  = Input (UInt(L1_W.W))
+  val dout = Output(UInt(L1_W.W))
+}
+
 class DCacheAXI extends Bundle {
   val addr_in     = Output(UInt(PHY_ADDR_W.W))
   val data_in     = Output(UInt(XLEN.W))
   val wr          = Output(Bool())
   val rd          = Output(Bool())
-  val size        = Output(UInt(3.W))
+  val size        = Output(UInt(2.W))
   val addr_out    = Input(UInt(PHY_ADDR_W.W))
   val data_out    = Input(UInt(XLEN.W))
   val stall       = Input(Bool())
@@ -55,7 +70,7 @@ class DummyDCache extends Module {
   })
 
   for (j <- 0 until LSU_PATH_NUM) {
-    io.lower(j).size     := 0.U
+    io.lower(j).size     := io.upper.size
     io.lower(j).addr_in  := io.upper(j).addr
     io.lower(j).data_in  := io.upper(j).din
     io.lower(j).rd       := io.upper(j).rd
