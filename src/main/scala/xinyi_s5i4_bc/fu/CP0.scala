@@ -82,7 +82,7 @@ class CP0CauseBundle extends Bundle {
   val IGNORE3  = UInt(3.W)
   val ASE2     = UInt(2.W)
   val IP       = UInt(8.W)
-  val IGNORE1  = 0.U(1.W)
+  val IGNORE1  = UInt(1.W)
   val EXC_CODE = UInt(5.W)
   val IGNORE2  = UInt(2.W)
 }

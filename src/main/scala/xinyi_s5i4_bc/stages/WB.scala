@@ -29,7 +29,7 @@ class WBOut extends Bundle {
 class WBIO extends Bundle {
   val fu_res_vec        = Input(Vec(TOT_PATH_NUM, new FUOut)) // fu result vector
   val actual_issue_cnt  = Input(UInt(ISSUE_NUM_W.W)) // issue param
-  val write_channel_vec = Output(Vec(ISSUE_NUM, WireInit(0.U.asTypeOf(new WBOut))))
+  val write_channel_vec = Output(Vec(ISSUE_NUM, new WBOut))
 
   val incoming_epc       = Input(UInt(LGC_ADDR_W.W))
   val incoming_interrupt = Input(Vec(8, Bool()))
