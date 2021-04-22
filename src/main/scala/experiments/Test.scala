@@ -15,6 +15,15 @@ trait TestConfig {
   val QUEUE_LEN_w   = 4
 }
 
+class Test extends Module {
+  val io = IO(new Bundle{
+    val a = Input(Bool())
+    val b = Output(Bool())
+  })
+  
+  io.b := io.a
+}
+
 /*
 class Test extends Module {
   val io = IO(new Bundle{

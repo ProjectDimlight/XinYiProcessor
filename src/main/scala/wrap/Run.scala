@@ -8,16 +8,8 @@ import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.caches._
 import experiments._
 
-trait XinYiConfig {
-  
-}
-
-class CoreIO extends Bundle {
-  
-}
-
 object Generate {
   def main(args: Array[String]): Unit = {
-    (new ChiselStage).emitVerilog(new DataPath)
+    (new ChiselStage).emitVerilog(new Test)
   }
 }

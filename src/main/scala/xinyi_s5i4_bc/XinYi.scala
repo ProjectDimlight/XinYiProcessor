@@ -5,7 +5,10 @@ import config.config._
 
 class S5I4 extends Module {
   //val io = IO(new CoreIO)
-  val io = IO(new Bundle{})
+  val io = IO(new Bundle{
+    //val 
+
+  })
 
   val dataPath = Module(new DataPath)
   //val controlPath = Module(new ControlPath)
