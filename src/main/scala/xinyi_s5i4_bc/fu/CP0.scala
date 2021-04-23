@@ -101,6 +101,7 @@ class CP0 extends Module with CP0Config {
 
     // interrupt support
     val soft_int_pending_vec = Output(Vec(2, Bool())) // software interrupt
+    val time_int             = Output(Bool()) // time interruption
     val int_mask_vec         = Output(Vec(8, Bool())) // interrupt mask
   })
 
@@ -250,6 +251,9 @@ class CP0 extends Module with CP0Config {
 
   when(cp0_reg_count === cp0_reg_compare) {
     cp0_reg_cause.IP := Cat(1.U(1.W), cp0_reg_cause.IP(6, 0))
+    io.time_int := 1.U
+  }.otherwise {
+    io.time_int := 0.U
   }
 
   when(has_exception_vec) {
