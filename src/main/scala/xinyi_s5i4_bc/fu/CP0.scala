@@ -87,13 +87,17 @@ class CP0CauseBundle extends Bundle {
   val IGNORE2  = UInt(2.W)
 }
 
+class CP0ReadInterface extends Bundle {
+  val rs   = Input(UInt(REG_ID_W.W))
+  val data = Output(UInt(XLEN.W))
+}
 
 // CP0 modules
 class CP0 extends Module with CP0Config {
   val io = IO(new Bundle {
-    val read         = Vec(ISSUE_NUM, new RegReadInterface)
-    val write        = Vec(ISSUE_NUM, new RegWriteInterface)
-    val exc_info_vec = Input(Vec(ISSUE_NUM, new ExceptionInfo))
+    val read     = Vec(ISSUE_NUM, new CP0ReadInterface)
+    val write    = Vec(ISSUE_NUM, new RegWriteInterface)
+    val exc_info = Input(new ExceptionInfo)
 
     // interrupt support
     val soft_int_pending_vec = Output(Vec(2, Bool())) // software interrupt
@@ -138,13 +142,7 @@ class CP0 extends Module with CP0Config {
   //<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
-  val has_exception_vec = Wire(Vec(ISSUE_NUM, Bool()))
-
-  for (i <- 0 until ISSUE_NUM) {
-    has_exception_vec(i) := !cp0_reg_status.EXL && io.exc_info_vec(i).exc_code =/= NO_EXCEPTION
-  }
-
-
+  val has_exception_vec = !cp0_reg_status.EXL && io.exc_info.exc_code =/= NO_EXCEPTION
 
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -165,8 +163,8 @@ class CP0 extends Module with CP0Config {
   // write.
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
   for (i <- 0 until ISSUE_NUM) {
-    io.read(i).data1 := MuxLookup(
-      io.read(i).rs1(i),
+    io.read(i).data := MuxLookup(
+      io.read(i).rs,
       "hcafebabe".U,
       Seq(
         CP0_BADVADDR_INDEX -> cp0_reg_badvaddr,
@@ -177,8 +175,8 @@ class CP0 extends Module with CP0Config {
         CP0_EPC_INDEX -> cp0_reg_epc,
       )
     )
-    io.read(i).data2 := MuxLookup(
-      io.read(i).rs2(i),
+    io.read(i).data := MuxLookup(
+      io.read(i).rs,
       "hcafebabe".U,
       Seq(
         CP0_BADVADDR_INDEX -> cp0_reg_badvaddr,
@@ -196,7 +194,7 @@ class CP0 extends Module with CP0Config {
 
   // when mtc0
   for (i <- 0 until ISSUE_NUM) {
-    when(io.write(i).we && io.exc_info_vec(i).exc_code === NO_EXCEPTION) {
+    when(io.write(i).we && io.exc_info.exc_code === NO_EXCEPTION) {
       switch(io.write(i).rd) {
         is(CP0_COUNT_INDEX) {
           cp0_reg_count := io.write(i).data
@@ -231,8 +229,8 @@ class CP0 extends Module with CP0Config {
   //  otherwise update
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-  when(io.exc_info_vec(0).exc_code === EXC_CODE_INT) {
-    cp0_reg_cause.IP := io.exc_info_vec(0).data(15, 8)
+  when(io.exc_info.exc_code === EXC_CODE_INT) {
+    cp0_reg_cause.IP := io.exc_info.data(15, 8)
   }
 
 
@@ -254,17 +252,14 @@ class CP0 extends Module with CP0Config {
     cp0_reg_cause.IP := Cat(1.U(1.W), cp0_reg_cause.IP(6, 0))
   }
 
-  for (i <- 0 until ISSUE_NUM) {
-    when(has_exception_vec(i)) {
-      cp0_reg_status.EXL := 1.U
-      cp0_reg_cause.BD := io.exc_info_vec(i).in_branch_delay_slot
-      cp0_reg_epc := Mux(io.exc_info_vec(i).in_branch_delay_slot, io.exc_info_vec(i).pc - 4.U, io.exc_info_vec(i).pc)
-      cp0_reg_cause.EXC_CODE := io.exc_info_vec(i).exc_code
+  when(has_exception_vec) {
+    cp0_reg_status.EXL := 1.U
+    cp0_reg_cause.BD := io.exc_info.in_branch_delay_slot
+    cp0_reg_epc := Mux(io.exc_info.in_branch_delay_slot, io.exc_info.pc - 4.U, io.exc_info.pc)
+    cp0_reg_cause.EXC_CODE := io.exc_info.exc_code
 
-      when(io.exc_info_vec(i).exc_code === EXC_CODE_ADEL || io.exc_info_vec(i).exc_code === EXC_CODE_ADES) {
-        cp0_reg_badvaddr := io.exc_info_vec(i).data
-      }
+    when(io.exc_info.exc_code === EXC_CODE_ADEL || io.exc_info.exc_code === EXC_CODE_ADES) {
+      cp0_reg_badvaddr := io.exc_info.data
     }
   }
-
 }
