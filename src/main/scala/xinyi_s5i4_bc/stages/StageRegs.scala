@@ -73,22 +73,23 @@ class IssueQueue extends Module {
 
   // Queue logic
 
-  val queue  = Reg(Vec(QUEUE_LEN, new Instruction))
-  val head   = RegInit(0.U(QUEUE_LEN_w.W))
-  val tail   = RegInit(0.U(QUEUE_LEN_w.W))
-  val head_n = Wire(UInt(QUEUE_LEN_w.W)) // Next Head
-  val tail_b = Wire(UInt(QUEUE_LEN_w.W)) // Actual Tail Base
-  val size   = Wire(UInt(QUEUE_LEN_w.W))
+  val queue    = Reg(Vec(QUEUE_LEN, new Instruction))
+  val head     = RegInit(0.U(QUEUE_LEN_w.W))
+  val tail     = RegInit(0.U(QUEUE_LEN_w.W))
+  val head_n   = Wire(UInt(QUEUE_LEN_w.W)) // Next Head
+  val tail_b   = Wire(UInt(QUEUE_LEN_w.W)) // Actual Tail Base
+  val in_size  = Wire(UInt(QUEUE_LEN_w.W))
+  val out_size = Wire(UInt(QUEUE_LEN_w.W))
 
   tail_b := Mux(
     io.bc.flush,
     Mux(io.bc.keep_delay_slot, Step(head_n, 1.U(QUEUE_LEN_w.W)), head_n),
     tail
   )
-  size := Mux(
-    tail_b >= head,
-    tail_b - head,
-    tail_b + QUEUE_LEN.U - head
+  in_size := Mux(
+    tail_b >= head_n,
+    tail_b - head_n,
+    tail_b + QUEUE_LEN.U - head_n
   )
 
   // Input
@@ -96,35 +97,42 @@ class IssueQueue extends Module {
     tail := head_n
     io.full := false.B
   }
-    .elsewhen(!io.stall & (size < (QUEUE_LEN - FETCH_NUM).U +& io.actual_issue_cnt)) {
-      for (i <- 0 until FETCH_NUM) {
-        when(tail_b + i.U(QUEUE_LEN_w.W) < QUEUE_LEN.U(QUEUE_LEN_w.W)) {
-          queue(tail_b + i.U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
-        }
-          .otherwise {
-            queue(tail_b + ((1 << QUEUE_LEN_w) + i - QUEUE_LEN).U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
-          }
+  .elsewhen(!io.stall & (in_size < (QUEUE_LEN - FETCH_NUM).U)) {
+    for (i <- 0 until FETCH_NUM) {
+      when(tail_b + i.U(QUEUE_LEN_w.W) < QUEUE_LEN.U(QUEUE_LEN_w.W)) {
+        queue(tail_b + i.U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
       }
+      .otherwise {
+        queue(tail_b + ((1 << QUEUE_LEN_w) + i - QUEUE_LEN).U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
+      }
+    }
 
-      tail := Step(tail_b, FETCH_NUM.U(QUEUE_LEN_w.W))
-      io.full := false.B
-    }
-    .otherwise {
-      tail := tail_b
-      io.full := true.B
-    }
+    tail := Step(tail_b, FETCH_NUM.U(QUEUE_LEN_w.W))
+    io.full := false.B
+  }
+  .otherwise {
+    tail := tail_b
+    io.full := true.B
+  }
 
   // Output 
-  io.issue_cnt := size
+  out_size := Mux(
+    tail >= head,
+    tail - head,
+    tail + QUEUE_LEN.U - head
+  )
+
+
+  io.issue_cnt := out_size
   for (i <- 0 until ISSUE_NUM) {
     // If i > issue_cnt, the instruction path will be 0 (Stall)
     // So there is no need to clear the inst Vec here
     when(head + i.U(QUEUE_LEN_w.W) < QUEUE_LEN.U(QUEUE_LEN_w.W)) {
       io.inst(i) := queue(head + i.U(QUEUE_LEN_w.W))
     }
-      .otherwise {
-        io.inst(i) := queue(head + ((1 << QUEUE_LEN_w) + i - QUEUE_LEN).U(QUEUE_LEN_w.W))
-      }
+    .otherwise {
+      io.inst(i) := queue(head + ((1 << QUEUE_LEN_w) + i - QUEUE_LEN).U(QUEUE_LEN_w.W))
+    }
 
     // Issue until Delay Slot
     // If the Branch itself is not issued, it will be re-issued in the next cycle.
@@ -133,14 +141,14 @@ class IssueQueue extends Module {
     // Ensuring that the rest of the queue will be cleared while the Delay Slot works as is.
     when(io.inst(i).dec.next_pc =/= PC4) {
       // If the delay slot is already fetched (into the queue)
-      when((i + 2).U <= size) {
+      when((i + 2).U <= out_size) {
         io.issue_cnt := (i + 2).U
       }
-        // The delay slot is not in the queue yet
-        // Stall
-        .otherwise {
-          io.issue_cnt := 0.U
-        }
+      // The delay slot is not in the queue yet
+      // Stall
+      .otherwise {
+        io.issue_cnt := 0.U
+      }
     }
   }
 

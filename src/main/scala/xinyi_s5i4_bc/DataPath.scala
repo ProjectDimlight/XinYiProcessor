@@ -238,15 +238,16 @@ class DataPath extends Module {
     interrupt(i) := cp0.io.soft_int_pending_vec(i)
   }
   for (i <- 2 until 7) {
-    interrupt(i) := interrupt(i)
+    interrupt(i) := io.interrupt(i - 2)
   }
-  interrupt(7) := io.interrupt(5) | false.B  // TODO: Clock interrupt
+  interrupt(7) := io.interrupt(5) | cp0.io.time_int // TODO: Clock interrupt
 
   val masked_interrupt = Wire(Vec(8, Bool()))
   for (i <- 0 until 8)
     masked_interrupt(i) := interrupt(i) & cp0.io.int_mask_vec(i)
 
   interrupt_reg.io.fu_pc := BOOT_ADDR.U
+  interrupt_reg.io.fu_is_delay_slot := false.B
   for (j <- 0 until TOT_PATH_NUM) {
     when (is_fu_reg.io.fu_in(j).order === 0.U) {
       interrupt_reg.io.fu_pc := is_fu_reg.io.fu_in(j).pc
@@ -291,5 +292,5 @@ class DataPath extends Module {
   }
 
   // CP0 exceptional write back
-  
+  cp0.io.exc_info := wb_stage.io.exc_info
 }
