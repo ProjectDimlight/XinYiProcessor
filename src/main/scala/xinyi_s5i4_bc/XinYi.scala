@@ -51,13 +51,18 @@ class S5I4 extends MultiIOModule with PortConfig {
   val bready       = IO(Output(Bool()))
 
   //debug interface
-  //val debug_wb_pc       = IO(Output(UInt(32.W)))
-  //val debug_wb_rf_wen   = IO(Output(UInt(4.W)))
-  //val debug_wb_rf_wnum  = IO(Output(UInt(5.W)))
-  //val debug_wb_rf_wdata = IO(Output(UInt(32.W)))
+  val debug_wb_pc       = IO(Output(UInt(32.W)))
+  val debug_wb_rf_wen   = IO(Output(UInt(4.W)))
+  val debug_wb_rf_wnum  = IO(Output(UInt(5.W)))
+  val debug_wb_rf_wdata = IO(Output(UInt(32.W)))
 
   val datapath = Module(new DataPath)
   val axi3x1   = Module(new CPUAXI3x1)
+
+  debug_wb_pc       := 0.U
+  debug_wb_rf_wen   := 0.U
+  debug_wb_rf_wnum  := 0.U
+  debug_wb_rf_wdata := 0.U
 
   for (i <- 0 to 5) {
     datapath.io.interrupt(i) := ext_int(i)

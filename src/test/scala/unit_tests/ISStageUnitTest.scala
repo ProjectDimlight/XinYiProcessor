@@ -168,6 +168,7 @@ class ISStageUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matche
       device.io.issue_cnt.poke(2.U)
       device.io.inst(0).poke(a)
       device.io.inst(1).poke(b)
+      device.io.stall.poke(true.B)
 
       for (i <- 0 until TOT_PATH_NUM) {
         device.io.forwarding(i).write_target.poke(DReg)

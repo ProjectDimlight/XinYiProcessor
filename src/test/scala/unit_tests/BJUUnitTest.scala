@@ -30,7 +30,8 @@ class BJUUnitTest extends AnyFlatSpec with ChiselScalatestTester with Matchers w
       _.b            -> b.U,
       _.imm          -> (imm.asInstanceOf[Long] & 0x00000000ffffffffL).U,
       _.pc           -> pc.U,
-      _.order        -> order.U
+      _.order        -> order.U,
+      _.is_delay_slot-> false.B
     )
   }
 
