@@ -1,6 +1,7 @@
 package xinyi_s5i4_bc
 
 import chisel3._
+import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 
 import config.config._
@@ -61,13 +62,17 @@ class DataPath extends Module {
   pc_stage.io.branch  <> bju.io.pc_interface
   pc_stage.io.next_pc <> pc_if_reg.io.pc_out
 
+  pc_stage.io.exception.target := EXCEPTION_ADDR.U
+  pc_stage.io.exception.enable := wb_stage.io.exception_handled
+  
+
   // IF Stage
   if_stage.io.in      <> pc_if_reg.io.if_in
   if_stage.io.cache   <> icache.io.upper
   if_stage.io.out     <> if_id_reg.io.if_out
 
-  icache.io.lower     <> io.icache_axi
-  icache.io.stall_req  := stall_frontend
+  icache.io.lower      <> io.icache_axi
+  icache.io.stall_req  <> stall_frontend
   pc_if_reg.io.stall   := stall_frontend
   if_stage.io.stall    := stall_frontend
   if_id_reg.io.stall   := stall_frontend
@@ -96,15 +101,25 @@ class DataPath extends Module {
     }
   
   // Fetch instruction params
-  val inst_params = Wire(Vec(FETCH_NUM , Vec(2, UInt(XLEN.W))))
-  for (i <- 0 until FETCH_NUM) {
+  val inst_params = Wire(Vec(ISSUE_NUM , Vec(2, UInt(XLEN.W))))
+  for (i <- 0 until ISSUE_NUM) {
     val inst = Wire(new Instruction)
     inst := issue_queue.io.inst(i)
-    // when (inst(i).param_a)
-    inst.dec.rs1      := regs.io.read(i).rs1
-    inst_params(i)(0) := regs.io.read(i).data1
+    inst.dec.rs1      <> regs.io.read(i).rs1
+    inst.dec.rs1      <> cp0 .io.read(i).rs
 
-    inst.dec.rs2      := regs.io.read(i).rs2
+    inst_params(i)(0) := MuxLookup(
+      inst.dec.param_a,
+      regs.io.read(i).data1,
+      Array(
+        ACP0   -> cp0 .io.read(i).data,
+        AHi    -> hilo.io.out_hi,
+        ALo    -> hilo.io.out_lo,
+        AShamt -> inst.imm(10, 6)
+      )
+    )
+
+    inst.dec.rs2      <> regs.io.read(i).rs2
     inst_params(i)(1) := regs.io.read(i).data2
   }
   for (i <- 0 until FETCH_NUM) {
@@ -228,13 +243,14 @@ class DataPath extends Module {
   interrupt(7) := io.interrupt(5) | false.B  // TODO: Clock interrupt
 
   val masked_interrupt = Wire(Vec(8, Bool()))
-  for (i <- 0 until 7)
+  for (i <- 0 until 8)
     masked_interrupt(i) := interrupt(i) & cp0.io.int_mask_vec(i)
 
   interrupt_reg.io.fu_pc := BOOT_ADDR.U
   for (j <- 0 until TOT_PATH_NUM) {
     when (is_fu_reg.io.fu_in(j).order === 0.U) {
       interrupt_reg.io.fu_pc := is_fu_reg.io.fu_in(j).pc
+      interrupt_reg.io.fu_is_delay_slot := is_fu_reg.io.fu_in(j).is_delay_slot
     }
   }
   interrupt_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
@@ -273,4 +289,7 @@ class DataPath extends Module {
       hilo.io.in_lo       := wb_stage.io.write_channel_vec(i).write_lo_data
     }
   }
+
+  // CP0 exceptional write back
+  
 }

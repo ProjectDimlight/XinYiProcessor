@@ -216,6 +216,7 @@ class FUWBReg extends Module {
 class InterruptReg extends Module {
   val io = IO(new Bundle {
     val fu_pc               = Input(UInt(LGC_ADDR_W.W))
+    val fu_is_delay_slot    = Input(Bool())
     val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
     val fu_interrupt        = Input(Vec(8, Bool()))
 
@@ -225,7 +226,7 @@ class InterruptReg extends Module {
 
   val pc_reg = RegInit(0.U(LGC_ADDR_W.W))
   when (io.fu_actual_issue_cnt =/= 0.U) {
-    pc_reg := io.fu_pc
+    pc_reg := Mux(io.fu_is_delay_slot, io.fu_pc - 4.U, io.fu_pc)
   }
 
   val interrupt_reg = RegInit(VecInit(Seq.fill(8)(false.B)))

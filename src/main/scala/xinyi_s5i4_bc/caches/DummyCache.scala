@@ -6,14 +6,14 @@ import config.config._
 class ICacheCPU extends Bundle {
   val rd   = Input (Bool())
   val addr = Input (UInt(LGC_ADDR_W.W))
-  val dout = Output(UInt(L1_W.W))
+  val dout = Output(UInt((XLEN * ISSUE_NUM).W))
 }
 
 class ICacheAXI extends Bundle {
   val addr_in     = Output(UInt(PHY_ADDR_W.W))
   val en          = Output(Bool())
   val addr_out    = Input(UInt(PHY_ADDR_W.W))
-  val data        = Input(UInt(XLEN.W))
+  val data        = Input(UInt(L1_W.W))
   val stall       = Input(Bool())
   val valid       = Input(Bool())
 }
@@ -45,8 +45,8 @@ class DCacheCPU extends Bundle {
   val wr   = Input (Bool())
   val size = Input (UInt(2.W))
   val addr = Input (UInt(PHY_ADDR_W.W))
-  val din  = Input (UInt(L1_W.W))
-  val dout = Output(UInt(L1_W.W))
+  val din  = Input (UInt(XLEN.W))
+  val dout = Output(UInt(XLEN.W))
 }
 
 class DCacheAXI extends Bundle {
@@ -63,14 +63,14 @@ class DCacheAXI extends Bundle {
 
 class DummyDCache extends Module {
   val io = IO(new Bundle{
-    val upper = Vec(LSU_PATH_NUM, new RAMInterface(LGC_ADDR_W, L1_W))
+    val upper = Vec(LSU_PATH_NUM, new DCacheCPU)
     val lower = Vec(LSU_PATH_NUM, new DCacheAXI)
 
     val stall_req = Output(Vec(LSU_PATH_NUM, Bool()))
   })
 
   for (j <- 0 until LSU_PATH_NUM) {
-    io.lower(j).size     := io.upper.size
+    io.lower(j).size     := io.upper(j).size
     io.lower(j).addr_in  := io.upper(j).addr
     io.lower(j).data_in  := io.upper(j).din
     io.lower(j).rd       := io.upper(j).rd

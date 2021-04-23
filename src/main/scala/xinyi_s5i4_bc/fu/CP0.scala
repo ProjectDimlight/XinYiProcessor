@@ -107,7 +107,7 @@ class CP0 extends Module with CP0Config {
 
 
   def CP0CauseInit: CP0CauseBundle = {
-    val initial_value = Wire(new CP0CauseBundle)
+    val initial_value = WireDefault(0.U.asTypeOf(new CP0CauseBundle))
     initial_value.IGNORE1 := 0.U(1.W)
     initial_value.IGNORE2 := 0.U(2.W)
     initial_value.IGNORE3 := 0.U(3.W)
@@ -120,7 +120,7 @@ class CP0 extends Module with CP0Config {
 
 
   def CP0StatusInit: CP0StatusBundle = {
-    val initial_value = Wire(new CP0StatusBundle)
+    val initial_value = WireDefault(0.U.asTypeOf(new CP0StatusBundle))
     initial_value.IGNORE1 := 0.U(1.W)
     initial_value.IGNORE3 := 0.U(3.W)
     initial_value
@@ -211,13 +211,13 @@ class CP0 extends Module with CP0Config {
           cp0_reg_badvaddr := io.write(i).data
         }
         is(CP0_CAUSE_INDEX) {
-          cp0_reg_cause := io.write(i).data
+          cp0_reg_cause := io.write(i).data.asTypeOf(new CP0CauseBundle)
           cp0_reg_cause.IGNORE1 := 0.U(1.W)
           cp0_reg_cause.IGNORE2 := 0.U(2.W)
           cp0_reg_cause.IGNORE3 := 0.U(3.W)
         }
         is(CP0_STATUS_INDEX) {
-          cp0_reg_status := io.write(i).data
+          cp0_reg_status := io.write(i).data.asTypeOf(new CP0StatusBundle)
           cp0_reg_status.IGNORE1 := 0.U(1.W)
           cp0_reg_status.IGNORE3 := 0.U(3.W)
         }

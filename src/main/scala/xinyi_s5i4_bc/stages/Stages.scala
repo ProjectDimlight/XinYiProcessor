@@ -45,7 +45,7 @@ class IFOut extends Bundle {
 class IFStage extends Module {
   val io = IO(new Bundle {
     val in = new IFIn
-    val cache = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
+    val cache = Flipped(new ICacheCPU)
     val out = new IFOut
 
     val stall = Input(Bool())
@@ -53,11 +53,11 @@ class IFStage extends Module {
 
   // ICache
   io.cache.rd := !io.stall
-  io.cache.wr := false.B
+  // io.cache.wr := false.B
   io.cache.addr := io.in.pc
   // If Cache instructions are supported, we might have to write into ICache
   // I don't know
-  io.cache.din := 0.U(32.W)
+  // io.cache.din := 0.U(32.W)
 
   // Output to IF-ID Regs
   io.out.pc := io.in.pc
@@ -165,7 +165,6 @@ class ISStage extends Module {
   val issued = Wire(Vec(PATH_TYPE_NUM, Vec(ISSUE_NUM, Bool())))
   val raw = Wire(Vec(ISSUE_NUM, Bool()))
   val waw = Wire(Vec(ISSUE_NUM, Bool()))
-  val structural_hazard = Wire(Bool())
 
   // Begin
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
@@ -280,7 +279,7 @@ class ISStage extends Module {
     // Ordered issuing
     // If an instruction fails to issue
     // Then all instructions afterwards will also be stalled
-    when(i.U(ISSUE_NUM_W.W) >= io.actual_issue_cnt) {
+    when (i.U(ISSUE_NUM_W.W) >= io.actual_issue_cnt) {
       filtered_inst(i) := NOPBubble()
     }
       .otherwise {

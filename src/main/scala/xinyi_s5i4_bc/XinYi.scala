@@ -59,34 +59,36 @@ class S5I4 extends MultiIOModule with PortConfig {
   val datapath = Module(new DataPath)
   val axi3x1   = Module(new CPUAXI3x1)
 
-  datapath.io.interrupt := ext_int
+  for (i <- 0 to 5) {
+    datapath.io.interrupt(i) := ext_int(i)
+  }
 
-  axi3x1.io.i_addr_in  := datapath.io.icache_axi.addr_in
-  axi3x1.io.i_en       := datapath.io.icache_axi.en
-  axi3x1.io.i_addr_out := datapath.io.icache_axi.addr_out
-  axi3x1.io.i_data     := datapath.io.icache_axi.data
-  axi3x1.io.i_stall    := datapath.io.icache_axi.stall
-  axi3x1.io.i_valid    := datapath.io.icache_axi.valid
+  axi3x1.io.i_addr_in       <> datapath.io.icache_axi.addr_in
+  axi3x1.io.i_en            <> datapath.io.icache_axi.en
+  axi3x1.io.i_addr_out      <> datapath.io.icache_axi.addr_out
+  axi3x1.io.i_data          <> datapath.io.icache_axi.data
+  axi3x1.io.i_stall         <> datapath.io.icache_axi.stall
+  axi3x1.io.i_valid         <> datapath.io.icache_axi.valid
 
-  axi3x1.io.d_0_addr_in     := datapath.io.dcache_axi(0).addr_in
-  axi3x1.io.d_0_data_in     := datapath.io.dcache_axi(0).data_in
-  axi3x1.io.d_0_wr          := datapath.io.dcache_axi(0).wr
-  axi3x1.io.d_0_rd          := datapath.io.dcache_axi(0).rd
-  axi3x1.io.d_0_size        := datapath.io.dcache_axi(0).size
-  axi3x1.io.d_0_addr_out    := datapath.io.dcache_axi(0).addr_out
-  axi3x1.io.d_0_data_out    := datapath.io.dcache_axi(0).data_out
-  axi3x1.io.d_0_stall       := datapath.io.dcache_axi(0).stall
-  axi3x1.io.d_0_valid       := datapath.io.dcache_axi(0).valid
+  axi3x1.io.d_0_addr_in     <> datapath.io.dcache_axi(0).addr_in
+  axi3x1.io.d_0_data_in     <> datapath.io.dcache_axi(0).data_in
+  axi3x1.io.d_0_wr          <> datapath.io.dcache_axi(0).wr
+  axi3x1.io.d_0_rd          <> datapath.io.dcache_axi(0).rd
+  axi3x1.io.d_0_size        <> datapath.io.dcache_axi(0).size
+  axi3x1.io.d_0_addr_out    <> datapath.io.dcache_axi(0).addr_out
+  axi3x1.io.d_0_data_out    <> datapath.io.dcache_axi(0).data_out
+  axi3x1.io.d_0_stall       <> datapath.io.dcache_axi(0).stall
+  axi3x1.io.d_0_valid       <> datapath.io.dcache_axi(0).valid
 
-  axi3x1.io.d_1_addr_in     := datapath.io.dcache_axi(1).addr_in
-  axi3x1.io.d_1_data_in     := datapath.io.dcache_axi(1).data_in
-  axi3x1.io.d_1_wr          := datapath.io.dcache_axi(1).wr
-  axi3x1.io.d_1_rd          := datapath.io.dcache_axi(1).rd
-  axi3x1.io.d_1_size        := datapath.io.dcache_axi(1).size
-  axi3x1.io.d_1_addr_out    := datapath.io.dcache_axi(1).addr_out
-  axi3x1.io.d_1_data_out    := datapath.io.dcache_axi(1).data_out
-  axi3x1.io.d_1_stall       := datapath.io.dcache_axi(1).stall
-  axi3x1.io.d_1_valid       := datapath.io.dcache_axi(1).valid
+  axi3x1.io.d_1_addr_in     <> datapath.io.dcache_axi(1).addr_in
+  axi3x1.io.d_1_data_in     <> datapath.io.dcache_axi(1).data_in
+  axi3x1.io.d_1_wr          <> datapath.io.dcache_axi(1).wr
+  axi3x1.io.d_1_rd          <> datapath.io.dcache_axi(1).rd
+  axi3x1.io.d_1_size        <> datapath.io.dcache_axi(1).size
+  axi3x1.io.d_1_addr_out    <> datapath.io.dcache_axi(1).addr_out
+  axi3x1.io.d_1_data_out    <> datapath.io.dcache_axi(1).data_out
+  axi3x1.io.d_1_stall       <> datapath.io.dcache_axi(1).stall
+  axi3x1.io.d_1_valid       <> datapath.io.dcache_axi(1).valid
 
 //////////////////////////////////////////////////////////////////////
 

@@ -22,7 +22,7 @@ class LSUIO extends FUIO {
   val stall           = Input(Bool())
 
   // To DCache
-  val cache           = Flipped(new RAMInterface(LGC_ADDR_W, L1_W))
+  val cache           = Flipped(new DCacheCPU)
   val stall_req       = Input(Bool())
 
   // Exception

@@ -21,6 +21,7 @@ object config {
   val REG_ID_W        = 5
   
   val BOOT_ADDR       = 0x80000000L
+  val EXCEPTION_ADDR  = 0xBFC00380L
 
   val BC_NUM          = 4
   val BC_LINE_SIZE    = 2
