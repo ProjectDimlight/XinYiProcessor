@@ -120,6 +120,7 @@ module AXI_complex(
     wire                                                    d_rd      ;
     wire    [  2:0]                                         d_size    ;
     wire                                                    d_src     ;
+    wire                                                    d_dst     ;
     wire    [ 31:0]                                         d_addr_out;
     wire    [PORT_DATA_WIDTH-1:0]                           d_data_out;
     wire                                                    d_stall   ;
@@ -143,19 +144,19 @@ module AXI_complex(
     assign  d_addr_in       =   (nextsts[1] && ~nextsts[0])     ?   d_1_addr_in    : d_0_addr_in;
     assign  d_data_in       =   (nextsts[1] && ~nextsts[0])     ?   d_1_data_in    : d_0_data_in;
     assign  d_wr            =   (nextsts[1] && ~nextsts[0])     ?   d_1_wr         : d_0_wr;
-    assign  d_wr            =   (nextsts[1] && ~nextsts[0])     ?   d_1_rd         : d_0_rd;
+    assign  d_rd            =   (nextsts[1] && ~nextsts[0])     ?   d_1_rd         : d_0_rd;
     assign  d_size          =   (nextsts[1] && ~nextsts[0])     ?   d_1_size       : d_0_size;
     assign  d_src           =   (nextsts[1] && ~nextsts[0])     ?   1'b1           : 1'b0;
 
     assign  d_0_addr_out    =   d_addr_out;
     assign  d_0_data_out    =   d_data_out;
     assign  d_0_stall       =   (nextsts[0] && d_stall) || ((nextsts[1] && ~nextsts[0]) && (d_0_wr || d_0_rd));
-    assign  d_0_valid       =   (~d_src && d_valid);
+    assign  d_0_valid       =   (~d_dst && d_valid);
 
     assign  d_1_addr_out    =   d_addr_out;
     assign  d_1_data_out    =   d_data_out;
     assign  d_1_stall       =   (nextsts[1] && ~nextsts[0] && d_stall) || (~(nextsts[1] && ~nextsts[0]) && (d_1_wr || d_1_rd));
-    assign  d_1_valid       =   (d_src && d_valid);
+    assign  d_1_valid       =   (d_dst && d_valid);
 
     //Known-working Part
     reg     [ 31:0]                                         axi_rd_reg_addr     [AXI_RQUEUE_SIZE-1:0];
@@ -178,6 +179,7 @@ module AXI_complex(
     reg     [AXI_RQUEUE_SIZE_B-1:0]                         axi_rdqueue_addrptr ;
     wire                                                    axi_rdqueue_empty   ;
     wire                                                    axi_rdqueue_full    ;
+    wire                                                    axi_rdqueue_full_2  ;
 
     reg                                                     axi_wrqueue_addr    ;
     reg     [AXI_W_BUS_SIZE_R+1:0]                          axi_wrqueue_data    ;
@@ -217,7 +219,7 @@ module AXI_complex(
                                 axi_rd_reg_done [axi_rdqueue_end]                                               ? axi_rdqueue_end + 1'b1        :
                                 axi_rdqueue_end;
         axi_rdqueue_addrptr <=  rst                                                                             ? 'b0                           :
-                                axi_rd_addr_recv && axi_rd_reg_done [axi_rdqueue_addrptr + 1'b1]                ? axi_rdqueue_addrptr + 2'b10   :   //New added
+                                //axi_rd_addr_recv && axi_rd_reg_done [axi_rdqueue_addrptr + 1'b1]                ? axi_rdqueue_addrptr + 2'b10   :   //Prone to be dangerous
                                 axi_rd_addr_recv || axi_rd_reg_done [axi_rdqueue_addrptr]                       ? axi_rdqueue_addrptr + 1'b1    :
                                 axi_rdqueue_addrptr;
     end
@@ -331,7 +333,7 @@ module AXI_complex(
                 axi_rd_reg_data_out [n] <=  {PORT_MAX_WIDTH{1'b0}};
                 axi_rd_reg_size     [n] <=  3'b0;
                 axi_rd_reg_valid    [n] <=  1'b0;
-                axi_rd_reg_type     [n] <=  1'b0;
+                axi_rd_reg_type     [n] <=  2'b0;
                 axi_rd_reg_done     [n] <=  1'b0;
             end
         end
@@ -452,12 +454,12 @@ module AXI_complex(
         if (PORT_DATA_WIDTH-AXI_R_BUS_WIDTH <= 0) begin
             assign  d_data_out  =   (axi_rdqueue_end == rid[AXI_RQUEUE_SIZE_B-1:0] ? rdata : axi_rd_reg_data_out[axi_rdqueue_end][PORT_DATA_WIDTH-1:0]);
             assign  d_addr_out  =   axi_rd_reg_addr[axi_rdqueue_end];
-            assign  d_src       =   axi_rd_reg_type[0];
+            assign  d_dst       =   axi_rd_reg_type[axi_rdqueue_end][0];
         end
         else begin
             assign  d_data_out  =   (axi_rdqueue_end == rid[AXI_RQUEUE_SIZE_B-1:0] ? {rdata, axi_rd_reg_data_out[axi_rdqueue_end][PORT_DATA_WIDTH-AXI_R_BUS_WIDTH-1:0]} : axi_rd_reg_data_out[axi_rdqueue_end][PORT_DATA_WIDTH-1:0]);
             assign  d_addr_out  =   axi_rd_reg_addr[axi_rdqueue_end];
-            assign  d_src       =   axi_rd_reg_type[0];
+            assign  d_dst       =   axi_rd_reg_type[axi_rdqueue_end][0];
         end
     endgenerate
 
