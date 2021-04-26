@@ -2,6 +2,7 @@ package xinyi_s5i4_bc.fu
 
 import chisel3._
 import chisel3.util._
+import utils._
 import xinyi_s5i4_bc.parts.ControlConst._
 import config.config._
 import xinyi_s5i4_bc.fu._
@@ -25,10 +26,11 @@ import EXCCodeConfig._
  */
 
 trait ALUConfig {
+  val ALU_XXX  = 0.U(FU_CTRL_W.W)
 
-  val ALU_ADD  = 0.U(FU_CTRL_W.W)
-  val ALU_ADDU = 1.U(FU_CTRL_W.W)
-  val ALU_SUB  = 2.U(FU_CTRL_W.W)
+  val ALU_SLL  = 0.U(FU_CTRL_W.W)
+  val ALU_SRA  = 1.U(FU_CTRL_W.W)
+  val ALU_SRL  = 2.U(FU_CTRL_W.W)
   val ALU_SLT  = 3.U(FU_CTRL_W.W)
   val ALU_SLTU = 4.U(FU_CTRL_W.W)
   val ALU_AND  = 5.U(FU_CTRL_W.W)
@@ -36,14 +38,16 @@ trait ALUConfig {
   val ALU_NOR  = 7.U(FU_CTRL_W.W)
   val ALU_OR   = 8.U(FU_CTRL_W.W)
   val ALU_XOR  = 9.U(FU_CTRL_W.W)
-  val ALU_SLL  = 10.U(FU_CTRL_W.W)
-  val ALU_SRA  = 11.U(FU_CTRL_W.W)
-  val ALU_SRL  = 12.U(FU_CTRL_W.W)
+
+  val ALU_ADD  = 10.U(FU_CTRL_W.W)
+  val ALU_ADDU = 11.U(FU_CTRL_W.W)
+  val ALU_SUB  = 12.U(FU_CTRL_W.W)
 
   val ALU_DIV  = 16.U(FU_CTRL_W.W)
   val ALU_DIVU = 17.U(FU_CTRL_W.W)
   val ALU_MUL  = 18.U(FU_CTRL_W.W)
   val ALU_MULU = 19.U(FU_CTRL_W.W)
+
 }
 
 class ALU extends Module with ALUConfig with BALConfig {
@@ -61,7 +65,6 @@ class ALU extends Module with ALUConfig with BALConfig {
   io.out.order        := io.in.order
   io.out.pc           := io.in.pc
 
-
   //>>>>>>>>>>>>>>>>
   // ALU operations
   //<<<<<<<<<<<<<<<<
@@ -71,7 +74,7 @@ class ALU extends Module with ALUConfig with BALConfig {
 
   val mul_ab = a * b
 
-  io.out.data := MuxLookup(
+  io.out.data := MuxLookupBi(
     io.in.fu_ctrl,
     "hcafebabe".U,
     Seq(
@@ -81,7 +84,7 @@ class ALU extends Module with ALUConfig with BALConfig {
       ALU_SLT -> (io.in.a.asSInt() < io.in.b.asSInt()),
       ALU_SLTU -> (io.in.a < io.in.b),
       ALU_AND -> (io.in.a & io.in.b),
-      ALU_LUI -> Cat(io.in.b(XLEN - 1, XLEN / 2), 0.U((XLEN / 2).W)),
+      ALU_LUI -> Cat(io.in.b(XLEN / 2 - 1, 0), 0.U((XLEN / 2).W)),
       ALU_NOR -> (~(io.in.a | io.in.b)),
       ALU_OR -> (io.in.a | io.in.b),
       ALU_XOR -> (io.in.a ^ io.in.b),
@@ -92,13 +95,13 @@ class ALU extends Module with ALUConfig with BALConfig {
       ALU_DIVU -> a % b,
       ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
       ALU_MULU -> mul_ab(XLEN - 1, 0),
-      JPC -> io.in.pc,
-      BrGEPC -> io.in.pc,
-      BrLTPC -> io.in.pc,
+      JPC -> (io.in.pc + 8.U),
+      BrGEPC -> (io.in.pc + 8.U),
+      BrLTPC -> (io.in.pc + 8.U)
     )
   )
 
-  io.out.hi := MuxLookup(
+  io.out.hi := MuxLookupBi(
     io.in.fu_ctrl,
     "hcafebabe".U,
     Seq(

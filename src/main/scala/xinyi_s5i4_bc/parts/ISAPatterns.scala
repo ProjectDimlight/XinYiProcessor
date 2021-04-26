@@ -1,6 +1,7 @@
 package xinyi_s5i4_bc.parts
 
 import chisel3.util._
+import utils._
 import config.config._
 
 object ISAPatterns {

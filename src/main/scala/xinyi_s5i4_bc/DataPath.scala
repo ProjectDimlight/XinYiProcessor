@@ -2,6 +2,7 @@ package xinyi_s5i4_bc
 
 import chisel3._
 import chisel3.util._
+import utils._
 import chisel3.experimental.BundleLiterals._
 
 import config.config._
@@ -32,6 +33,9 @@ class DataPath extends Module {
 
   val stall_frontend = Wire(Bool())
   val stall_backend  = Wire(Bool())
+
+  val interrupt = Wire(Vec(8, Bool()))
+  val has_interrupt = Wire(Bool())
 
   // Stages
   val pc_stage      = Module(new PCStage)
@@ -69,12 +73,15 @@ class DataPath extends Module {
   // IF Stage
   if_stage.io.in      <> pc_if_reg.io.if_in
   if_stage.io.cache   <> icache.io.upper
+  if_stage.io.full    <> issue_queue.io.full
   if_stage.io.out     <> if_id_reg.io.if_out
 
   icache.io.lower      <> io.icache_axi
-  icache.io.stall_req  <> stall_frontend
+  
+  stall_frontend := icache.io.stall_req | issue_queue.io.full
+  
+  pc_stage.io.stall    := stall_frontend
   pc_if_reg.io.stall   := stall_frontend
-  if_stage.io.stall    := stall_frontend
   if_id_reg.io.stall   := stall_frontend
   issue_queue.io.stall := stall_frontend
 
@@ -108,7 +115,7 @@ class DataPath extends Module {
     inst.dec.rs1      <> regs.io.read(i).rs1
     inst.dec.rs1      <> cp0 .io.read(i).rs
 
-    inst_params(i)(0) := MuxLookup(
+    inst_params(i)(0) := MuxLookupBi(
       inst.dec.param_a,
       regs.io.read(i).data1,
       Array(
@@ -120,7 +127,7 @@ class DataPath extends Module {
     )
 
     inst.dec.rs2      <> regs.io.read(i).rs2
-    inst_params(i)(1) := regs.io.read(i).data2
+    inst_params(i)(1) := Mux((inst.dec.param_b === BImm) & (inst.dec.path === PathALU), inst.imm, regs.io.read(i).data2)
   }
   for (i <- 0 until FETCH_NUM) {
     val inst = Wire(new Instruction)
@@ -160,9 +167,11 @@ class DataPath extends Module {
   bju.io.path := is_out(is_stage.io.branch_jump_id)
   bju.io.branch_next_pc := is_stage.io.branch_next_pc
   bju.io.delay_slot_pending := is_stage.io.delay_slot_pending
+  bju.io.stall_frontend := stall_frontend
 
   // FUs
   dcache.io.lower <> io.dcache_axi
+  dcache.io.stall <> is_fu_reg.io.stalled
 
   val exception_by_order = Wire(Vec(ISSUE_NUM, Bool()))
   for (i <- 0 until ISSUE_NUM)
@@ -181,7 +190,6 @@ class DataPath extends Module {
       var fu = Module(new LSU)
       fu.io.cache     <> dcache.io.upper(j - base)
       fu.io.stall_req <> dcache.io.stall_req(j - base)
-      fu.io.stall     <> is_fu_reg.io.stalled
 
       fu.io.in := is_fu_reg.io.fu_in(j)
       forwarding(j).write_target := fu.io.out.write_target
@@ -192,8 +200,9 @@ class DataPath extends Module {
       forwarding(j).order        := fu.io.out.order
 
       fu.io.exception_order := min_exception_order
-      fu_wb_reg.io.fu_out(j) := fu.io.out
+      fu.io.interrupt       := has_interrupt
 
+      fu_wb_reg.io.fu_out(j) := fu.io.out
       when (fu.io.out.exc_code =/= NO_EXCEPTION) {
         exception_by_order(fu.io.out.order) := true.B
       }
@@ -233,7 +242,6 @@ class DataPath extends Module {
   }
 
   // FU Interrupt Reg
-  val interrupt = Wire(Vec(8, Bool()))
   for (i <- 0 until 2) {
     interrupt(i) := cp0.io.soft_int_pending_vec(i)
   }
@@ -242,9 +250,14 @@ class DataPath extends Module {
   }
   interrupt(7) := io.interrupt(5) | cp0.io.time_int // TODO: Clock interrupt
 
+  has_interrupt := false.B
   val masked_interrupt = Wire(Vec(8, Bool()))
-  for (i <- 0 until 8)
+  for (i <- 0 until 8) {
     masked_interrupt(i) := interrupt(i) & cp0.io.int_mask_vec(i)
+    when (interrupt(i)) {
+      has_interrupt := true.B
+    }
+  }
 
   interrupt_reg.io.fu_pc := BOOT_ADDR.U
   interrupt_reg.io.fu_is_delay_slot := false.B

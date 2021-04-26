@@ -3,6 +3,7 @@ package xinyi_s5i4_bc.parts
 
 import chisel3._
 import chisel3.util._
+import utils._
 import chisel3.experimental.BundleLiterals._
 import ISAPatterns._
 import config.config._
@@ -91,7 +92,7 @@ val control_signal = ListLookup(io.inst,
     Array(         //   |   PC     |   A     |   B     |  D      | Operation |  Path id   | rs1 | rs2 | rd |
                    //   | Select   | use rs1 | use rs2 | write   |   Type    |   Select   |     |     |    |
                    //   | next_pc  | param_a | param_b | wrt_tgt | fu_ctrl   | MultiIssue |     |     |    |
-      NOP        -> List(  PC4     ,  AReg   ,  BReg   ,  DXXX   , ALU_ADD   ,  PathALU   , IRS , IRT , IXX),
+      NOP        -> List(  PC4     ,  AReg   ,  BReg   ,  DXXX   , ALU_XXX   ,  PathALU   , IRS , IRT , IXX),
       ADD        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_ADD   ,  PathALU   , IRS , IRT , IRD),
       ADDI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_ADD   ,  PathALU   , IRS , IXX , IRT),
       ADDU       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_ADDU  ,  PathALU   , IRS , IRT , IRD),
@@ -132,15 +133,15 @@ val control_signal = ListLookup(io.inst,
       BGEZAL     -> List(  Branch  ,  AReg   ,  BXXX   ,  DReg   , BrGEPC    ,  PathALU   , IRS , IRT , IRA),
       BLTZAL     -> List(  Branch  ,  AReg   ,  BXXX   ,  DReg   , BrLTPC    ,  PathALU   , IRS , IRT , IRA),
            
-      J          -> List(  Jump    ,  AXXX   ,  BXXX   ,  DXXX   , ALU_ADD   ,  PathALU   , IXX , IXX , IXX),
+      J          -> List(  Jump    ,  AXXX   ,  BXXX   ,  DXXX   , ALU_XXX   ,  PathALU   , IXX , IXX , IXX),
       JAL        -> List(  Jump    ,  AXXX   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IXX , IXX , IRA),
-      JR         -> List(  PCReg   ,  AReg   ,  BXXX   ,  DXXX   , ALU_ADD   ,  PathALU   , IRS , IXX , IXX),
+      JR         -> List(  PCReg   ,  AReg   ,  BXXX   ,  DXXX   , ALU_XXX   ,  PathALU   , IRS , IXX , IXX),
       JALR       -> List(  PCReg   ,  AReg   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IRS , IXX , IRA),
            
-      MFHI       -> List(  PC4     ,  AHi    ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IXX , IXX , IRD),
-      MFLO       -> List(  PC4     ,  ALo    ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IXX , IXX , IRD),
-      MTHI       -> List(  PC4     ,  AReg   ,  BXXX   ,  DHi    , ALU_ADD   ,  PathALU   , IRS , IXX , IXX),
-      MTLO       -> List(  PC4     ,  AReg   ,  BXXX   ,  DLo    , ALU_ADD   ,  PathALU   , IRS , IXX , IXX),
+      MFHI       -> List(  PC4     ,  AHi    ,  BXXX   ,  DReg   , ALU_XXX   ,  PathALU   , IXX , IXX , IRD),
+      MFLO       -> List(  PC4     ,  ALo    ,  BXXX   ,  DReg   , ALU_XXX   ,  PathALU   , IXX , IXX , IRD),
+      MTHI       -> List(  PC4     ,  AReg   ,  BXXX   ,  DHi    , ALU_XXX   ,  PathALU   , IRS , IXX , IXX),
+      MTLO       -> List(  PC4     ,  AReg   ,  BXXX   ,  DLo    , ALU_XXX   ,  PathALU   , IRS , IXX , IXX),
            
       BREAK      -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , FU_BREAK  ,  PathALU   , IXX , IXX , IXX),
       SYSCALL    -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , FU_SYSCALL,  PathALU   , IXX , IXX , IXX),
@@ -155,8 +156,8 @@ val control_signal = ListLookup(io.inst,
       SW         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemWord   ,  PathLSU   , IRS , IRT , IXX),
            
       ERET       -> List(  PCReg   ,  ACP0   ,  BXXX   ,  DCP0   , ALU_AND   ,  PathALU   , CP0_EPC_INDEX , IXX , CP0_STATUS_INDEX),
-      MFC0       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DReg   , ALU_ADD   ,  PathALU   , IRD , IXX , IRT),
-      MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_ADD   ,  PathALU   , IRT , IXX , IRD)
+      MFC0       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DReg   , ALU_XXX   ,  PathALU   , IRD , IXX , IRT),
+      MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_XXX   ,  PathALU   , IRT , IXX , IRD)
   ))
 
   io.dec.next_pc       := control_signal(0)
@@ -182,7 +183,7 @@ object NOPBubble {
     item.dec.param_b      := 0.U(PARAM_B_W.W)
     item.dec.write_target := 0.U(WRITE_TARGET_W.W)
     item.dec.fu_ctrl      := 0.U(FU_CTRL_W.W)
-    item.dec.path         := 0.U(PATH_W.W)
+    item.dec.path         := 1.U(PATH_W.W)
     item.dec.rs1          := 0.U(REG_ID_W.W)
     item.dec.rs2          := 0.U(REG_ID_W.W)
     item.dec.rd           := 0.U(REG_ID_W.W)

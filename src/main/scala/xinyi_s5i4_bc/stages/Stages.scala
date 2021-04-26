@@ -2,6 +2,7 @@ package xinyi_s5i4_bc.stages
 
 import chisel3._
 import chisel3.util._
+import utils._
 
 import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.caches._
@@ -10,29 +11,55 @@ import ControlConst._
 import config.config._
 
 class PCInterface extends Bundle {
-  val enable = Input(Bool())
-  val target = Input(UInt(LGC_ADDR_W.W))
+  val enable = Bool()
+  val target = UInt(LGC_ADDR_W.W)
 }
 
 class PCStage extends Module {
   val io = IO(new Bundle {
     val pc = Input(UInt(LGC_ADDR_W.W))
-    val branch = new PCInterface
-    val exception = new PCInterface
+    val branch = Input(new PCInterface)
+    val exception = Input(new PCInterface)
+    val stall = Input(Bool())
     val next_pc = Output(UInt(LGC_ADDR_W.W))
   })
 
+  val ex_reg = RegInit(0.U.asTypeOf(new PCInterface))
+  val br_reg = RegInit(0.U.asTypeOf(new PCInterface))
+
+  val ex = Wire(new PCInterface)
+  val br = Wire(new PCInterface)
+
+  ex.enable := ex_reg.enable | io.exception.enable
+  ex.target := Mux(ex_reg.enable, ex_reg.target, io.exception.target)
+
+  br.enable := br_reg.enable | io.branch.enable
+  br.target := Mux(br_reg.enable, br_reg.target, io.branch.target)
+
+  when (io.stall) {
+    when (!ex_reg.enable) {
+      ex_reg := io.exception
+    }
+    when (!br_reg.enable) {
+      br_reg := io.branch
+    }
+  }
+  .otherwise {
+    ex_reg := 0.U.asTypeOf(new PCInterface)
+    br_reg := 0.U.asTypeOf(new PCInterface)
+  }
+
   io.next_pc := MuxCase(
-    (io.pc & 0xFFFFFFFCL.U) + 4.U(LGC_ADDR_W.W),
+    (io.pc & 0xFFFFFFFCL.U) + (4 * FETCH_NUM).U(LGC_ADDR_W.W),
     Array(
-      io.exception.enable -> io.exception.target,
-      io.branch.enable -> io.branch.target
+      ex.enable -> ex.target,
+      br.enable -> br.target
     )
   )
 }
 
 class IFIn extends Bundle {
-  val pc = Input(UInt(LGC_ADDR_W.W))
+  val pc    = Input(UInt(LGC_ADDR_W.W))
 }
 
 class IFOut extends Bundle {
@@ -46,13 +73,12 @@ class IFStage extends Module {
   val io = IO(new Bundle {
     val in = new IFIn
     val cache = Flipped(new ICacheCPU)
+    val full = Input(Bool())
     val out = new IFOut
-
-    val stall = Input(Bool())
   })
 
   // ICache
-  io.cache.rd := !io.stall
+  io.cache.rd := !io.full
   // io.cache.wr := false.B
   io.cache.addr := io.in.pc
   // If Cache instructions are supported, we might have to write into ICache
@@ -91,15 +117,15 @@ class IDStage extends Module with ALUConfig{
     io.out(i).imm := MuxCase(
       io.in(i).inst(15, 0),
       Array(
+         (decoder.io.dec.next_pc === Branch)  -> signed_x4.asUInt(),
+         (decoder.io.dec.next_pc === Jump)    -> Cat(io.in(i).inst(25, 0), 0.U(2.W)),
         ((decoder.io.dec.fu_ctrl === ALU_ADD  | 
           decoder.io.dec.fu_ctrl === ALU_ADDU | 
           decoder.io.dec.fu_ctrl === ALU_SUB  | 
           decoder.io.dec.fu_ctrl === ALU_SLT  | 
           decoder.io.dec.fu_ctrl === ALU_SLTU 
          ) & decoder.io.dec.path === PathALU | 
-          decoder.io.dec.path    === PathLSU) -> signed.asUInt(),
-         (decoder.io.dec.next_pc === Branch)  -> signed_x4.asUInt(),
-         (decoder.io.dec.next_pc === Jump)    -> Cat(io.in(i).inst(25, 0), 0.U(2.W))
+          decoder.io.dec.path    === PathLSU) -> signed.asUInt()
       )
     )
     io.out(i).dec := decoder.io.dec
@@ -313,9 +339,9 @@ class ISStage extends Module {
   io.delay_slot_pending := false.B
   for (j <- 0 until ALU_PATH_NUM) {
     // Branch
-    when (io.inst(io.path(j).order).dec.next_pc =/= PC4) {
+    when (filtered_inst(io.path(j).order).dec.next_pc =/= PC4) {
       io.branch_jump_id := j.U(ALU_PATH_NUM_W.W)
-      io.branch_next_pc := io.inst(io.path(j).order).dec.next_pc
+      io.branch_next_pc := filtered_inst(io.path(j).order).dec.next_pc
       io.delay_slot_pending := (io.path(j).order + 1.U) === io.actual_issue_cnt
     }
   }

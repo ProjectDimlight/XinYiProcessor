@@ -1,5 +1,6 @@
 import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
 import xinyi_s5i4_bc._
+import experiments._
 
 //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 //      this is a demo for SOL dalao

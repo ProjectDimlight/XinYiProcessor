@@ -26,12 +26,12 @@ class Regs extends Module {
   })
 
   // register file
-  val regfile = Reg(Vec(32, UInt(XLEN.W)))
+  val regfile = RegInit(VecInit(Seq.fill(32)(0.U(XLEN.W))))
 
   def WriteForward(rs: UInt, data: UInt) {
     data := regfile(rs)
     for (i <- 0 until ISSUE_NUM) {
-      when (io.write(i).we & (io.write(i).rd === rs)) {
+      when (io.write(i).we & (io.write(i).rd === rs) & (rs =/= 0.U)) {
         data := io.write(i).data
       }
     }
@@ -44,7 +44,7 @@ class Regs extends Module {
 
 
   for (i <- 0 until ISSUE_NUM) {
-    when (io.write(i).we) {
+    when (io.write(i).we & (io.write(i).rd =/= 0.U)) {
       regfile(io.write(i).rd) := io.write(i).data
     }
   }

@@ -2,6 +2,7 @@ package xinyi_s5i4_bc.fu
 
 import chisel3._
 import chisel3.util._
+import utils._
 import config.config._
 
 class HiLo extends Module {

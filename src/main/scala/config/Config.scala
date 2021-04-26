@@ -1,6 +1,7 @@
 package config
 
 import chisel3.util._
+import utils._
 
 /**
  * @module config
@@ -20,7 +21,8 @@ object config {
   
   val REG_ID_W        = 5
   
-  val BOOT_ADDR       = 0x80000000L
+  val BOOT_ADDR       = 0xBFC00000L
+  //val BOOT_ADDR       = 0xbfc495f0L
   val EXCEPTION_ADDR  = 0xBFC00380L
 
   val BC_NUM          = 4

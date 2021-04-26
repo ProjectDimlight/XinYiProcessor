@@ -6,6 +6,7 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.fu._
 import ControlConst._
 import config.config._
+import EXCCodeConfig._
 
 class PCIFReg extends Module {
   val io = IO(new Bundle {
@@ -16,10 +17,12 @@ class PCIFReg extends Module {
   })
 
   val pc = RegInit(BOOT_ADDR.U(LGC_ADDR_W.W))
+  val stall = RegInit(false.B)
 
   when(!io.stall) {
     pc := io.pc_out
   }
+  stall := io.stall
 
   io.if_in.pc := pc
 }
@@ -35,7 +38,7 @@ class IFIDReg extends Module {
 
   val reg = RegInit({
     var init = Wire(new IFOut)
-    init.pc := BOOT_ADDR.U(LGC_ADDR_W.W)
+    init.pc := 0.U(LGC_ADDR_W.W)
     init.inst := 0.U(XLEN.W)
     init
   })
@@ -73,7 +76,7 @@ class IssueQueue extends Module {
 
   // Queue logic
 
-  val queue    = Reg(Vec(QUEUE_LEN, new Instruction))
+  val queue    = RegInit(VecInit(Seq.fill(QUEUE_LEN)(0.U.asTypeOf(new Instruction))))
   val head     = RegInit(0.U(QUEUE_LEN_w.W))
   val tail     = RegInit(0.U(QUEUE_LEN_w.W))
   val head_n   = Wire(UInt(QUEUE_LEN_w.W)) // Next Head
@@ -97,17 +100,21 @@ class IssueQueue extends Module {
     tail := head_n
     io.full := false.B
   }
-  .elsewhen(!io.stall & (in_size < (QUEUE_LEN - FETCH_NUM).U)) {
-    for (i <- 0 until FETCH_NUM) {
-      when(tail_b + i.U(QUEUE_LEN_w.W) < QUEUE_LEN.U(QUEUE_LEN_w.W)) {
-        queue(tail_b + i.U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
+  .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
+    when (!io.stall) {
+      for (i <- 0 until FETCH_NUM) {
+        when(tail_b + i.U(QUEUE_LEN_w.W) < QUEUE_LEN.U(QUEUE_LEN_w.W)) {
+          queue(tail_b + i.U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
+        }
+        .otherwise {
+          queue(tail_b + ((1 << QUEUE_LEN_w) + i - QUEUE_LEN).U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
+        }
       }
-      .otherwise {
-        queue(tail_b + ((1 << QUEUE_LEN_w) + i - QUEUE_LEN).U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
-      }
+      tail := Step(tail_b, FETCH_NUM.U(QUEUE_LEN_w.W))
     }
-
-    tail := Step(tail_b, FETCH_NUM.U(QUEUE_LEN_w.W))
+    .otherwise {
+      tail := tail_b
+    }
     io.full := false.B
   }
   .otherwise {
@@ -190,13 +197,13 @@ class ISFUReg extends Module with ALUConfig {
     reg_actual_issue_cnt := 0.U
     reg_stall := false.B
   }
-    .otherwise {
-      reg_stall := io.stall
-      when(!io.stall) {
-        reg_out := io.is_out
-        reg_actual_issue_cnt := io.is_actual_issue_cnt
-      }
+  .otherwise {
+    reg_stall := io.stall
+    when(!io.stall) {
+      reg_out := io.is_out
+      reg_actual_issue_cnt := io.is_actual_issue_cnt
     }
+  }
 
   io.fu_in := reg_out
   io.fu_actual_issue_cnt := reg_actual_issue_cnt
@@ -214,11 +221,14 @@ class FUWBReg extends Module {
     val wb_actual_issue_cnt = Output(UInt(ISSUE_NUM_W.W))
   })
 
-  val reg_out              = RegNext(io.fu_out)
-  val reg_actual_issue_cnt = RegNext(Mux(io.flush, 0.U, io.fu_actual_issue_cnt))
+  val reg_out              = RegInit(VecInit(Seq.fill(TOT_PATH_NUM)(FUOutBubble())))
+  val reg_actual_issue_cnt = RegInit(0.U(ISSUE_NUM_W.W))
+
+  reg_out              := io.fu_out
+  reg_actual_issue_cnt := Mux(io.flush | io.stall, 0.U, io.fu_actual_issue_cnt)
 
   io.wb_in := reg_out
-  io.wb_actual_issue_cnt := Mux(io.stall, 0.U, reg_actual_issue_cnt)
+  io.wb_actual_issue_cnt := reg_actual_issue_cnt
 }
 
 class InterruptReg extends Module {

@@ -2,6 +2,7 @@ package xinyi_s5i4_bc.fu
 
 import chisel3._
 import chisel3.util._
+import utils._
 import config.config._
 import xinyi_s5i4_bc.stages._
 import xinyi_s5i4_bc.parts._
@@ -29,16 +30,17 @@ class BJU extends Module with BJUConfig {
     val path = Input(new FUIn)
     val branch_next_pc = Input(UInt(NEXT_PC_W.W))
     val delay_slot_pending = Input(Bool())
+    val stall_frontend = Input(Bool())
 
     val branch_cache_out = new BranchCacheOut
-    val pc_interface = Flipped(new PCInterface)
+    val pc_interface = Output(new PCInterface)
   })
 
   val a = io.path.a.asSInt()
   val b = io.path.b.asSInt()
   val branch = Wire(Bool())
   branch := io.branch_next_pc =/= PC4 &
-    MuxLookup(
+    MuxLookupBi(
       io.path.fu_ctrl,
       true.B,
       Array(
@@ -56,7 +58,7 @@ class BJU extends Module with BJUConfig {
   val pc4 = io.path.pc + 4.U(LGC_ADDR_W.W)
 
   val target = Wire(UInt(LGC_ADDR_W.W))
-  target := MuxLookup(
+  target := MuxLookupBi(
     io.branch_next_pc,
     0.U(LGC_ADDR_W.W),
     Array(
@@ -72,6 +74,7 @@ class BJU extends Module with BJUConfig {
   bc.io.in.branch := branch
   bc.io.in.delay_slot_pending := io.delay_slot_pending
   bc.io.in.target := target
+  bc.io.stall_frontend := io.stall_frontend
 
   io.branch_cache_out := bc.io.out
   io.pc_interface.enable := branch

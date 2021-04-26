@@ -2,6 +2,7 @@
 //
 //import chisel3._
 //import chisel3.util._
+import utils._
 //import config.config._
 //import xinyi_s5i4_bc.parts.ControlConst._
 //import chisel3.experimental.BundleLiterals._
@@ -105,7 +106,7 @@
 //  // write.
 //  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 //  for (i <- 0 until ISSUE_NUM) {
-//    io.rs1_val_rec(i) := MuxLookup(
+//    io.rs1_val_rec(i) := MuxLookupBi(
 //      io.rs1_vec(i),
 //      "hcafebabe".U,
 //      Seq(
@@ -117,7 +118,7 @@
 //        CP0_EPC_INDEX -> cp0_reg_epc,
 //      )
 //    )
-//    io.rs2_val_rec(i) := MuxLookup(
+//    io.rs2_val_rec(i) := MuxLookupBi(
 //      io.rs2_vec(i),
 //      "hcafebabe".U,
 //      Seq(

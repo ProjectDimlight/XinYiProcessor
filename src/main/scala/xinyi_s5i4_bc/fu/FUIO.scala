@@ -43,3 +43,19 @@ class FUIO extends Bundle {
   val in  = Input(new FUIn)
   val out = Output(new FUOut)
 }
+
+object FUOutBubble {
+  def apply() = {
+    val init = Wire(new FUOut)
+    init.write_target  := DXXX
+    init.rd            := 0.U
+    init.data          := 0.U
+    init.hi            := 0.U
+    init.ready         := true.B
+    init.order         := ISSUE_NUM.U
+    init.pc            := 0.U
+    init.exc_code      := NO_EXCEPTION
+    init.is_delay_slot := false.B
+    init
+  }
+}

@@ -24,6 +24,7 @@ class BranchCache extends Module {
   val io = IO(new Bundle{
     val in  = new BranchCacheIn
     val out = new BranchCacheOut
+    val stall_frontend = Input(Bool())
     val branch_cached_pc = Output(UInt(LGC_ADDR_W.W))
   })
 
@@ -49,7 +50,7 @@ class BranchCache extends Module {
   .otherwise {
     state := state_reg
   }
-  state_reg := Mux(state =/= 0.U, state - 1.U, state)
+  state_reg := Mux((state =/= 0.U) & !io.stall_frontend, state - 1.U, state)
   io.branch_cached_pc := Mux(hit, io.in.target + (BC_LINE_SIZE * FETCH_NUM).U, io.in.target)
 
   // TODO: Dummy branch cache, do nothing

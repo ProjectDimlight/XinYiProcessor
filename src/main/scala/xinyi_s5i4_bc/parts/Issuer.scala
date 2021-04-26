@@ -2,6 +2,7 @@ package xinyi_s5i4_bc.parts
 
 import chisel3._
 import chisel3.util._
+import utils._
 
 import xinyi_s5i4_bc.stages._
 import ControlConst._

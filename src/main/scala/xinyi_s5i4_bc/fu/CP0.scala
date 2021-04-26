@@ -2,6 +2,7 @@ package xinyi_s5i4_bc.fu
 
 import chisel3._
 import chisel3.util._
+import utils._
 import config.config._
 import xinyi_s5i4_bc.parts.ControlConst._
 import chisel3.experimental.BundleLiterals._
@@ -164,7 +165,7 @@ class CP0 extends Module with CP0Config {
   // write.
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
   for (i <- 0 until ISSUE_NUM) {
-    io.read(i).data := MuxLookup(
+    io.read(i).data := MuxLookupBi(
       io.read(i).rs,
       "hcafebabe".U,
       Seq(
@@ -176,7 +177,7 @@ class CP0 extends Module with CP0Config {
         CP0_EPC_INDEX -> cp0_reg_epc,
       )
     )
-    io.read(i).data := MuxLookup(
+    io.read(i).data := MuxLookupBi(
       io.read(i).rs,
       "hcafebabe".U,
       Seq(

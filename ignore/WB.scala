@@ -3,6 +3,7 @@
 //
 //import chisel3._
 //import chisel3.util._
+import utils._
 //import config.config._
 //import xinyi_s5i4_bc.parts.ControlConst._
 //import xinyi_s5i4_bc.fu._

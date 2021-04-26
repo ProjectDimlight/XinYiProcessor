@@ -2,6 +2,7 @@ package xinyi_s5i4_bc.fu
 
 import chisel3._
 import chisel3.util._
+import utils._
 import config.config._
 import xinyi_s5i4_bc.caches._
 import xinyi_s5i4_bc.stages._
@@ -18,15 +19,13 @@ trait LSUConfig {
 }
 
 class LSUIO extends FUIO {
-  // Stall 
-  val stall           = Input(Bool())
-
   // To DCache
   val cache           = Flipped(new DCacheCPU)
   val stall_req       = Input(Bool())
 
   // Exception
   val exception_order = Input(UInt(ISSUE_NUM.W))
+  val interrupt       = Input(Bool())
 }
 
 class LSU extends Module with LSUConfig {
@@ -37,16 +36,16 @@ class LSU extends Module with LSUConfig {
   val addr = Wire(UInt(LGC_ADDR_W.W))
   addr := io.in.a + io.in.imm
 
-  val exception = MuxLookup(
+  val exception = MuxLookupBi(
     io.in.fu_ctrl,
     false.B,
     Array(
-      MemHalf  -> (addr(0) === 0.U(1.W)),
-      MemHalfU -> (addr(0) === 0.U(1.W)),
-      MemWord  -> (addr(1, 0) === 0.U(2.W))
+      MemHalf  -> (addr(0) =/= 0.U(1.W)),
+      MemHalfU -> (addr(0) =/= 0.U(1.W)),
+      MemWord  -> (addr(1, 0) =/= 0.U(2.W))
     )
   )
-  val normal = (io.exception_order > io.in.order) & !exception & !io.stall
+  val normal = (io.exception_order > io.in.order) & !exception & !io.interrupt
 
   val wr = (io.in.write_target === DMem)
   val rd = (io.in.rd =/= 0.U)

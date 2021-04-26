@@ -3,6 +3,7 @@ package xinyi_s5i4_bc.stages
 
 import chisel3._
 import chisel3.util._
+import utils._
 import config.config._
 import xinyi_s5i4_bc.fu._
 import xinyi_s5i4_bc.parts.ControlConst._
@@ -52,8 +53,37 @@ class WBStage extends Module with CP0Config {
 
   io.exception_handled := exception_found || interrupt_found
 
+  // Mux: from Paths to Issues
+  val issue_vec = Wire(Vec(ISSUE_NUM, new FUOut))
+  for (i <- 0 until ISSUE_NUM) {
+    issue_vec(i) := FUOutBubble()
+
+    for (j <- 0 until TOT_PATH_NUM) {
+      when ((io.fu_res_vec(j).order === i.U) & (i.U < io.actual_issue_cnt)) {
+        issue_vec(i) := io.fu_res_vec(j)
+      }
+    }
+  }
+
+  // generate exception order
+  val exception_order = Wire(UInt(ISSUE_NUM_W.W))
+  exception_order := io.actual_issue_cnt
+  
+  io.exc_info := 0.U.asTypeOf(new ExceptionInfo)
+  for (i <- ISSUE_NUM - 1 to 0 by -1) {
+    when(issue_vec(i).exc_code =/= NO_EXCEPTION) {
+      io.exc_info.pc := Mux(issue_vec(i).is_delay_slot, issue_vec(i).pc - 4.U, issue_vec(i).pc)
+      io.exc_info.exc_code := issue_vec(i).pc
+      io.exc_info.data := issue_vec(i).data // some of the exception info should be passed by normal data
+      // for example: badvaddr
+      io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
+      
+      exception_order := i.U
+    }
+  }
+
   // handle interrupt
-  when(interrupt_found) {
+  when (interrupt_found) {
     for (i <- 0 until ISSUE_NUM) {
       io.write_channel_vec(i) := 0.U.asTypeOf(new WBOut)
     }
@@ -61,35 +91,15 @@ class WBStage extends Module with CP0Config {
     io.exc_info.exc_code := EXC_CODE_INT
     io.exc_info.data := Cat(Seq(0.U(16.W), Reverse(io.incoming_interrupt.asUInt), 0.U(8.W)))
     io.exc_info.in_branch_delay_slot := 0.U
-  }.elsewhen(exception_found) {
-    for (i <- 0 until ISSUE_NUM) {
-      io.write_channel_vec(i) := 0.U.asTypeOf(new WBOut)
-    }
-    io.exc_info := 0.U.asTypeOf(new ExceptionInfo)
-    for (i <- ISSUE_NUM - 1 to 0 by -1) {
-      when(io.fu_res_vec(i).exc_code =/= NO_EXCEPTION) {
-        io.exc_info.pc := Mux(io.fu_res_vec(i).is_delay_slot, io.fu_res_vec(i).pc - 4.U, io.fu_res_vec(i).pc)
-        io.exc_info.exc_code := io.fu_res_vec(i).pc
-        io.exc_info.data := io.fu_res_vec(i).data // some of the exception info should be passed by normal data
-        // for example: badvaddr
-        io.exc_info.in_branch_delay_slot := io.fu_res_vec(i).is_delay_slot
-      }
-    }
-  }.otherwise {
-    io.exc_info := 0.U.asTypeOf(new ExceptionInfo)
-
+  }
+  .otherwise {
     for (i <- 0 until ISSUE_NUM) {
       io.write_channel_vec(i) := 0.U.asTypeOf(new WBOut)
 
-      val previous_exception = Wire(Vec(i, Bool()))
-      for (j <- 0 until i) {
-        previous_exception(j) := io.fu_res_vec(i).exc_code =/= NO_EXCEPTION
-      }
-
-      when(io.fu_res_vec(i).ready && i.U < io.actual_issue_cnt && !previous_exception.asUInt.orR) {
+      when (i.U < exception_order) {
         // params from input
-        val fu_tmp_res = io.fu_res_vec(i)
-        val order      = fu_tmp_res.order
+        val fu_tmp_res = issue_vec(i)
+        val order      = i.U
 
         switch(fu_tmp_res.write_target) {
           is(DReg) {

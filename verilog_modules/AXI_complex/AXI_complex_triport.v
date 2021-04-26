@@ -132,7 +132,8 @@ module AXI_complex(
 
     always @(posedge clk) begin
         if (~rst) begin
-            if (~d_stall) begin
+            //if (~d_stall) begin
+            if ((nextsts == 2'b0) | d_valid | bvalid) begin
                 laststs     <=  nextsts;
             end
         end
@@ -150,13 +151,13 @@ module AXI_complex(
 
     assign  d_0_addr_out    =   d_addr_out;
     assign  d_0_data_out    =   d_data_out;
-    assign  d_0_stall       =   (nextsts[0] && d_stall) || ((nextsts[1] && ~nextsts[0]) && (d_0_wr || d_0_rd));
-    assign  d_0_valid       =   (~d_dst && d_valid);
+    assign  d_0_stall       =   (nextsts[0] && d_stall) || (nextsts[1] && ~nextsts[0]);
+    assign  d_0_valid       =   (~d_dst && (d_valid | bvalid));
 
     assign  d_1_addr_out    =   d_addr_out;
     assign  d_1_data_out    =   d_data_out;
-    assign  d_1_stall       =   (nextsts[1] && ~nextsts[0] && d_stall) || (~(nextsts[1] && ~nextsts[0]) && (d_1_wr || d_1_rd));
-    assign  d_1_valid       =   (d_dst && d_valid);
+    assign  d_1_stall       =   (nextsts[1] && ~nextsts[0] && d_stall) || ~(nextsts[1] && ~nextsts[0]);
+    assign  d_1_valid       =   ( d_dst && (d_valid | bvalid));
 
     //Known-working Part
     reg     [ 31:0]                                         axi_rd_reg_addr     [AXI_RQUEUE_SIZE-1:0];
@@ -465,13 +466,14 @@ module AXI_complex(
 
 
     assign  i_valid     =   ((axi_rd_done && rid[AXI_RQUEUE_SIZE_B-1:0] == axi_rdqueue_end) || axi_rd_reg_done[axi_rdqueue_end]) && !axi_rd_reg_type[axi_rdqueue_end][1];
-    assign  i_stall     =   i_en && (axi_rdqueue_full && !axi_rd_done)                                                                                                          ? 1'b1 :
-                            i_en && d_rd && ((axi_rdqueue_full && axi_rd_done) || (axi_rdqueue_full_2 && !axi_rd_done)) && !axi_lasttype                                        ? 1'b1 :
+    assign  i_stall     =   (axi_rdqueue_full && !axi_rd_done)                                                                                                          ? 1'b1 :
+                            d_rd && ((axi_rdqueue_full && axi_rd_done) || (axi_rdqueue_full_2 && !axi_rd_done)) && !axi_lasttype                                        ? 1'b1 :
                             1'b0;
     assign  d_valid     =   ((axi_rd_done && rid[AXI_RQUEUE_SIZE_B-1:0] == axi_rdqueue_end) || axi_rd_reg_done[axi_rdqueue_end]) && axi_rd_reg_type[axi_rdqueue_end][1];
-    assign  d_stall_wr  =   d_wr && (axi_wr_reg_valid && !axi_wr_done);
-    assign  d_stall_rd  =   d_rd && (axi_rdqueue_full && !axi_rd_done);
-    assign  d_stall     =   d_stall_rd || d_stall_wr || (i_en && d_rd && ((axi_rdqueue_full && axi_rd_done) || (axi_rdqueue_full_2 && !axi_rd_done)) && axi_lasttype);
+    assign  d_stall_wr  =   (axi_wr_reg_valid && !axi_wr_done);
+    assign  d_stall_rd  =   (axi_rdqueue_full && !axi_rd_done);
+    assign  d_stall     =   d_stall_wr || d_stall_rd || 
+                           (i_en && ((axi_rdqueue_full && axi_rd_done) || (axi_rdqueue_full_2 && !axi_rd_done)) && axi_lasttype);
 
     //ar
     assign arid     =   {2'b0, axi_rdqueue_addrptr};
