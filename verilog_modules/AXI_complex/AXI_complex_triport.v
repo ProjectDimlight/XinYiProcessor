@@ -505,16 +505,14 @@ module AXI_complex(
                         axi_wr_reg_size == 3'd1 ? 3 << axi_wr_reg_addr[$clog2(AXI_W_BUS_WIDTH / 8) - 1:0] : 
                         axi_wr_reg_size == 3'd2 ? 15 << axi_wr_reg_addr[$clog2(AXI_W_BUS_WIDTH / 8) - 1:0] : 
                         {(AXI_W_BUS_WIDTH / 8){1'b1}};
-    generate
-        if (PORT_DATA_WIDTH <= AXI_W_BUS_WIDTH) begin
-            assign wlast    =   1'd1;
-            assign wvalid   =   axi_wr_reg_valid && !axi_wrqueue_data;
-        end
-        else begin
-            assign wlast    =   (axi_wrqueue_data[AXI_W_BUS_SIZE_R-1:0] == {AXI_W_BUS_SIZE_R{1'b1}});
-            assign wvalid   =   axi_wr_reg_valid && !(axi_wrqueue_data[AXI_W_BUS_SIZE_R]);    
-        end
-    endgenerate
+    
+    assign wlast    =   (axi_wr_reg_size <= AXI_W_BUS_SIZE)
+                        ? 1'd1 
+                        : (axi_wrqueue_data[AXI_W_BUS_SIZE_R-1:0] == {AXI_W_BUS_SIZE_R{1'b1}});
+    assign wvalid   =   (axi_wr_reg_size <= AXI_W_BUS_SIZE)
+                        ? axi_wr_reg_valid && !axi_wrqueue_data
+                        : axi_wr_reg_valid && !(axi_wrqueue_data[AXI_W_BUS_SIZE_R]);
+    //endgenerate
     //b
     assign bready   =   1'b1;
 
