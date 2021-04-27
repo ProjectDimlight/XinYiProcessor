@@ -133,7 +133,7 @@ module AXI_complex(
     always @(posedge clk) begin
         if (~rst) begin
             //if (~d_stall) begin
-            if ((nextsts == 2'b0) | d_valid | bvalid) begin
+            if ((laststs == 2'b0) | d_valid | bvalid) begin
                 laststs     <=  nextsts;
             end
         end
@@ -142,21 +142,21 @@ module AXI_complex(
         end
     end
 
-    assign  d_addr_in       =   (nextsts[1] && ~nextsts[0])     ?   d_1_addr_in    : d_0_addr_in;
-    assign  d_data_in       =   (nextsts[1] && ~nextsts[0])     ?   d_1_data_in    : d_0_data_in;
-    assign  d_wr            =   (nextsts[1] && ~nextsts[0])     ?   d_1_wr         : d_0_wr;
-    assign  d_rd            =   (nextsts[1] && ~nextsts[0])     ?   d_1_rd         : d_0_rd;
-    assign  d_size          =   (nextsts[1] && ~nextsts[0])     ?   d_1_size       : d_0_size;
-    assign  d_src           =   (nextsts[1] && ~nextsts[0])     ?   1'b1           : 1'b0;
+    assign  d_addr_in       =   (laststs[1] && ~laststs[0])     ?   d_1_addr_in    : d_0_addr_in;
+    assign  d_data_in       =   (laststs[1] && ~laststs[0])     ?   d_1_data_in    : d_0_data_in;
+    assign  d_wr            =   (laststs[1] && ~laststs[0])     ?   d_1_wr         : d_0_wr;
+    assign  d_rd            =   (laststs[1] && ~laststs[0])     ?   d_1_rd         : d_0_rd;
+    assign  d_size          =   (laststs[1] && ~laststs[0])     ?   d_1_size       : d_0_size;
+    assign  d_src           =   (laststs[1] && ~laststs[0])     ?   1'b1           : 1'b0;
 
     assign  d_0_addr_out    =   d_addr_out;
     assign  d_0_data_out    =   d_data_out;
-    assign  d_0_stall       =   (nextsts[0] && d_stall) || (nextsts[1] && ~nextsts[0]);
+    assign  d_0_stall       =   (laststs[0] && d_stall) || (laststs[1] && ~laststs[0]);
     assign  d_0_valid       =   (~d_dst && (d_valid | bvalid));
 
     assign  d_1_addr_out    =   d_addr_out;
     assign  d_1_data_out    =   d_data_out;
-    assign  d_1_stall       =   (nextsts[1] && ~nextsts[0] && d_stall) || ~(nextsts[1] && ~nextsts[0]);
+    assign  d_1_stall       =   (laststs[1] && ~laststs[0] && d_stall) || ~(laststs[1] && ~laststs[0]);
     assign  d_1_valid       =   ( d_dst && (d_valid | bvalid));
 
     //Known-working Part
