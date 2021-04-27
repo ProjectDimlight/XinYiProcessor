@@ -339,7 +339,7 @@ class ISStage extends Module {
   io.delay_slot_pending := false.B
   for (j <- 0 until ALU_PATH_NUM) {
     // Branch
-    when (filtered_inst(io.path(j).order).dec.next_pc =/= PC4) {
+    when ((io.path(j).order =/= ISSUE_NUM.U) & (filtered_inst(io.path(j).order).dec.next_pc =/= PC4)) {
       io.branch_jump_id := j.U(ALU_PATH_NUM_W.W)
       io.branch_next_pc := filtered_inst(io.path(j).order).dec.next_pc
       io.delay_slot_pending := (io.path(j).order + 1.U) === io.actual_issue_cnt

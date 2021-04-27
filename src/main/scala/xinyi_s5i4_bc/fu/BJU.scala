@@ -9,9 +9,9 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.parts.ControlConst._
 
 trait BALConfig {
-  val JPC           = 13.U(FU_CTRL_W.W)
-  val BrGEPC        = 14.U(FU_CTRL_W.W)
-  val BrLTPC        = 15.U(FU_CTRL_W.W)
+  val JPC           = 25.U(FU_CTRL_W.W)
+  val BrGEPC        = 26.U(FU_CTRL_W.W)
+  val BrLTPC        = 27.U(FU_CTRL_W.W)
 }
 
 trait BJUConfig extends BALConfig {
@@ -22,7 +22,6 @@ trait BJUConfig extends BALConfig {
   val BrGT          = 4.U(FU_CTRL_W.W)
   val BrLE          = 5.U(FU_CTRL_W.W)
   val BrLT          = 6.U(FU_CTRL_W.W)
-  val BrERET        = 28.U(FU_CTRL_W.W)
 }
 
 class BJU extends Module with BJUConfig {

@@ -42,6 +42,7 @@ trait ALUConfig {
   val ALU_ADD  = 10.U(FU_CTRL_W.W)
   val ALU_ADDU = 11.U(FU_CTRL_W.W)
   val ALU_SUB  = 12.U(FU_CTRL_W.W)
+  val ALU_SUBU = 13.U(FU_CTRL_W.W)
 
   val ALU_DIV  = 16.U(FU_CTRL_W.W)
   val ALU_DIVU = 17.U(FU_CTRL_W.W)
@@ -81,6 +82,7 @@ class ALU extends Module with ALUConfig with BALConfig {
       ALU_ADD -> (io.in.a + io.in.b),
       ALU_ADDU -> (io.in.a + io.in.b),
       ALU_SUB -> (io.in.a - io.in.b),
+      ALU_SUBU -> (io.in.a - io.in.b),
       ALU_SLT -> (io.in.a.asSInt() < io.in.b.asSInt()),
       ALU_SLTU -> (io.in.a < io.in.b),
       ALU_AND -> (io.in.a & io.in.b),
