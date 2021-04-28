@@ -50,20 +50,8 @@ class LSU extends Module with LSUConfig {
   val wr = (io.in.write_target === DMem)
   val rd = (io.in.rd =/= 0.U)
 
-  val i_byte = MuxLookupBi(
-    addr(1, 0),
-    io.in.b(7, 0),
-    Array(
-      1.U -> io.in.b(15,  8),
-      2.U -> io.in.b(23, 16),
-      3.U -> io.in.b(31, 24),
-    )
-  )
-  val i_half = Mux(
-    addr(1),
-    io.in.b(31, 16),
-    io.in.b(15, 0)
-  )
+  val i_byte = io.in.b(7, 0)
+  val i_half = io.in.b(15, 0)
 
   io.cache.wr   := normal & wr
   io.cache.rd   := normal & rd
