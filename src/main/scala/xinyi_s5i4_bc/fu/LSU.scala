@@ -50,14 +50,58 @@ class LSU extends Module with LSUConfig {
   val wr = (io.in.write_target === DMem)
   val rd = (io.in.rd =/= 0.U)
 
+  val i_byte = MuxLookupBi(
+    addr(1, 0),
+    io.in.b(7, 0),
+    Array(
+      1.U -> io.in.b(15,  8),
+      2.U -> io.in.b(23, 16),
+      3.U -> io.in.b(31, 24),
+    )
+  )
+  val i_half = Mux(
+    addr(1),
+    io.in.b(31, 16),
+    io.in.b(15, 0)
+  )
+
   io.cache.wr   := normal & wr
   io.cache.rd   := normal & rd
   io.cache.size := io.in.fu_ctrl(2, 1)
   io.cache.addr := addr
-  io.cache.din  := io.in.b
+  io.cache.din  := MuxLookupBi(
+    io.in.fu_ctrl(2, 1),
+    io.in.b,
+    Array(
+      0.U -> Cat(i_byte, i_byte, i_byte, i_byte),
+      1.U -> Cat(i_half, i_half)
+    )
+  )
+
+  val o_byte = MuxLookupBi(
+    addr(1, 0),
+    io.cache.dout(7, 0),
+    Array(
+      1.U -> io.cache.dout(15,  8),
+      2.U -> io.cache.dout(23, 16),
+      3.U -> io.cache.dout(31, 24)
+    )
+  )
+  val o_half = Mux(
+    addr(1),
+    io.cache.dout(31, 16),
+    io.cache.dout(15,  0)
+  )
 
   io.out.hi        := addr
-  io.out.data      := io.cache.dout
+  io.out.data      := MuxLookupBi(
+    io.in.fu_ctrl(2, 1),
+    io.cache.dout,
+    Array(
+      0.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_byte( 7), 0xffffff.U(24.W) , 0.U(24.W)), o_byte),
+      1.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_half(15),   0xffff.U(16.W) , 0.U(16.W)), o_half)
+    )
+  )
   io.out.ready     := !io.stall_req
 
   io.out.write_target := io.in.write_target

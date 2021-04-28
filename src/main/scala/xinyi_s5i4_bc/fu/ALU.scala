@@ -70,10 +70,12 @@ class ALU extends Module with ALUConfig with BALConfig {
   // ALU operations
   //<<<<<<<<<<<<<<<<
 
-  val a = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a)
-  val b = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b)
+  val a = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a).asSInt()
+  val b = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b).asSInt()
 
-  val mul_ab = a * b
+  val mul_ab = (a * b).asUInt()
+  val div_ab = (a / b).asUInt()
+  val mod_ab = (a % b).asUInt()
 
   io.out.data := MuxLookupBi(
     io.in.fu_ctrl,
@@ -93,9 +95,9 @@ class ALU extends Module with ALUConfig with BALConfig {
       ALU_SLL -> (io.in.b << io.in.a(4, 0)),
       ALU_SRA -> (io.in.b.asSInt() >> io.in.a(4, 0)).asUInt(),
       ALU_SRL -> (io.in.b >> io.in.a(4, 0)),
-      ALU_DIV -> a % b,
-      ALU_DIVU -> a % b,
-      ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
+      ALU_DIV -> div_ab,
+      ALU_DIVU -> div_ab,
+      ALU_MUL -> mul_ab(XLEN - 1, 0),
       ALU_MULU -> mul_ab(XLEN - 1, 0),
       JPC -> (io.in.pc + 8.U),
       BrGEPC -> (io.in.pc + 8.U),
@@ -103,14 +105,18 @@ class ALU extends Module with ALUConfig with BALConfig {
     )
   )
 
-  io.out.hi := MuxLookupBi(
-    io.in.fu_ctrl,
-    "hcafebabe".U,
-    Seq(
-      ALU_DIV -> (a / b),
-      ALU_DIVU -> (a / b),
-      ALU_MUL -> mul_ab(XLEN - 1, 0),
-      ALU_MULU -> mul_ab(XLEN - 1, 0),
+  io.out.hi := Mux(
+    io.in.write_target === DHi,
+    io.out.data,
+    MuxLookupBi(
+      io.in.fu_ctrl,
+      "hcafebabe".U,
+      Seq(
+        ALU_DIV -> mod_ab,
+        ALU_DIVU -> mod_ab,
+        ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
+        ALU_MULU -> mul_ab(2 * XLEN - 1, XLEN),
+      )
     )
   )
 

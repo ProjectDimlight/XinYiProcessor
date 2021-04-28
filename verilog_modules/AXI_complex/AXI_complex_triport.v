@@ -152,12 +152,12 @@ module AXI_complex(
     assign  d_0_addr_out    =   d_addr_out;
     assign  d_0_data_out    =   d_data_out;
     assign  d_0_stall       =   (laststs[0] && d_stall) || (laststs[1] && ~laststs[0]);
-    assign  d_0_valid       =   (~d_dst && (d_valid | bvalid));
+    assign  d_0_valid       =   (~d_dst && d_valid) | (~d_src & bvalid);
 
     assign  d_1_addr_out    =   d_addr_out;
     assign  d_1_data_out    =   d_data_out;
     assign  d_1_stall       =   (laststs[1] && ~laststs[0] && d_stall) || ~(laststs[1] && ~laststs[0]);
-    assign  d_1_valid       =   ( d_dst && (d_valid | bvalid));
+    assign  d_1_valid       =   ( d_dst && d_valid) | ( d_src & bvalid);
 
     //Known-working Part
     reg     [ 31:0]                                         axi_rd_reg_addr     [AXI_RQUEUE_SIZE-1:0];
