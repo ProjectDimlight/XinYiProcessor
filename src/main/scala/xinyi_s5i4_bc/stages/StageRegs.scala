@@ -36,14 +36,22 @@ class IFIDReg extends Module {
     val flush = Input(Bool())
   })
 
-  val reg = RegInit({
-    var init = Wire(new IFOut)
-    init.pc := 0.U(LGC_ADDR_W.W)
-    init.inst := 0.U(XLEN.W)
-    init
-  })
-  when(!io.stall) {
-    reg := io.if_out
+  var init = Wire(new IFOut)
+  init.pc := 0.U(LGC_ADDR_W.W)
+  init.inst := 0.U(XLEN.W)
+  
+  val reg = RegInit(init)
+  val flush_reg = RegInit(false.B)
+
+  when (io.flush) {
+    when (io.stall) {
+      flush_reg := true.B
+    }
+    reg := init
+  }
+  .elsewhen (!io.stall) {
+    reg := Mux(flush_reg, init, io.if_out)
+    flush_reg := false.B
   }
 
   for (i <- 0 until FETCH_NUM) {

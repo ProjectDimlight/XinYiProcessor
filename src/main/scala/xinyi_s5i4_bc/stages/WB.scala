@@ -69,11 +69,14 @@ class WBStage extends Module with CP0Config {
   val exception_order = Wire(UInt(ISSUE_NUM_W.W))
   exception_order := io.actual_issue_cnt
   
-  io.exc_info := 0.U.asTypeOf(new ExceptionInfo)
+  io.exc_info.pc := 0.U
+  io.exc_info.exc_code := NO_EXCEPTION
+  io.exc_info.data := 0.U
+  io.exc_info.in_branch_delay_slot := false.B
   for (i <- ISSUE_NUM - 1 to 0 by -1) {
     when(issue_vec(i).exc_code =/= NO_EXCEPTION) {
       io.exc_info.pc := Mux(issue_vec(i).is_delay_slot, issue_vec(i).pc - 4.U, issue_vec(i).pc)
-      io.exc_info.exc_code := issue_vec(i).pc
+      io.exc_info.exc_code := issue_vec(i).exc_code
       io.exc_info.data := issue_vec(i).data // some of the exception info should be passed by normal data
       // for example: badvaddr
       io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
@@ -112,6 +115,7 @@ class WBStage extends Module with CP0Config {
           is(DCP0) {
             io.write_channel_vec(order).write_cp0_en := 1.U
             io.write_channel_vec(order).write_cp0_data := fu_tmp_res.data
+            io.write_channel_vec(order).write_cp0_rd := fu_tmp_res.rd
           }
           is(DHi) {
             io.write_channel_vec(order).write_hi_en := 1.U
