@@ -26,7 +26,14 @@ class Regs extends Module {
   })
 
   // register file
-  val regfile = RegInit(VecInit(Seq.fill(32)(0.U(XLEN.W))))
+  val reginit = VecInit(Seq.fill(32)(0.U(XLEN.W)))
+  if (DEBUG) {
+    reginit(16) := (DEBUG_TEST_CASE - 1).U
+    reginit(19) := (DEBUG_TEST_CASE - 1).U
+  }
+
+  val regfile = RegInit(reginit)
+
 
   def WriteForward(rs: UInt, data: UInt) {
     data := regfile(rs)

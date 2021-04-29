@@ -16,7 +16,7 @@ class PCIFReg extends Module {
     val stall = Input(Bool())
   })
 
-  val pc = RegInit(BOOT_ADDR.U(LGC_ADDR_W.W))
+  val pc = RegInit((if (DEBUG) DEBUG_BOOT_ADDR else BOOT_ADDR).U(LGC_ADDR_W.W))
   val stall = RegInit(false.B)
 
   when(!io.stall) {

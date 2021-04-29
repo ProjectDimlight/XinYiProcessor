@@ -44,9 +44,7 @@ class WBStage extends Module with CP0Config {
 
 
   val exception_found = Wire(Bool())
-  exception_found := !io.fu_res_vec.forall((p: FUOut) => {
-    p.exc_code === NO_EXCEPTION
-  })
+  exception_found := false.B
 
   val interrupt_found = Wire(Bool())
   interrupt_found := io.incoming_interrupt.asUInt().orR()
@@ -59,7 +57,7 @@ class WBStage extends Module with CP0Config {
     issue_vec(i) := FUOutBubble()
 
     for (j <- 0 until TOT_PATH_NUM) {
-      when ((io.fu_res_vec(j).order === i.U) & (i.U < io.actual_issue_cnt)) {
+      when ((i.U < io.actual_issue_cnt) & (io.fu_res_vec(j).order === i.U)) {
         issue_vec(i) := io.fu_res_vec(j)
       }
     }
@@ -74,7 +72,9 @@ class WBStage extends Module with CP0Config {
   io.exc_info.data := 0.U
   io.exc_info.in_branch_delay_slot := false.B
   for (i <- ISSUE_NUM - 1 to 0 by -1) {
-    when(issue_vec(i).exc_code =/= NO_EXCEPTION) {
+    when (issue_vec(i).exc_code =/= NO_EXCEPTION) {
+      exception_found := true.B
+
       io.exc_info.pc := Mux(issue_vec(i).is_delay_slot, issue_vec(i).pc - 4.U, issue_vec(i).pc)
       io.exc_info.exc_code := issue_vec(i).exc_code
       io.exc_info.data := issue_vec(i).data // some of the exception info should be passed by normal data

@@ -201,6 +201,7 @@ class DataPath extends Module {
 
       fu.io.exception_order := min_exception_order
       fu.io.interrupt       := has_interrupt
+      fu.io.flush           := flush
 
       fu_wb_reg.io.fu_out(j) := fu.io.out
       when (fu.io.out.exc_code =/= NO_EXCEPTION) {

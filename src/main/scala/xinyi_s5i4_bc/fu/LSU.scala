@@ -26,6 +26,7 @@ class LSUIO extends FUIO {
   // Exception
   val exception_order = Input(UInt(ISSUE_NUM.W))
   val interrupt       = Input(Bool())
+  val flush           = Input(Bool())
 }
 
 class LSU extends Module with LSUConfig {
@@ -45,7 +46,7 @@ class LSU extends Module with LSUConfig {
       MemWord  -> (addr(1, 0) =/= 0.U(2.W))
     )
   )
-  val normal = (io.exception_order > io.in.order) & !exception & !io.interrupt
+  val normal = (io.exception_order > io.in.order) & !exception & !io.interrupt & !io.flush
 
   val wr = (io.in.write_target === DMem)
   val rd = (io.in.rd =/= 0.U)

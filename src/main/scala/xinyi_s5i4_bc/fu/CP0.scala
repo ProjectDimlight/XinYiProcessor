@@ -127,6 +127,7 @@ class CP0 extends Module with CP0Config {
 
   def CP0StatusInit: CP0StatusBundle = {
     val initial_value = WireDefault(0.U.asTypeOf(new CP0StatusBundle))
+    initial_value.BEV     := 1.U(1.W)
     initial_value.IGNORE1 := 0.U(1.W)
     initial_value.IGNORE3 := 0.U(3.W)
     initial_value
@@ -211,15 +212,24 @@ class CP0 extends Module with CP0Config {
           cp0_reg_badvaddr := io.write(i).data
         }
         is(CP0_CAUSE_INDEX) {
+          /*
           cp0_reg_cause := io.write(i).data.asTypeOf(new CP0CauseBundle)
           cp0_reg_cause.IGNORE1 := 0.U(1.W)
           cp0_reg_cause.IGNORE2 := 0.U(2.W)
           cp0_reg_cause.IGNORE3 := 0.U(3.W)
+          */
+          cp0_reg_cause.IP := Cat(cp0_reg_cause.IP(7, 2), io.write(i).data(9, 8))
         }
         is(CP0_STATUS_INDEX) {
+          /*
           cp0_reg_status := io.write(i).data.asTypeOf(new CP0StatusBundle)
+          cp0_reg_status.BEV     := 1.U(1.W)
           cp0_reg_status.IGNORE1 := 0.U(1.W)
           cp0_reg_status.IGNORE3 := 0.U(3.W)
+          */
+          cp0_reg_status.IM      := io.write(i).data(15, 8)
+          cp0_reg_status.EXL     := io.write(i).data(1)
+          cp0_reg_status.IE      := io.write(i).data(0)
         }
       }
     }
@@ -252,15 +262,19 @@ class CP0 extends Module with CP0Config {
 
   when(cp0_reg_count === cp0_reg_compare) {
     cp0_reg_cause.IP := Cat(1.U(1.W), cp0_reg_cause.IP(6, 0))
+    cp0_reg_cause.TI := 1.U
     io.time_int := 1.U
   }.otherwise {
+    cp0_reg_cause.TI := 0.U
     io.time_int := 0.U
   }
 
   when(has_exception_vec) {
+    when (!cp0_reg_status.EXL) {
+      cp0_reg_cause.BD := io.exc_info.in_branch_delay_slot
+      cp0_reg_epc := Mux(io.exc_info.in_branch_delay_slot, io.exc_info.pc - 4.U, io.exc_info.pc)
+    }
     cp0_reg_status.EXL := 1.U
-    cp0_reg_cause.BD := io.exc_info.in_branch_delay_slot
-    cp0_reg_epc := Mux(io.exc_info.in_branch_delay_slot, io.exc_info.pc - 4.U, io.exc_info.pc)
     cp0_reg_cause.EXC_CODE := io.exc_info.exc_code
 
     when(io.exc_info.exc_code === EXC_CODE_ADEL || io.exc_info.exc_code === EXC_CODE_ADES) {

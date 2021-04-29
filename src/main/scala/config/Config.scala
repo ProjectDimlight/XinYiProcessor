@@ -10,6 +10,8 @@ import utils._
  */
 object config {
   val DEBUG: Boolean = true
+  val DEBUG_BOOT_ADDR = 0xbfc00b14L
+  val DEBUG_TEST_CASE = 65
 
   val XLEN: Int = 32
   val STORE_BUFFER_DEPTH: Int = 32
@@ -22,7 +24,6 @@ object config {
   val REG_ID_W        = 5
   
   val BOOT_ADDR       = 0xBFC00000L
-  //val BOOT_ADDR       = 0xbfc495f0L
   val EXCEPTION_ADDR  = 0xBFC00380L
 
   val BC_NUM          = 4
