@@ -2,12 +2,10 @@ package xinyi_s5i4_bc.fu
 
 import chisel3._
 import chisel3.util._
-import utils._
-import xinyi_s5i4_bc.parts.ControlConst._
 import config.config._
-import xinyi_s5i4_bc.fu._
-import xinyi_s5i4_bc.stages.WBOut
-import EXCCodeConfig._
+import utils._
+import xinyi_s5i4_bc.fu.EXCCodeConfig._
+import xinyi_s5i4_bc.parts.ControlConst._
 
 
 /**
@@ -26,7 +24,7 @@ import EXCCodeConfig._
  */
 
 trait ALUConfig {
-  val ALU_XXX  = 0.U(FU_CTRL_W.W)
+  val ALU_XXX = 0.U(FU_CTRL_W.W)
 
   val ALU_SLL  = 0.U(FU_CTRL_W.W)
   val ALU_SRA  = 1.U(FU_CTRL_W.W)
@@ -59,23 +57,51 @@ class ALU extends Module with ALUConfig with BALConfig {
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   // connect some unchanged wires
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-  
-  io.out.ready        := true.B  //always ready, operations are finished in one cycle
+
   io.out.write_target := io.in.write_target
-  io.out.rd           := io.in.rd
-  io.out.order        := io.in.order
-  io.out.pc           := io.in.pc
+  io.out.rd := io.in.rd
+  io.out.order := io.in.order
+  io.out.pc := io.in.pc
+
+  //>>>>>>>>>>>>>>>>
+  // MDU operations
+  //<<<<<<<<<<<<<<<<
+
+  val a      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a).asSInt()
+  val b      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b).asSInt()
+  val mul_ab = (a * b).asUInt()
+
+  // instantiate div
+  val div     = Module(new DIV)
+  val is_div  = io.in.fu_ctrl === ALU_DIV
+  val div_res = Wire(UInt((2 * XLEN).W))
+
+  div.io.aclk := clock
+  div.io.s_axis_dividend_tvalid := is_div
+  div.io.s_axis_divisor_tvalid := is_div
+  div.io.s_axis_dividend_tdata := io.in.a
+  div.io.s_axis_divisor_tdata := io.in.b
+  div_res := div.io.m_axis_dout_tdata
+
+  // instantiate divu
+  val divu     = Module(new DIVU)
+  val is_divu  = io.in.fu_ctrl === ALU_DIVU
+  val divu_res = Wire(UInt((2 * XLEN).W))
+
+  divu.io.aclk := clock
+  divu.io.s_axis_dividend_tvalid := is_divu
+  divu.io.s_axis_divisor_tvalid := is_divu
+  divu.io.s_axis_dividend_tdata := io.in.a
+  divu.io.s_axis_divisor_tdata := io.in.b
+  divu_res := divu.io.m_axis_dout_tdata
+
+
+  // ready
+  io.out.ready := !(is_divu || is_div) || (is_divu && divu.io.m_axis_dout_tvalid) || (is_div && div.io.m_axis_dout_tvalid)
 
   //>>>>>>>>>>>>>>>>
   // ALU operations
   //<<<<<<<<<<<<<<<<
-
-  val a = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a).asSInt()
-  val b = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b).asSInt()
-
-  val mul_ab = (a * b).asUInt()
-  val div_ab = (a / b).asUInt()
-  val mod_ab = (a % b).asUInt()
 
   io.out.data := MuxLookupBi(
     io.in.fu_ctrl,
@@ -95,8 +121,8 @@ class ALU extends Module with ALUConfig with BALConfig {
       ALU_SLL -> (io.in.b << io.in.a(4, 0)),
       ALU_SRA -> (io.in.b.asSInt() >> io.in.a(4, 0)).asUInt(),
       ALU_SRL -> (io.in.b >> io.in.a(4, 0)),
-      ALU_DIV -> div_ab,
-      ALU_DIVU -> div_ab,
+      ALU_DIV -> div_res(2 * XLEN - 1, XLEN),
+      ALU_DIVU -> divu_res(2 * XLEN - 1, XLEN),
       ALU_MUL -> mul_ab(XLEN - 1, 0),
       ALU_MULU -> mul_ab(XLEN - 1, 0),
       JPC -> (io.in.pc + 8.U),
@@ -112,8 +138,8 @@ class ALU extends Module with ALUConfig with BALConfig {
       io.in.fu_ctrl,
       "hcafebabe".U,
       Seq(
-        ALU_DIV -> mod_ab,
-        ALU_DIVU -> mod_ab,
+        ALU_DIV -> div_res(XLEN - 1, 0),
+        ALU_DIVU -> divu_res(XLEN - 1, 0),
         ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
         ALU_MULU -> mul_ab(2 * XLEN - 1, XLEN),
       )
@@ -122,11 +148,11 @@ class ALU extends Module with ALUConfig with BALConfig {
 
   // TODO update exception in ALU
   val ov = ((io.in.fu_ctrl === ALU_ADD) &&
-            (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) &&
-            (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1))) ||
-           ((io.in.fu_ctrl === ALU_SUB) &&
-            (io.in.a(XLEN - 1) =/= io.in.b(XLEN - 1)) &&
-            (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1)))
+    (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) &&
+    (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1))) ||
+    ((io.in.fu_ctrl === ALU_SUB) &&
+      (io.in.a(XLEN - 1) =/= io.in.b(XLEN - 1)) &&
+      (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1)))
 
   io.out.exc_code := MuxCase(
     NO_EXCEPTION,
@@ -135,7 +161,62 @@ class ALU extends Module with ALUConfig with BALConfig {
       (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
       (io.in.fu_ctrl === FU_SYSCALL) -> EXC_CODE_SYS,
       (io.in.fu_ctrl === FU_BREAK) -> EXC_CODE_BP,
-      (ov) -> EXC_CODE_OV
+      ov -> EXC_CODE_OV
     )
   )
+}
+
+
+class DIV extends BlackBox {
+  val io = IO(new Bundle {
+    val aclk                   = Input(Clock())
+    val s_axis_divisor_tvalid  = Input(Bool())
+    val s_axis_divisor_tdata   = Input(UInt(XLEN.W))
+    val s_axis_dividend_tvalid = Input(Bool())
+    val s_axis_dividend_tdata  = Input(UInt(XLEN.W))
+    val m_axis_dout_tvalid     = Output(Bool())
+    val m_axis_dout_tdata      = Output(UInt((2 * XLEN).W))
+  })
+
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  // this is the divider IP core instantiate template
+  //------------------------------------------------------------------------------------------------
+  //  DIV your_instance_name (
+  //  .aclk(aclk),                                      // input wire aclk
+  //  .s_axis_divisor_tvalid(s_axis_divisor_tvalid),    // input wire s_axis_divisor_tvalid
+  //  .s_axis_divisor_tdata(s_axis_divisor_tdata),      // input wire [39 : 0] s_axis_divisor_tdata
+  //  .s_axis_dividend_tvalid(s_axis_dividend_tvalid),  // input wire s_axis_dividend_tvalid
+  //  .s_axis_dividend_tdata(s_axis_dividend_tdata),    // input wire [39 : 0] s_axis_dividend_tdata
+  //  .m_axis_dout_tvalid(m_axis_dout_tvalid),          // output wire m_axis_dout_tvalid
+  //  .m_axis_dout_tdata(m_axis_dout_tdata)            // output wire [79 : 0] m_axis_dout_tdata
+  //  );
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+}
+
+class DIVU extends BlackBox {
+  val io = IO(new Bundle {
+    val aclk                   = Input(Clock())
+    val s_axis_divisor_tvalid  = Input(Bool())
+    val s_axis_divisor_tdata   = Input(UInt(XLEN.W))
+    val s_axis_dividend_tvalid = Input(Bool())
+    val s_axis_dividend_tdata  = Input(UInt(XLEN.W))
+    val m_axis_dout_tvalid     = Output(Bool())
+    val m_axis_dout_tdata      = Output(UInt((2 * XLEN).W))
+  })
+
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  // this is the divider IP core instantiate template
+  //------------------------------------------------------------------------------------------------
+  //  DIVU your_instance_name (
+  //  .aclk(aclk),                                      // input wire aclk
+  //  .s_axis_divisor_tvalid(s_axis_divisor_tvalid),    // input wire s_axis_divisor_tvalid
+  //  .s_axis_divisor_tdata(s_axis_divisor_tdata),      // input wire [39 : 0] s_axis_divisor_tdata
+  //  .s_axis_dividend_tvalid(s_axis_dividend_tvalid),  // input wire s_axis_dividend_tvalid
+  //  .s_axis_dividend_tdata(s_axis_dividend_tdata),    // input wire [39 : 0] s_axis_dividend_tdata
+  //  .m_axis_dout_tvalid(m_axis_dout_tvalid),          // output wire m_axis_dout_tvalid
+  //  .m_axis_dout_tdata(m_axis_dout_tdata)            // output wire [79 : 0] m_axis_dout_tdata
+  //  );
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 }

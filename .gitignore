@@ -3,6 +3,7 @@ output/
 verilog/
 test_run_dir/*
 null/
+obj_dir/
 
 ### XilinxISE template
 # intermediate build files
