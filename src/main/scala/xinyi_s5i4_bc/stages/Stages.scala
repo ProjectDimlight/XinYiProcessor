@@ -240,8 +240,10 @@ class ISStage extends Module {
            io.inst(i).dec.write_target === DHiLo & io.inst(k).dec.write_target === BitPat("b01?") |  // HiLo
            io.inst(k).dec.write_target === io.inst(i).dec.write_target) &        // Same source
            io.inst(k).dec.rd === io.inst(i).dec.rd &                             // Same id
-          (io.inst(i).dec.write_target =/= DReg | io.inst(i).dec.rd =/= 0.U) |
-          (io.inst(k).dec.write_target === DCP0 & io.inst(i).dec.write_target === DCP0)) {  // Not Reg 0
+          (io.inst(i).dec.write_target =/= DReg | io.inst(i).dec.rd =/= 0.U) |   // Not Reg 0
+          // (io.inst(k).dec.write_target === DCP0 & io.inst(i).dec.write_target === DCP0))
+          (io.inst(k).dec.write_target === DCP0))
+    { 
       waw(i) := true.B
     }
   }
@@ -258,7 +260,7 @@ class ISStage extends Module {
     is_delay_slot(i) := false.B
   }
 
-  delay_slot_reg := is_delay_slot(io.actual_issue_cnt + 1.U)
+  delay_slot_reg := is_delay_slot(io.actual_issue_cnt)
   // i is the id of the currect instruction to be detected
   for (i <- 0 until ISSUE_NUM) {
     // Detect Delay Slot

@@ -35,7 +35,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `define CONFREG_NUM_MONITOR  soc_lite.u_confreg.num_monitor
 `define CONFREG_UART_DISPLAY soc_lite.u_confreg.write_uart_valid
 `define CONFREG_UART_DATA    soc_lite.u_confreg.write_uart_data
-`define BEGIN_PC 32'hbfc00b14
+`define BEGIN_PC 32'hbfc00bd4
 `define END_PC 32'hbfc00100
 
 typedef struct packed {
@@ -164,6 +164,7 @@ always @ (posedge sys_clk) begin
     debug_wb_pc_reg = debug_wb_pc;
 end
 
+reg debug_wb_err;
 task judge(input pipeline_memwb_t pipe_wb);
 	if(pipe_wb.en && !$feof(trace_ref) && !debug_end) begin
 	    if (init) begin
@@ -194,7 +195,6 @@ task judge(input pipeline_memwb_t pipe_wb);
 endtask
 
 //compare result in rsing edge 
-reg debug_wb_err;
 always @(posedge cpu_clk)
 begin
     #2;

@@ -27,7 +27,7 @@ object ControlConst {
   val ACP0          = 1.U(3.W)
   val AHi           = 2.U(3.W)
   val ALo           = 3.U(3.W)
-  val AShamt        = 4.U(3.W)
+  val AShamt        = 7.U(3.W)
   val PARAM_A_W     = AXXX.getWidth
 
   val BXXX          = 0.U(1.W)
@@ -155,7 +155,7 @@ val control_signal = ListLookup(io.inst,
       SH         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemHalf   ,  PathLSU   , IRS , IRT , IXX),
       SW         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemWord   ,  PathLSU   , IRS , IRT , IXX),
            
-      ERET       -> List(  PCReg   ,  ACP0   ,  BXXX   ,  DCP0   , ALU_AND   ,  PathALU   , CP0_EPC_INDEX , IXX , CP0_STATUS_INDEX),
+      ERET       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , ALU_ERET  ,  PathALU   , CP0_EPC_INDEX , IXX , CP0_STATUS_INDEX),
       MFC0       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IRD , IXX , IRT),
       MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_OR    ,  PathALU   , IRT , IXX , IRD)
   ))
