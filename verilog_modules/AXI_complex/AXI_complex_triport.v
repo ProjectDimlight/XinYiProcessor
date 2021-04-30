@@ -101,7 +101,6 @@ module AXI_complex(
     //Read queue size MUST greater than 2
     parameter   PORT_INST_WIDTH     =   64;
     parameter   PORT_DATA_WIDTH     =   64;
-    parameter   PORT_INST_SIZE      =   $clog2(PORT_INST_WIDTH);
     parameter   AXI_R_BUS_WIDTH     =   32;
     parameter   AXI_W_BUS_WIDTH     =   32;
     parameter   AXI_R_ID_WIDTH      =   4;
@@ -327,7 +326,7 @@ module AXI_complex(
     endgenerate
 
     always @(*) begin
-        queuehit_d_rd_id[AXI_RQUEUE_SIZE_B-1:0] =   (queuehit_d_rd == {AXI_RQUEUE_SIZE{1'b0}}) ? {(AXI_RQUEUE_SIZE_B-1){1'b0}} : queuehit_d_rd_enc + axi_rdqueue_start;
+        queuehit_d_rd_id[AXI_RQUEUE_SIZE_B-1:0] =   (queuehit_d_rd == {AXI_RQUEUE_SIZE{1'b0}}) ? {AXI_RQUEUE_SIZE_B-1{1'b0}} : queuehit_d_rd_enc + axi_rdqueue_start;
         queuehit_d_rd_id[AXI_RQUEUE_SIZE_B]     =   (queuehit_d_rd == {AXI_RQUEUE_SIZE{1'b0}}) ? 1'b0 : 1'b1;
     end
 
@@ -347,7 +346,7 @@ module AXI_complex(
             if (i_rd && d_rd && !axi_rdqueue_full && (!axi_rdqueue_full_2 || axi_rd_done)) begin
                 axi_rd_reg_addr     [axi_rdqueue_start]     <=  i_addr_in;
                 axi_rd_reg_data_out [axi_rdqueue_start]     <=  queuehit_i ? axi_wr_reg_data_in : {PORT_MAX_WIDTH{1'b0}};
-                axi_rd_reg_size     [axi_rdqueue_start]     <=  PORT_INST_SIZE[2:0];
+                axi_rd_reg_size     [axi_rdqueue_start]     <=  $clog2(PORT_INST_WIDTH / 8);
                 axi_rd_reg_valid    [axi_rdqueue_start]     <=  1'b1;
                 axi_rd_reg_done     [axi_rdqueue_start]     <=  queuehit_i ? 1'b1 : 1'b0;
                 axi_rd_reg_type     [axi_rdqueue_start]     <=  2'b00;
@@ -385,7 +384,7 @@ module AXI_complex(
             end
             //issue request when available
             if (rready && rvalid) begin
-                axi_rd_reg_data_out [rid[AXI_RQUEUE_SIZE_B-1:0]]    <=  {axi_rd_reg_data_out [rid[AXI_RQUEUE_SIZE_B-1:0]][PORT_MAX_WIDTH-AXI_R_BUS_WIDTH-1:0] << AXI_R_BUS_WIDTH, rdata};
+                axi_rd_reg_data_out [rid[AXI_RQUEUE_SIZE_B-1:0]]    <=  {axi_rd_reg_data_out [rid[AXI_RQUEUE_SIZE_B-1:0]] << AXI_R_BUS_WIDTH, rdata};
             end
             //delete completed request
             if (axi_rd_done && rid[AXI_RQUEUE_SIZE_B-1:0] != axi_rdqueue_end) begin
@@ -413,7 +412,7 @@ module AXI_complex(
             axi_wr_reg_addr     <=  32'b0;
             axi_wr_reg_data_in  <=  {PORT_DATA_WIDTH{1'b0}};
             axi_wr_reg_size     <=  3'b0;
-            axi_wr_reg_idlim    <=  {AXI_RQUEUE_SIZE_B{1'b0}};
+            axi_wr_reg_idlim    <=  {AXI_R_ID_WIDTH{1'b0}};
             axi_wr_reg_idlimen  <=  1'b0;
             axi_wr_reg_valid    <=  1'b0;  
         end
@@ -481,9 +480,9 @@ module AXI_complex(
     //ar
     assign arid     =   {2'b0, axi_rdqueue_addrptr};
     assign araddr   =   axi_rd_reg_addr[axi_rdqueue_addrptr];
-    assign arlen    =   (axi_rd_reg_size[axi_rdqueue_addrptr] > AXI_R_BUS_SIZE[2:0]) ? (8'b1 << (axi_rd_reg_size[axi_rdqueue_addrptr] - AXI_R_BUS_SIZE[2:0])) >> 1'b1 : 8'b0;
-    assign arsize   =   (axi_rd_reg_size[axi_rdqueue_addrptr] > AXI_R_BUS_SIZE[2:0]) ? AXI_R_BUS_SIZE[2:0] : axi_rd_reg_size[axi_rdqueue_addrptr];
-    assign arburst  =   (axi_rd_reg_size[axi_rdqueue_addrptr] > AXI_R_BUS_SIZE[2:0]) ? 2'b1 : 2'b0;
+    assign arlen    =   (axi_rd_reg_size[axi_rdqueue_addrptr] > AXI_R_BUS_SIZE) ? (4'b1 << (axi_rd_reg_size[axi_rdqueue_addrptr] - AXI_R_BUS_SIZE)) >> 1'b1 : 3'b0;
+    assign arsize   =   (axi_rd_reg_size[axi_rdqueue_addrptr] > AXI_R_BUS_SIZE) ? AXI_R_BUS_SIZE : axi_rd_reg_size[axi_rdqueue_addrptr];
+    assign arburst  =   (axi_rd_reg_size[axi_rdqueue_addrptr] > AXI_R_BUS_SIZE) ? 2'b1 : 2'b0;
     assign arlock   =   2'd0;
     assign arcache  =   4'd0;
     assign arprot   =   3'd0;
@@ -494,16 +493,16 @@ module AXI_complex(
     //aw
     assign awid     =   4'd0;
     assign awaddr   =   axi_wr_reg_addr;
-    assign awlen    =   (axi_wr_reg_size > AXI_W_BUS_SIZE[2:0]) ? (8'b1 << (axi_wr_reg_size - AXI_W_BUS_SIZE[2:0])) >> 1'b1 : 8'b0;
-    assign awsize   =   (axi_wr_reg_size > AXI_W_BUS_SIZE[2:0]) ? AXI_W_BUS_SIZE[2:0] : axi_wr_reg_size;
-    assign awburst  =   (axi_wr_reg_size > AXI_W_BUS_SIZE[2:0]) ? 2'b1 : 2'b0;
+    assign awlen    =   (axi_wr_reg_size > AXI_W_BUS_SIZE) ? (4'b1 << (axi_wr_reg_size - AXI_W_BUS_SIZE)) >> 1'b1 : 3'b0;
+    assign awsize   =   (axi_wr_reg_size > AXI_W_BUS_SIZE) ? AXI_W_BUS_SIZE : axi_wr_reg_size;
+    assign awburst  =   (axi_wr_reg_size > AXI_W_BUS_SIZE) ? 2'b1 : 2'b0;
     assign awlock   =   2'd0;
     assign awcache  =   4'd0;
     assign awprot   =   3'd0;
     assign awvalid  =   axi_wr_reg_valid && !axi_wrqueue_addr && !axi_wr_reg_idlimen;
     //w
     assign wid      =   4'd0;
-    assign wdata    =   (axi_wr_reg_size <= AXI_W_BUS_SIZE) ? axi_wr_reg_data_in [31:0] << (8 * axi_wr_reg_addr[$clog2(AXI_W_BUS_WIDTH / 8) - 1:0]) : axi_wr_reg_data_in[AXI_W_BUS_WIDTH * axi_wrqueue_data +:AXI_W_BUS_WIDTH];
+    assign wdata    =   axi_wr_reg_data_in >> (AXI_W_BUS_WIDTH * axi_wrqueue_data);
     assign wstrb    =   axi_wr_reg_size == 3'd0 ? 1 << axi_wr_reg_addr[$clog2(AXI_W_BUS_WIDTH / 8) - 1:0] :
                         axi_wr_reg_size == 3'd1 ? 3 << axi_wr_reg_addr[$clog2(AXI_W_BUS_WIDTH / 8) - 1:0] : 
                         axi_wr_reg_size == 3'd2 ? 15 << axi_wr_reg_addr[$clog2(AXI_W_BUS_WIDTH / 8) - 1:0] : 
