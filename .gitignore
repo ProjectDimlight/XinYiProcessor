@@ -1,6 +1,7 @@
 ### Project Specific stuff
 output/
 verilog/
+obj_dir/
 test_run_dir/*
 null/
 
