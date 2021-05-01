@@ -68,37 +68,51 @@ class ALU extends Module with ALUConfig with BALConfig {
   // MDU operations
   //<<<<<<<<<<<<<<<<
 
-  val a      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a).asSInt()
-  val b      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b).asSInt()
-  val mul_ab = (a * b).asUInt()
+  //  val a      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a).asSInt()
+  //  val b      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b).asSInt()
+  val mul_ab  = io.in.a * io.in.b
+  val mulu_ab = io.in.a.asSInt() * io.in.b.asSInt()
 
-  // instantiate div
-  val div     = Module(new DIV)
-  val is_div  = io.in.fu_ctrl === ALU_DIV
-  val div_res = Wire(UInt((2 * XLEN).W))
 
-  div.io.aclk := clock
-  div.io.s_axis_dividend_tvalid := is_div
-  div.io.s_axis_divisor_tvalid := is_div
-  div.io.s_axis_dividend_tdata := io.in.a
-  div.io.s_axis_divisor_tdata := io.in.b
-  div_res := div.io.m_axis_dout_tdata
-
-  // instantiate divu
-  val divu     = Module(new DIVU)
-  val is_divu  = io.in.fu_ctrl === ALU_DIVU
+  val div_res  = Wire(UInt((2 * XLEN).W))
   val divu_res = Wire(UInt((2 * XLEN).W))
 
-  divu.io.aclk := clock
-  divu.io.s_axis_dividend_tvalid := is_divu
-  divu.io.s_axis_divisor_tvalid := is_divu
-  divu.io.s_axis_dividend_tdata := io.in.a
-  divu.io.s_axis_divisor_tdata := io.in.b
-  divu_res := divu.io.m_axis_dout_tdata
+  if (DIV_IP_CORE) {
+    // instantiate div
+    val div    = Module(new DIV)
+    val is_div = io.in.fu_ctrl === ALU_DIV
 
+    div.io.aclk := clock
+    div.io.s_axis_dividend_tvalid := is_div
+    div.io.s_axis_divisor_tvalid := is_div
+    div.io.s_axis_dividend_tdata := io.in.a
+    div.io.s_axis_divisor_tdata := io.in.b
+    div_res := div.io.m_axis_dout_tdata
 
-  // ready
-  io.out.ready := !(is_divu || is_div) || (is_divu && divu.io.m_axis_dout_tvalid) || (is_div && div.io.m_axis_dout_tvalid)
+    // instantiate divu
+    val divu    = Module(new DIVU)
+    val is_divu = io.in.fu_ctrl === ALU_DIVU
+
+    divu.io.aclk := clock
+    divu.io.s_axis_dividend_tvalid := is_divu
+    divu.io.s_axis_divisor_tvalid := is_divu
+    divu.io.s_axis_dividend_tdata := io.in.a
+    divu.io.s_axis_divisor_tdata := io.in.b
+    divu_res := divu.io.m_axis_dout_tdata
+
+    // ready
+    io.out.ready := !(is_divu || is_div) || (is_divu && divu.io.m_axis_dout_tvalid) || (is_div && div.io.m_axis_dout_tvalid)
+  } else {
+    val sign_a = Wire(SInt(XLEN.W))
+    val sign_b = Wire(SInt(XLEN.W))
+
+    sign_a := io.in.a.asSInt()
+    sign_b := io.in.b.asSInt()
+
+    div_res := Cat(sign_a % sign_b, sign_a / sign_b)
+    divu_res := Cat(io.in.a % io.in.b, io.in.a / io.in.b)
+    io.out.ready := true.B
+  }
 
   //>>>>>>>>>>>>>>>>
   // ALU operations
@@ -125,7 +139,7 @@ class ALU extends Module with ALUConfig with BALConfig {
       ALU_DIV -> div_res(2 * XLEN - 1, XLEN),
       ALU_DIVU -> divu_res(2 * XLEN - 1, XLEN),
       ALU_MUL -> mul_ab(XLEN - 1, 0),
-      ALU_MULU -> mul_ab(XLEN - 1, 0),
+      ALU_MULU -> mulu_ab(XLEN - 1, 0),
       JPC -> (io.in.pc + 8.U),
       BrGEPC -> (io.in.pc + 8.U),
       BrLTPC -> (io.in.pc + 8.U),
@@ -143,7 +157,7 @@ class ALU extends Module with ALUConfig with BALConfig {
         ALU_DIV -> div_res(XLEN - 1, 0),
         ALU_DIVU -> divu_res(XLEN - 1, 0),
         ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
-        ALU_MULU -> mul_ab(2 * XLEN - 1, XLEN),
+        ALU_MULU -> mulu_ab(2 * XLEN - 1, XLEN),
         ALU_ERET -> io.in.a
       )
     )

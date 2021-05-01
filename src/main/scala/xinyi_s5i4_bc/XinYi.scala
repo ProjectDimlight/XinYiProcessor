@@ -4,7 +4,7 @@ import chisel3._
 import config.config._
 
 class S5I4 extends RawModule with PortConfig {
-  override val desiredName = s"mycpu_top"
+  override val desiredName = TOP_NAME
 
   val aclk         = IO(Input(Clock()))
   val aresetn      = IO(Input(Bool()))
