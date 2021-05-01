@@ -47,6 +47,7 @@ trait ALUConfig {
   val ALU_MUL  = 18.U(FU_CTRL_W.W)
   val ALU_MULU = 19.U(FU_CTRL_W.W)
 
+  val ALU_ERET = 24.U(FU_CTRL_W.W)
 }
 
 class ALU extends Module with ALUConfig with BALConfig {
@@ -127,11 +128,12 @@ class ALU extends Module with ALUConfig with BALConfig {
       ALU_MULU -> mul_ab(XLEN - 1, 0),
       JPC -> (io.in.pc + 8.U),
       BrGEPC -> (io.in.pc + 8.U),
-      BrLTPC -> (io.in.pc + 8.U)
+      BrLTPC -> (io.in.pc + 8.U),
+      ALU_ERET -> 0.U
     )
   )
 
-  io.out.hi := Mux(
+  val hi = Mux(
     io.in.write_target === DHi,
     io.out.data,
     MuxLookupBi(
@@ -142,6 +144,7 @@ class ALU extends Module with ALUConfig with BALConfig {
         ALU_DIVU -> divu_res(XLEN - 1, 0),
         ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
         ALU_MULU -> mul_ab(2 * XLEN - 1, XLEN),
+        ALU_ERET -> io.in.a
       )
     )
   )
@@ -161,8 +164,14 @@ class ALU extends Module with ALUConfig with BALConfig {
       (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
       (io.in.fu_ctrl === FU_SYSCALL) -> EXC_CODE_SYS,
       (io.in.fu_ctrl === FU_BREAK) -> EXC_CODE_BP,
+      (io.in.fu_ctrl === ALU_ERET) -> EXC_CODE_ERET,
       ov -> EXC_CODE_OV
     )
+  )
+  io.out.hi := Mux(
+    io.out.exc_code === EXC_CODE_ADEL,
+    io.in.pc,
+    hi
   )
 }
 

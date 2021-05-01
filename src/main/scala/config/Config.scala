@@ -9,9 +9,9 @@ import utils._
  * @usecase as global configuration file for scala
  */
 object config {
-  val DEBUG: Boolean = true
-  val DEBUG_BOOT_ADDR = 0xbfc00b14L
-  val DEBUG_TEST_CASE = 65
+  val DEBUG: Boolean = false
+  val DEBUG_BOOT_ADDR = 0xbfc00bd4L
+  val DEBUG_TEST_CASE = 77
 
   val XLEN: Int = 32
   val STORE_BUFFER_DEPTH: Int = 32

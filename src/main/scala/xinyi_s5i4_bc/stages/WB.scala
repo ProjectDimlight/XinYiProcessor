@@ -33,6 +33,7 @@ class WBIO extends Bundle {
   val incoming_epc       = Input(UInt(LGC_ADDR_W.W)) // the incoming epc for interruption
   val incoming_interrupt = Input(Vec(8, Bool())) // the incoming interrupt happened
   val exception_handled  = Output(Bool()) // exception or interrupt found
+  val exception_target   = Output(UInt(32.W))
 }
 
 class WBStage extends Module with CP0Config {
@@ -41,15 +42,9 @@ class WBStage extends Module with CP0Config {
   // check if exception handled
   //    if any exception found in WB, forall will be False
   // and the whole predicate will be True
-
-
-  val exception_found = Wire(Bool())
-  exception_found := false.B
-
-  val interrupt_found = Wire(Bool())
-  interrupt_found := io.incoming_interrupt.asUInt().orR()
-
-  io.exception_handled := exception_found || interrupt_found
+  
+  io.exception_handled := false.B
+  io.exception_target  := 0.U
 
   // Mux: from Paths to Issues
   val issue_vec = Wire(Vec(ISSUE_NUM, new FUOut))
@@ -73,20 +68,43 @@ class WBStage extends Module with CP0Config {
   io.exc_info.in_branch_delay_slot := false.B
   for (i <- ISSUE_NUM - 1 to 0 by -1) {
     when (issue_vec(i).exc_code =/= NO_EXCEPTION) {
-      exception_found := true.B
-
-      io.exc_info.pc := Mux(issue_vec(i).is_delay_slot, issue_vec(i).pc - 4.U, issue_vec(i).pc)
-      io.exc_info.exc_code := issue_vec(i).exc_code
-      io.exc_info.data := issue_vec(i).data // some of the exception info should be passed by normal data
-      // for example: badvaddr
-      io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
       
+      when (issue_vec(i).exc_code =/= EXC_CODE_ERET) {
+        io.exc_info.pc := issue_vec(i).pc
+        io.exc_info.exc_code := issue_vec(i).exc_code
+        io.exc_info.data := issue_vec(i).hi
+        // some of the exception info should be passed by HI
+        // for example: badvaddr in LSU
+        io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
+        exception_order := i.U
+
+        io.exception_handled := true.B
+        io.exception_target  := EXCEPTION_ADDR.U
+      }
+      .otherwise {
+        exception_order := (i+1).U
+
+        io.exception_handled := true.B
+        io.exception_target  := issue_vec(i).hi
+      }
+    }
+    .elsewhen ((issue_vec(i).write_target === DCP0) &
+               (issue_vec(i).rd === CP0_CAUSE_INDEX) &
+               (issue_vec(i).data(9, 8) =/= 0.U)) {
+       
+      io.exc_info.pc := issue_vec(i).pc + 4.U
+      io.exc_info.exc_code := EXC_CODE_INT
+      io.exc_info.data := Cat(Seq(0.U(16.W), 0.U(6.W), issue_vec(i).data(9, 8), 0.U(8.W)))
+      io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
       exception_order := i.U
+
+      io.exception_handled := true.B
+      io.exception_target  := EXCEPTION_ADDR.U
     }
   }
 
   // handle interrupt
-  when (interrupt_found) {
+  when (io.incoming_interrupt.asUInt().orR) {
     for (i <- 0 until ISSUE_NUM) {
       io.write_channel_vec(i) := 0.U.asTypeOf(new WBOut)
     }
@@ -94,6 +112,9 @@ class WBStage extends Module with CP0Config {
     io.exc_info.exc_code := EXC_CODE_INT
     io.exc_info.data := Cat(Seq(0.U(16.W), Reverse(io.incoming_interrupt.asUInt), 0.U(8.W)))
     io.exc_info.in_branch_delay_slot := 0.U
+    
+    io.exception_handled := true.B
+    io.exception_target  := EXCEPTION_ADDR.U
   }
   .otherwise {
     for (i <- 0 until ISSUE_NUM) {

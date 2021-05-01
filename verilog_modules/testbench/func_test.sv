@@ -35,7 +35,8 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `define CONFREG_NUM_MONITOR  soc_lite.u_confreg.num_monitor
 `define CONFREG_UART_DISPLAY soc_lite.u_confreg.write_uart_valid
 `define CONFREG_UART_DATA    soc_lite.u_confreg.write_uart_data
-`define BEGIN_PC 32'hbfc00b14
+`define DEBUG 1'b0
+`define BEGIN_PC 32'hbfc00bd4
 `define END_PC 32'hbfc00100
 
 typedef struct packed {
@@ -123,11 +124,13 @@ reg [31:0] ref_wb_rf_wdata;
 reg        init;
 
 initial begin
-    do begin
-    $fscanf(trace_ref, "%h %h %h %h", trace_cmp_flag,
-				ref_wb_pc, ref_wb_rf_wnum, ref_wb_rf_wdata);
-    end while(ref_wb_pc != `BEGIN_PC);
-    init = 1'b1;
+    if (`DEBUG) begin
+        do begin
+        $fscanf(trace_ref, "%h %h %h %h", trace_cmp_flag,
+                    ref_wb_pc, ref_wb_rf_wnum, ref_wb_rf_wdata);
+        end while(ref_wb_pc != `BEGIN_PC);
+        init = 1'b1;
+    end
 end
 
 //wdata[i*8+7 : i*8] is valid, only wehile wen[i] is valid
@@ -164,6 +167,7 @@ always @ (posedge sys_clk) begin
     debug_wb_pc_reg = debug_wb_pc;
 end
 
+reg debug_wb_err;
 task judge(input pipeline_memwb_t pipe_wb);
 	if(pipe_wb.en && !$feof(trace_ref) && !debug_end) begin
 	    if (init) begin
@@ -194,7 +198,6 @@ task judge(input pipeline_memwb_t pipe_wb);
 endtask
 
 //compare result in rsing edge 
-reg debug_wb_err;
 always @(posedge cpu_clk)
 begin
     #2;

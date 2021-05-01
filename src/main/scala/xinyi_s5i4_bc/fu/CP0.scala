@@ -35,6 +35,7 @@ object EXCCodeConfig {
   val EXC_CODE_RI   = 10.U(EXC_CODE_W.W) // Instruction
   val EXC_CODE_OV   = 12.U(EXC_CODE_W.W) // Overflow
   val EXC_CODE_TR   = 13.U(EXC_CODE_W.W) // trap exception
+  val EXC_CODE_ERET = 30.U(EXC_CODE_W.W)
   val NO_EXCEPTION  = 31.U(EXC_CODE_W.W)
 }
 
@@ -192,8 +193,11 @@ class CP0 extends Module with CP0Config {
     )
   }
 
+  val write_cause_ip = Wire(Bool())
+  write_cause_ip := false.B
 
-
+  val next_cause_ip = Wire(UInt(2.W))
+  next_cause_ip := cp0_reg_cause.IP(1, 0)
 
   // when mtc0
   for (i <- 0 until ISSUE_NUM) {
@@ -218,7 +222,8 @@ class CP0 extends Module with CP0Config {
           cp0_reg_cause.IGNORE2 := 0.U(2.W)
           cp0_reg_cause.IGNORE3 := 0.U(3.W)
           */
-          cp0_reg_cause.IP := Cat(cp0_reg_cause.IP(7, 2), io.write(i).data(9, 8))
+          write_cause_ip := true.B
+          next_cause_ip  := io.write(i).data(9, 8)
         }
         is(CP0_STATUS_INDEX) {
           /*
@@ -244,8 +249,9 @@ class CP0 extends Module with CP0Config {
   when(io.exc_info.exc_code === EXC_CODE_INT) {
     cp0_reg_cause.IP := io.exc_info.data(15, 8)
   }
-
-
+  .otherwise {
+    cp0_reg_cause.IP := Cat(0.U(6.W), next_cause_ip)
+  }
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>
   // handle cp0 register events
