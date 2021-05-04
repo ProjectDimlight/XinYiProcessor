@@ -70,8 +70,8 @@ class ALU extends Module with ALUConfig with BALConfig {
 
   //  val a      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a).asSInt()
   //  val b      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b).asSInt()
-  val mul_ab  = io.in.a * io.in.b
-  val mulu_ab = io.in.a.asSInt() * io.in.b.asSInt()
+  val mulu_ab  = io.in.a * io.in.b
+  val mul_ab   = io.in.a.asSInt() * io.in.b.asSInt()
 
 
   val div_res  = Wire(UInt((2 * XLEN).W))
