@@ -166,10 +166,10 @@ class ALU extends Module with ALUConfig with BALConfig {
   // TODO update exception in ALU
   val ov = ((io.in.fu_ctrl === ALU_ADD) &&
     (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) &&
-    (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1))) ||
+    (io.in.a(XLEN - 1) =/= (io.in.a + io.in.b)(XLEN - 1))) ||
     ((io.in.fu_ctrl === ALU_SUB) &&
       (io.in.a(XLEN - 1) =/= io.in.b(XLEN - 1)) &&
-      (io.in.a(XLEN - 1) =/= io.out.data(XLEN - 1)))
+      (io.in.a(XLEN - 1) =/= (io.in.a - io.in.b)(XLEN - 1)))
 
   io.out.exc_code := MuxCase(
     NO_EXCEPTION,
