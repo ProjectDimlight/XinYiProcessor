@@ -94,7 +94,7 @@ class IssueQueue extends Module {
 
   tail_b := Mux(
     io.bc.flush,
-    Mux(io.bc.keep_delay_slot, Step(head_n, 1.U(QUEUE_LEN_w.W)), head_n),
+    head_n,
     tail
   )
   in_size := Mux(
@@ -169,6 +169,52 @@ class IssueQueue extends Module {
 
   head_n := Step(head, io.actual_issue_cnt)
   head := head_n
+}
+
+class ISBJUReg extends Module with ALUConfig {
+  val io = IO(new Bundle{
+    val is_path               = Input(new ISOut)
+    val is_branch_next_pc     = Input(UInt(NEXT_PC_W.W))
+    val is_delay_slot_pending = Input(Bool())
+    val stall                 = Input(Bool())
+    val flush                 = Input(Bool())
+
+    val fu_path               = Output(new FUIn)
+    val fu_branch_next_pc     = Output(UInt(NEXT_PC_W.W))
+    val fu_delay_slot_pending = Output(Bool())
+  })
+
+  val init  = Wire(new ISOut)
+  init.write_target := DXXX
+  init.rd := 0.U
+  init.fu_ctrl := ALU_ADD
+  init.pc := 0.U
+  init.order := ISSUE_NUM.U
+  init.a := 0.U
+  init.b := 0.U
+  init.imm := 0.U
+  init.is_delay_slot := false.B
+
+  val reg_path                = RegInit(init)
+  val reg_branch_next_pc      = RegInit(0.U(NEXT_PC_W.W))
+  val reg_delay_slot_pending  = RegInit(false.B)
+  
+  when(io.flush) {
+    reg_path                  := init
+    reg_branch_next_pc        := 0.U(NEXT_PC_W.W)
+    reg_delay_slot_pending    := false.B
+  }
+  .otherwise {
+    when(!io.stall) {
+      reg_path                := io.is_path
+      reg_branch_next_pc      := io.is_branch_next_pc
+      reg_delay_slot_pending  := io.is_delay_slot_pending
+    }
+  }
+
+  io.fu_path                  := reg_path
+  io.fu_branch_next_pc        := reg_branch_next_pc
+  io.fu_delay_slot_pending    := reg_delay_slot_pending
 }
 
 class ISFUReg extends Module with ALUConfig {

@@ -24,6 +24,7 @@ class DataPath extends Module {
   val pc_if_reg     = Module(new PCIFReg)
   val if_id_reg     = Module(new IFIDReg)
   val issue_queue   = Module(new IssueQueue)
+  val is_bju_reg    = Module(new ISBJUReg)
   val is_fu_reg     = Module(new ISFUReg)
   val fu_wb_reg     = Module(new FUWBReg)
   val interrupt_reg = Module(new InterruptReg)
@@ -58,6 +59,7 @@ class DataPath extends Module {
   // Flush
   if_id_reg.  io.flush := flush
   issue_queue.io.flush := flush
+  is_bju_reg. io.flush := flush
   is_fu_reg.  io.flush := flush
   fu_wb_reg.  io.flush := flush
 
@@ -96,10 +98,11 @@ class DataPath extends Module {
   issue_queue.io.actual_issue_cnt := is_stage.io.actual_issue_cnt
 
   // ISStage
-  is_stage.io.issue_cnt   := issue_queue.io.issue_cnt
-  is_stage.io.inst        := issue_queue.io.inst
-  is_stage.io.forwarding  := forwarding 
-  is_stage.io.stall       := stall_backend
+  is_stage.io.issue_cnt        := issue_queue.io.issue_cnt
+  is_stage.io.inst             := issue_queue.io.inst
+  is_stage.io.forwarding       := forwarding
+  is_stage.io.branch_cache_out := bju.io.branch_cache_out
+  is_stage.io.stall            := stall_backend
 
   stall_backend := false.B
   for (j <- 0 until TOT_PATH_NUM)
@@ -159,15 +162,22 @@ class DataPath extends Module {
     is_out(j).imm           := issue_queue.io.inst(is_stage.io.path(j).order).imm
     is_out(j).is_delay_slot := is_stage.io.is_delay_slot(is_stage.io.path(j).order)
   }
-  is_fu_reg.io.is_out := is_out
-  is_fu_reg.io.is_actual_issue_cnt := is_stage.io.actual_issue_cnt
-  is_fu_reg.io.stall := stall_backend
+  is_fu_reg.io.is_out                 := is_out
+  is_fu_reg.io.is_actual_issue_cnt    := is_stage.io.actual_issue_cnt
+  is_fu_reg.io.stall                  := stall_backend
+
+  // IS-BJU regs
+  is_bju_reg.io.is_path               := is_out(is_stage.io.branch_jump_id)
+  is_bju_reg.io.is_branch_next_pc     := is_stage.io.branch_next_pc
+  is_bju_reg.io.is_delay_slot_pending := is_stage.io.delay_slot_pending
+  is_bju_reg.io.stall                 := stall_backend
 
   // BJU
-  bju.io.path := is_out(is_stage.io.branch_jump_id)
-  bju.io.branch_next_pc := is_stage.io.branch_next_pc
-  bju.io.delay_slot_pending := is_stage.io.delay_slot_pending
-  bju.io.stall_frontend := stall_frontend
+  bju.io.path                         := is_bju_reg.io.fu_path
+  bju.io.branch_next_pc               := is_bju_reg.io.fu_branch_next_pc
+  bju.io.delay_slot_pending           := is_bju_reg.io.fu_delay_slot_pending
+  bju.io.stall_frontend               := stall_frontend
+  bju.io.stall_backend                := stall_backend
 
   // FUs
   dcache.io.lower <> io.dcache_axi

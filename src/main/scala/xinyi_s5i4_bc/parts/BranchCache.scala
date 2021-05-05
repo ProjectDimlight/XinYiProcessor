@@ -25,6 +25,7 @@ class BranchCache extends Module {
     val in  = new BranchCacheIn
     val out = new BranchCacheOut
     val stall_frontend = Input(Bool())
+    val stall_backend = Input(Bool())
     val branch_cached_pc = Output(UInt(LGC_ADDR_W.W))
   })
 
@@ -42,7 +43,7 @@ class BranchCache extends Module {
 
   // As the dummy BC always misses, next PC of PC stage should be target
   // If BC hits, next PC should be target + BC_LINE_SIZE * FETCH_NUM
-  when (io.in.branch) {
+  when (io.in.branch & !io.stall_backend) {
     io.out.flush := true.B
     io.out.keep_delay_slot := io.in.delay_slot_pending
     state := BC_LINE_SIZE.U

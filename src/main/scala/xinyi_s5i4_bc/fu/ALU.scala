@@ -67,12 +67,19 @@ class ALU extends Module with ALUConfig with BALConfig {
   //>>>>>>>>>>>>>>>>
   // MDU operations
   //<<<<<<<<<<<<<<<<
-
-  //  val a      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.a(XLEN - 1), io.in.a).asSInt()
-  //  val b      = Cat((io.in.fu_ctrl === ALU_DIV || io.in.fu_ctrl === ALU_MUL) && io.in.b(XLEN - 1), io.in.b).asSInt()
   val mulu_ab  = io.in.a * io.in.b
   val mul_ab   = io.in.a.asSInt() * io.in.b.asSInt()
+  val is_mul   = (io.in.fu_ctrl === ALU_MUL) || (io.in.fu_ctrl === ALU_MULU)
 
+  val mulu_ab_reg = RegNext(mulu_ab)
+  val mul_ab_reg  = RegNext(mul_ab)
+  val mul_valid_reg = RegInit(false.B)
+  
+  mul_valid_reg := Mux(
+    mul_valid_reg,
+    false.B,
+    is_mul
+  )
 
   val div_res  = Wire(UInt((2 * XLEN).W))
   val divu_res = Wire(UInt((2 * XLEN).W))
@@ -101,7 +108,9 @@ class ALU extends Module with ALUConfig with BALConfig {
     divu_res := divu.io.m_axis_dout_tdata
 
     // ready
-    io.out.ready := !(is_divu || is_div) || (is_divu && divu.io.m_axis_dout_tvalid) || (is_div && div.io.m_axis_dout_tvalid)
+    io.out.ready := 
+      (!(is_divu || is_div) || (is_divu && divu.io.m_axis_dout_tvalid) || (is_div && div.io.m_axis_dout_tvalid)) &&
+      (!is_mul || mul_valid_reg)
   } else {
     val sign_a = Wire(SInt(XLEN.W))
     val sign_b = Wire(SInt(XLEN.W))
@@ -138,8 +147,8 @@ class ALU extends Module with ALUConfig with BALConfig {
       ALU_SRL -> (io.in.b >> io.in.a(4, 0)),
       ALU_DIV -> div_res(2 * XLEN - 1, XLEN),
       ALU_DIVU -> divu_res(2 * XLEN - 1, XLEN),
-      ALU_MUL -> mul_ab(XLEN - 1, 0),
-      ALU_MULU -> mulu_ab(XLEN - 1, 0),
+      ALU_MUL -> mul_ab_reg(XLEN - 1, 0),
+      ALU_MULU -> mulu_ab_reg(XLEN - 1, 0),
       JPC -> (io.in.pc + 8.U),
       BrGEPC -> (io.in.pc + 8.U),
       BrLTPC -> (io.in.pc + 8.U),
@@ -156,8 +165,8 @@ class ALU extends Module with ALUConfig with BALConfig {
       Seq(
         ALU_DIV -> div_res(XLEN - 1, 0),
         ALU_DIVU -> divu_res(XLEN - 1, 0),
-        ALU_MUL -> mul_ab(2 * XLEN - 1, XLEN),
-        ALU_MULU -> mulu_ab(2 * XLEN - 1, XLEN),
+        ALU_MUL -> mul_ab_reg(2 * XLEN - 1, XLEN),
+        ALU_MULU -> mulu_ab_reg(2 * XLEN - 1, XLEN),
         ALU_ERET -> io.in.a
       )
     )

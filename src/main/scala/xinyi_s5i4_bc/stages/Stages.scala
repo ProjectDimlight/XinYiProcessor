@@ -171,10 +171,11 @@ class ISStage extends Module {
     val is_delay_slot       = Output(Vec(ISSUE_NUM + 1, Bool()))
 
     // To common FUs
+    val actual_issue_cnt    = Output(UInt(ISSUE_NUM_W.W))
     val path                = Vec(TOT_PATH_NUM, new Path)
     val forwarding          = Input(Flipped(Vec(TOT_PATH_NUM, new Forwarding)))
+    val branch_cache_out    = Flipped(new BranchCacheOut)
     val stall               = Input(Bool())
-    val actual_issue_cnt    = Output(UInt(ISSUE_NUM_W.W))
 
     // To BJU
     val branch_jump_id      = Output(UInt(ALU_PATH_NUM_W.W))
@@ -192,7 +193,16 @@ class ISStage extends Module {
   val raw = Wire(Vec(ISSUE_NUM, Bool()))
   val waw = Wire(Vec(ISSUE_NUM, Bool()))
 
+  val issue_cnt = Wire(UInt(QUEUE_LEN_w.W))
+
   // Begin
+  
+
+  issue_cnt := Mux(
+    io.branch_cache_out.flush,
+    io.branch_cache_out.keep_delay_slot,
+    io.issue_cnt
+  )
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
   def RAWPath(i: Int, j: Int) {
@@ -293,7 +303,7 @@ class ISStage extends Module {
 
     // Target filter
     target(i) := Mux(
-      (raw(i) | waw(i) | io.stall | (i.U >= io.issue_cnt)),
+      (raw(i) | waw(i) | io.stall | (i.U >= issue_cnt)),
       0.U,
       io.inst(i).dec.path
     )
