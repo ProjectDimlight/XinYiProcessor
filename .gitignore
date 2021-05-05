@@ -1,7 +1,6 @@
 ### Project Specific stuff
+verilog_modules/mycpu_top
 output/
-verilog/
-obj_dir/
 test_run_dir/*
 null/
 obj_dir/

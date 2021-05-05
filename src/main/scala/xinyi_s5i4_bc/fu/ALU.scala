@@ -109,8 +109,8 @@ class ALU extends Module with ALUConfig with BALConfig {
     sign_a := io.in.a.asSInt()
     sign_b := io.in.b.asSInt()
 
-    div_res := Cat(sign_a % sign_b, sign_a / sign_b)
-    divu_res := Cat(io.in.a % io.in.b, io.in.a / io.in.b)
+    div_res := Cat(sign_a / sign_b, sign_a % sign_b)
+    divu_res := Cat(io.in.a / io.in.b, io.in.a % io.in.b)
     io.out.ready := true.B
   }
 

@@ -26,13 +26,11 @@ object Main extends App {
 
   def Gen(): Unit = {
 
-
-
     //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     //    start generating verilog code
     //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-    val default_args = Array("-X", "verilog", "-td", "verilog")
+    val default_args = Array("-X", "verilog", "-td", "verilog_modules/mycpu_top")
 
     (new ChiselStage).execute(
       default_args,
