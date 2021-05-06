@@ -26,6 +26,30 @@ class Test extends Module {
     val in3 = Input(UInt(8.W))
     val in4 = Input(UInt(8.W))
     val in5 = Input(UInt(8.W))
+    val path = Input(UInt(5.W))
+    val out = Output(UInt(8.W))
+  })
+
+  io.out := Mux1H(
+    io.path,
+    Seq(
+      io.in1,
+      io.in2,
+      io.in3,
+      io.in4,
+      io.in5,
+    )
+  )
+}
+
+/*
+class Test extends Module {
+  val io = IO(new Bundle{
+    val in1 = Input(UInt(8.W))
+    val in2 = Input(UInt(8.W))
+    val in3 = Input(UInt(8.W))
+    val in4 = Input(UInt(8.W))
+    val in5 = Input(UInt(8.W))
     val path = Input(UInt(3.W))
     val out = Output(UInt(8.W))
   })
@@ -43,7 +67,6 @@ class Test extends Module {
   )
 }
 
-/*
 class Test extends MultiIOModule {
   val in = IO(Input(UInt(2.W)))
   val out = IO(Output(UInt()))

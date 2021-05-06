@@ -51,9 +51,11 @@ class WBStage extends Module with CP0Config {
   for (i <- 0 until ISSUE_NUM) {
     issue_vec(i) := FUOutBubble()
 
-    for (j <- 0 until TOT_PATH_NUM) {
-      when ((i.U < io.actual_issue_cnt) & (io.fu_res_vec(j).order === i.U)) {
-        issue_vec(i) := io.fu_res_vec(j)
+    when (i.U < io.actual_issue_cnt) {
+      for (j <- 0 until TOT_PATH_NUM) {
+        when (io.fu_res_vec(j).order === i.U) {
+          issue_vec(i) := io.fu_res_vec(j)
+        }
       }
     }
   }
@@ -115,46 +117,43 @@ class WBStage extends Module with CP0Config {
     
     io.exception_handled := true.B
     io.exception_target  := EXCEPTION_ADDR.U
+    exception_order := 0.U
   }
-  .otherwise {
-    for (i <- 0 until ISSUE_NUM) {
-      io.write_channel_vec(i) := 0.U.asTypeOf(new WBOut)
 
-      when (i.U < exception_order) {
-        // params from input
-        val fu_tmp_res = issue_vec(i)
-        val order      = i.U
+  // normal WB
+  for (i <- 0 until ISSUE_NUM) {
+    io.write_channel_vec(i) := 0.U.asTypeOf(new WBOut)
+    val fu_tmp_res = issue_vec(i)
+    val order      = i.U
 
-        switch(fu_tmp_res.write_target) {
-          is(DReg) {
-            when(fu_tmp_res.rd =/= 0.U) {
-              io.write_channel_vec(order).write_regs_en := 1.U
-              io.write_channel_vec(order).write_regs_data := fu_tmp_res.data
-              io.write_channel_vec(order).write_regs_rd := fu_tmp_res.rd
-            }
-          }
-          is(DCP0) {
-            io.write_channel_vec(order).write_cp0_en := 1.U
-            io.write_channel_vec(order).write_cp0_data := fu_tmp_res.data
-            io.write_channel_vec(order).write_cp0_rd := fu_tmp_res.rd
-          }
-          is(DHi) {
-            io.write_channel_vec(order).write_hi_en := 1.U
-            io.write_channel_vec(order).write_hi_data := fu_tmp_res.hi
-          }
-          is(DLo) {
-            io.write_channel_vec(order).write_lo_en := 1.U
-            io.write_channel_vec(order).write_lo_data := fu_tmp_res.data
-          }
-          is(DHiLo) {
-            io.write_channel_vec(order).write_hi_en := 1.U
-            io.write_channel_vec(order).write_lo_en := 1.U
-            io.write_channel_vec(order).write_hi_data := fu_tmp_res.hi
-            io.write_channel_vec(order).write_lo_data := fu_tmp_res.data
-          }
+    when (i.U < exception_order) {
+      // params from input
+      switch(fu_tmp_res.write_target) {
+        is(DReg) {
+          io.write_channel_vec(order).write_regs_en := (fu_tmp_res.rd =/= 0.U)
+        }
+        is(DCP0) {
+          io.write_channel_vec(order).write_cp0_en := 1.U
+        }
+        is(DHi) {
+          io.write_channel_vec(order).write_hi_en := 1.U
+        }
+        is(DLo) {
+          io.write_channel_vec(order).write_lo_en := 1.U
+        }
+        is(DHiLo) {
+          io.write_channel_vec(order).write_hi_en := 1.U
+          io.write_channel_vec(order).write_lo_en := 1.U
         }
       }
     }
+    
+    io.write_channel_vec(order).write_regs_data := fu_tmp_res.data
+    io.write_channel_vec(order).write_regs_rd := fu_tmp_res.rd
+    io.write_channel_vec(order).write_cp0_data := fu_tmp_res.data
+    io.write_channel_vec(order).write_cp0_rd := fu_tmp_res.rd
+    io.write_channel_vec(order).write_hi_data := fu_tmp_res.hi
+    io.write_channel_vec(order).write_lo_data := fu_tmp_res.data
   }
 
 }

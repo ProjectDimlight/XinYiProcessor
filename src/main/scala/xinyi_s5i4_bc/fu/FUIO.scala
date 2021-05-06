@@ -35,6 +35,7 @@ class Forwarding extends Bundle {
 class FUOut extends Forwarding {
   val pc            = UInt(XLEN.W)
   val exc_code      = UInt(EXC_CODE_W.W)
+  val exception     = Bool()
   // delay slot
   val is_delay_slot = Bool()
 }
@@ -55,6 +56,7 @@ object FUOutBubble {
     init.order         := ISSUE_NUM.U
     init.pc            := 0.U
     init.exc_code      := NO_EXCEPTION
+    init.exception     := false.B
     init.is_delay_slot := false.B
     init
   }

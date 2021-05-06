@@ -106,6 +106,10 @@ class LSU extends Module with LSUConfig {
       (wr & exception) -> EXC_CODE_ADES
     )
   )
-
+  io.out.exception := 
+    (io.in.pc(1, 0) =/= 0.U) |
+    (io.in.fu_ctrl === FU_XXX) |
+    (rd & exception) |
+    (wr & exception)
 }
 

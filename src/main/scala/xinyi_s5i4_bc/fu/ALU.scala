@@ -191,6 +191,13 @@ class ALU extends Module with ALUConfig with BALConfig {
       ov -> EXC_CODE_OV
     )
   )
+  io.out.exception := 
+    (io.in.pc(1, 0) =/= 0.U) |
+    (io.in.fu_ctrl === FU_XXX) |
+    (io.in.fu_ctrl === FU_SYSCALL) |
+    (io.in.fu_ctrl === FU_BREAK) |
+    (io.in.fu_ctrl === ALU_ERET) |
+    ov
   io.out.hi := Mux(
     io.out.exc_code === EXC_CODE_ADEL,
     io.in.pc,

@@ -183,9 +183,12 @@ class DataPath extends Module {
   dcache.io.lower <> io.dcache_axi
   dcache.io.stall <> is_fu_reg.io.stalled
 
+  val exception_by_path = Wire(Vec(ISSUE_NUM, Vec(TOT_PATH_NUM, Bool())))
   val exception_by_order = Wire(Vec(ISSUE_NUM, Bool()))
-  for (i <- 0 until ISSUE_NUM)
-    exception_by_order(i) := false.B
+  for (i <- 0 until ISSUE_NUM) {
+    exception_by_path(i) := 0.U.asTypeOf(Vec(TOT_PATH_NUM, Bool()))
+    exception_by_order(i) := exception_by_path(i).asUInt().orR()
+  }
   
   val min_exception_order = Wire(UInt(ISSUE_NUM_W.W))
   min_exception_order := ISSUE_NUM.U
@@ -214,9 +217,7 @@ class DataPath extends Module {
       fu.io.flush           := flush
 
       fu_wb_reg.io.fu_out(j) := fu.io.out
-      when (fu.io.out.exc_code =/= NO_EXCEPTION) {
-        exception_by_order(fu.io.out.order) := true.B
-      }
+      exception_by_path(fu.io.out.order)(j) := fu.io.out.exception
 
       fu
     }
@@ -233,9 +234,7 @@ class DataPath extends Module {
       
       fu_wb_reg.io.fu_out(j) := fu.io.out
 
-      when (fu.io.out.exc_code =/= NO_EXCEPTION) {
-        exception_by_order(fu.io.out.order) := true.B
-      }
+      exception_by_path(fu.io.out.order)(j) := fu.io.out.exception
 
       fu
     }

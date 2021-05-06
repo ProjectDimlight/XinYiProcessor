@@ -302,27 +302,24 @@ class ISStage extends Module {
     // Given by input
 
     // Target filter
-    target(i) := Mux(
-      (raw(i) | waw(i) | io.stall | (i.U >= issue_cnt)),
-      0.U,
-      io.inst(i).dec.path
-    )
+    target(i) := io.inst(i).dec.path
 
     issued(0)(i) := false.B
-    for (path_type <- 1 until PATH_TYPE_NUM)
-      when(issued(path_type)(i)) {
-        issued(0)(i) := true.B
-      }
+    when (!(raw(i) | waw(i) | (i.U >= issue_cnt))) {
+      for (path_type <- 1 until PATH_TYPE_NUM)
+        when(issued(path_type)(i)) {
+          issued(0)(i) := true.B
+        }
+    }
 
     // Ordered issuing
     // If an instruction fails to issue
     // Then all instructions afterwards will also be stalled
-    when(i.U(ISSUE_NUM_W.W) >= io.actual_issue_cnt) {
-      filtered_inst(i) := NOPBubble()
-    }
-    .otherwise {
-      filtered_inst(i) := io.inst(i)
-    }
+    filtered_inst(i) := Mux(
+      i.U(ISSUE_NUM_W.W) >= io.actual_issue_cnt,
+      NOPBubble(),
+      io.inst(i)
+    )
   }
 
   for (i <- ISSUE_NUM - 1 to 0 by -1) {
@@ -332,6 +329,10 @@ class ISStage extends Module {
     when(issued(0)(i) === false.B) {
       io.actual_issue_cnt := i.U(ISSUE_NUM_W.W)
     }
+  }
+
+  when (io.stall) {
+    io.actual_issue_cnt := 0.U(ISSUE_NUM_W.W)
   }
 
   /////////////////////////////////////////////////////////////////
