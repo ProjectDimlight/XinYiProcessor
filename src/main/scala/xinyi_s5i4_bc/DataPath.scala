@@ -19,6 +19,8 @@ class DataPath extends Module {
     val interrupt   = Input(Vec(6, Bool()))
     val icache_axi  = new ICacheAXI
     val dcache_axi  = Vec(LSU_PATH_NUM, new DCacheAXI)
+
+    val debug_pc    = Output(Vec(ISSUE_NUM, UInt(XLEN.W)))
   })
 
   val pc_if_reg     = Module(new PCIFReg)
@@ -43,6 +45,7 @@ class DataPath extends Module {
   val if_stage      = Module(new IFStage)
   val id_stage      = Module(new IDStage)
   val is_stage      = Module(new ISStage)
+  val fu_stage      = Module(new FUStage)
   val wb_stage      = Module(new WBStage)
   val flush         = Wire(Bool())
 
@@ -68,8 +71,8 @@ class DataPath extends Module {
   pc_stage.io.branch  <> bju.io.pc_interface
   pc_stage.io.next_pc <> pc_if_reg.io.pc_out
 
-  pc_stage.io.exception.target := wb_stage.io.exception_target
-  pc_stage.io.exception.enable := wb_stage.io.exception_handled
+  pc_stage.io.exception.target := fu_wb_reg.io.wb_exception_target
+  pc_stage.io.exception.enable := fu_wb_reg.io.wb_exception_handled
   
 
   // IF Stage
@@ -181,7 +184,9 @@ class DataPath extends Module {
 
   // FUs
   dcache.io.lower <> io.dcache_axi
-  dcache.io.stall <> is_fu_reg.io.stalled
+  dcache.io.flush <> flush
+  dcache.io.last_stall <> is_fu_reg.io.stalled
+  dcache.io.stall <> stall_backend
 
   val exception_by_path = Wire(Vec(ISSUE_NUM, Vec(TOT_PATH_NUM, Bool())))
   val exception_by_order = Wire(Vec(ISSUE_NUM, Bool()))
@@ -216,7 +221,7 @@ class DataPath extends Module {
       fu.io.interrupt       := has_interrupt
       fu.io.flush           := flush
 
-      fu_wb_reg.io.fu_out(j) := fu.io.out
+      fu_stage.io.fu_out(j) := fu.io.out
       exception_by_path(fu.io.out.order)(j) := fu.io.out.exception
 
       fu
@@ -232,7 +237,7 @@ class DataPath extends Module {
       forwarding(j).ready        := fu.io.out.ready
       forwarding(j).order        := fu.io.out.order
       
-      fu_wb_reg.io.fu_out(j) := fu.io.out
+      fu_stage.io.fu_out(j) := fu.io.out
 
       exception_by_path(fu.io.out.order)(j) := fu.io.out.exception
 
@@ -240,7 +245,13 @@ class DataPath extends Module {
     }
   }
 
-  fu_wb_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
+  fu_stage.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
+
+  fu_wb_reg.io.sorted_fu_out        := fu_stage.io.sorted_fu_out
+  fu_wb_reg.io.fu_exception_order   := fu_stage.io.fu_exception_order
+  fu_wb_reg.io.fu_exception_handled := fu_stage.io.fu_exception_handled
+  fu_wb_reg.io.fu_exception_target  := fu_stage.io.fu_exception_target
+  fu_wb_reg.io.fu_exc_info          := fu_stage.io.exc_info
   fu_wb_reg.io.stall := stall_backend
 
   var base = 0
@@ -250,8 +261,8 @@ class DataPath extends Module {
     }
     base += PATH_NUM(path_type)
   }
-
-  // FU Interrupt Reg
+  
+  // Interrupt
   for (i <- 0 until 2) {
     interrupt(i) := cp0.io.soft_int_pending_vec(i)
   }
@@ -268,27 +279,23 @@ class DataPath extends Module {
       has_interrupt := true.B
     }
   }
+  fu_stage.io.incoming_interrupt := masked_interrupt
 
+  // FU Interrupt Reg
   interrupt_reg.io.fu_pc := BOOT_ADDR.U
   interrupt_reg.io.fu_is_delay_slot := false.B
-  for (j <- 0 until TOT_PATH_NUM) {
-    when (is_fu_reg.io.fu_in(j).order === 0.U) {
-      interrupt_reg.io.fu_pc := is_fu_reg.io.fu_in(j).pc
-      interrupt_reg.io.fu_is_delay_slot := is_fu_reg.io.fu_in(j).is_delay_slot
-    }
+  
+  when (is_fu_reg.io.fu_actual_issue_cnt =/= 0.U) {
+    interrupt_reg.io.fu_pc := fu_stage.io.sorted_fu_out(0).pc
+    interrupt_reg.io.fu_is_delay_slot :=  fu_stage.io.sorted_fu_out(0).is_delay_slot
   }
   interrupt_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
-  interrupt_reg.io.fu_interrupt := masked_interrupt
+  fu_stage.io.incoming_epc             := interrupt_reg.io.wb_epc
 
   // WB Stage
-  for (j <- 0 until TOT_PATH_NUM) {
-    wb_stage.io.fu_res_vec(j)   := fu_wb_reg.io.wb_in(j)
-  }
-  wb_stage.io.actual_issue_cnt  := fu_wb_reg.io.wb_actual_issue_cnt
-
-  wb_stage.io.incoming_epc       := interrupt_reg.io.wb_epc
-  wb_stage.io.incoming_interrupt := interrupt_reg.io.wb_interrupt
-  flush := wb_stage.io.exception_handled
+  wb_stage.io.wb_in := fu_wb_reg.io.wb_in
+  wb_stage.io.wb_exception_order := fu_wb_reg.io.wb_exception_order
+  flush := fu_wb_reg.io.wb_exception_handled
 
   // Write Back data path
   hilo.io.in_hi_wen := false.B
@@ -296,6 +303,8 @@ class DataPath extends Module {
   hilo.io.in_lo_wen := false.B
   hilo.io.in_lo     := 0.U
   for (i <- 0 until ISSUE_NUM) {
+    io.debug_pc(i)        := fu_wb_reg.io.wb_in(i).pc
+
     regs.io.write(i).we   := wb_stage.io.write_channel_vec(i).write_regs_en
     regs.io.write(i).rd   := wb_stage.io.write_channel_vec(i).write_regs_rd
     regs.io.write(i).data := wb_stage.io.write_channel_vec(i).write_regs_data
@@ -315,5 +324,5 @@ class DataPath extends Module {
   }
 
   // CP0 exceptional write back
-  cp0.io.exc_info := wb_stage.io.exc_info
+  cp0.io.exc_info := fu_wb_reg.io.wb_exc_info
 }

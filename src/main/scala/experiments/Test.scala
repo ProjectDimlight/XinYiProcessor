@@ -16,7 +16,7 @@ trait TestConfig {
   val ALU_PATH_NUM  = 4
   val MDU_PATH_NUM  = 4
   val LSU_PATH_NUM  = 4
-  val QUEUE_LEN_w   = 4
+  val QUEUE_LEN_W   = 4
 }
 
 class Test extends Module {
@@ -130,21 +130,21 @@ class Test extends Module with TestConfig {
   })
 
   val queue = Reg(Vec(5, new ISIn))
-  val head = RegInit(0.U(QUEUE_LEN_w.W))
-  val tail = RegInit(0.U(QUEUE_LEN_w.W))
+  val head = RegInit(0.U(QUEUE_LEN_W.W))
+  val tail = RegInit(0.U(QUEUE_LEN_W.W))
 
   for (i <- 0 until 5) {
     queue(i).pc := queue(i).pc + 1.U(32.W)
     queue(i).inst := queue(i).inst + 1.U(32.W)
   }
-  head := head + 1.U(QUEUE_LEN_w.W)
+  head := head + 1.U(QUEUE_LEN_W.W)
 
   for (i <- 0 until ISSUE_NUM) {
-    when (head + i.U(QUEUE_LEN_w.W) < queue_size.U(QUEUE_LEN_w.W)) {
-      io.out(i) := queue(i.U(QUEUE_LEN_w.W) + head)
+    when (head + i.U(QUEUE_LEN_W.W) < queue_size.U(QUEUE_LEN_W.W)) {
+      io.out(i) := queue(i.U(QUEUE_LEN_W.W) + head)
     }
     .otherwise {
-      io.out(i) := queue(head + (16 + i - queue_size).U(QUEUE_LEN_w.W))
+      io.out(i) := queue(head + (16 + i - queue_size).U(QUEUE_LEN_W.W))
     }
   }
 

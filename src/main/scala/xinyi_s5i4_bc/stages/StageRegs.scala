@@ -75,33 +75,25 @@ class IssueQueue extends Module {
   })
 
   def Step(base: UInt, offset: UInt) = {
-    Mux(
-      base +& offset >= QUEUE_LEN.U,
-      base + offset - QUEUE_LEN.U,
-      base + offset
-    )
+    (base + offset)(QUEUE_LEN_W - 1, 0)
   }
 
   // Queue logic
 
   val queue    = RegInit(VecInit(Seq.fill(QUEUE_LEN)(0.U.asTypeOf(new Instruction))))
-  val head     = RegInit(0.U(QUEUE_LEN_w.W))
-  val tail     = RegInit(0.U(QUEUE_LEN_w.W))
-  val head_n   = Wire(UInt(QUEUE_LEN_w.W)) // Next Head
-  val tail_b   = Wire(UInt(QUEUE_LEN_w.W)) // Actual Tail Base
-  val in_size  = Wire(UInt(QUEUE_LEN_w.W))
-  val out_size = Wire(UInt(QUEUE_LEN_w.W))
+  val head     = RegInit(0.U(QUEUE_LEN_W.W))
+  val tail     = RegInit(0.U(QUEUE_LEN_W.W))
+  val head_n   = Wire(UInt(QUEUE_LEN_W.W)) // Next Head
+  val tail_b   = Wire(UInt(QUEUE_LEN_W.W)) // Actual Tail Base
+  val in_size  = Wire(UInt(QUEUE_LEN_W.W))
+  val out_size = Wire(UInt(QUEUE_LEN_W.W))
 
   tail_b := Mux(
     io.bc.flush,
     head_n,
     tail
   )
-  in_size := Mux(
-    tail_b >= head_n,
-    tail_b - head_n,
-    tail_b + QUEUE_LEN.U - head_n
-  )
+  in_size := tail_b - head_n
 
   // Input
   when(io.flush) {
@@ -111,14 +103,9 @@ class IssueQueue extends Module {
   .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
     when (!io.stall) {
       for (i <- 0 until FETCH_NUM) {
-        when(tail_b + i.U(QUEUE_LEN_w.W) < QUEUE_LEN.U(QUEUE_LEN_w.W)) {
-          queue(tail_b + i.U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
-        }
-        .otherwise {
-          queue(tail_b + ((1 << QUEUE_LEN_w) + i - QUEUE_LEN).U(QUEUE_LEN_w.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
-        }
+        queue(tail_b + i.U(QUEUE_LEN_W.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
       }
-      tail := Step(tail_b, FETCH_NUM.U(QUEUE_LEN_w.W))
+      tail := Step(tail_b, FETCH_NUM.U(QUEUE_LEN_W.W))
     }
     .otherwise {
       tail := tail_b
@@ -131,23 +118,13 @@ class IssueQueue extends Module {
   }
 
   // Output 
-  out_size := Mux(
-    tail >= head,
-    tail - head,
-    tail + QUEUE_LEN.U - head
-  )
-
+  out_size := tail - head
 
   io.issue_cnt := out_size
   for (i <- 0 until ISSUE_NUM) {
     // If i > issue_cnt, the instruction path will be 0 (Stall)
     // So there is no need to clear the inst Vec here
-    when(head + i.U(QUEUE_LEN_w.W) < QUEUE_LEN.U(QUEUE_LEN_w.W)) {
-      io.inst(i) := queue(head + i.U(QUEUE_LEN_w.W))
-    }
-    .otherwise {
-      io.inst(i) := queue(head + ((1 << QUEUE_LEN_w) + i - QUEUE_LEN).U(QUEUE_LEN_w.W))
-    }
+    io.inst(i) := queue(head + i.U(QUEUE_LEN_W.W))
 
     // Issue until Delay Slot
     // If the Branch itself is not issued, it will be re-issued in the next cycle.
@@ -266,23 +243,47 @@ class ISFUReg extends Module with ALUConfig {
 
 class FUWBReg extends Module {
   val io = IO(new Bundle {
-    val fu_out              = Input(Vec(TOT_PATH_NUM, new FUOut))
-    val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
-    val stall               = Input(Bool())
-    val flush               = Input(Bool())
+    val sorted_fu_out        = Input(Vec(ISSUE_NUM, new FUOut))
+    val fu_exception_order   = Input(UInt(ISSUE_NUM_W.W))
+    val fu_exception_handled = Input(Bool())
+    val fu_exception_target  = Input(UInt(LGC_ADDR_W.W))
 
-    val wb_in               = Output(Vec(TOT_PATH_NUM, new FUOut))
-    val wb_actual_issue_cnt = Output(UInt(ISSUE_NUM_W.W))
+    val fu_exc_info          = Input(new ExceptionInfo)
+
+    val stall                = Input(Bool())
+    val flush                = Input(Bool())
+
+    val wb_in                = Output(Vec(ISSUE_NUM, new FUOut))
+    val wb_exception_order   = Output(UInt(ISSUE_NUM_W.W))
+    val wb_exception_handled = Output(Bool())
+    val wb_exception_target  = Output(UInt(LGC_ADDR_W.W))
+    val wb_exc_info          = Output(new ExceptionInfo)
   })
 
-  val reg_out              = RegInit(VecInit(Seq.fill(TOT_PATH_NUM)(FUOutBubble())))
-  val reg_actual_issue_cnt = RegInit(0.U(ISSUE_NUM_W.W))
+  val exc_info_init = Wire(new ExceptionInfo)
+  exc_info_init.pc := 0.U
+  exc_info_init.exc_code := NO_EXCEPTION
+  exc_info_init.data := 0.U
+  exc_info_init.in_branch_delay_slot := false.B
 
-  reg_out              := io.fu_out
-  reg_actual_issue_cnt := Mux(io.flush | io.stall, 0.U, io.fu_actual_issue_cnt)
+  val reg_out                = RegInit(VecInit(Seq.fill(ISSUE_NUM)(FUOutBubble())))
+  val reg_exception_order    = RegInit(0.U(ISSUE_NUM_W.W))
+  val reg_exception_handled  = RegInit(false.B)
+  val reg_exception_target   = RegInit(0.U(LGC_ADDR_W.W))
+  val reg_exc_info           = RegInit(exc_info_init)
+
+  reg_out               := io.sorted_fu_out
+  reg_exception_order   := Mux(io.flush | io.stall, 0.U, io.fu_exception_order)
+  reg_exception_handled := Mux(io.flush | io.stall, 0.U, io.fu_exception_handled)
+  reg_exception_target  := io.fu_exception_target
+  reg_exc_info          := io.fu_exc_info
+
 
   io.wb_in := reg_out
-  io.wb_actual_issue_cnt := reg_actual_issue_cnt
+  io.wb_exception_order   := reg_exception_order
+  io.wb_exception_handled := reg_exception_handled
+  io.wb_exception_target  := reg_exception_target
+  io.wb_exc_info          := reg_exc_info
 }
 
 class InterruptReg extends Module {
@@ -290,20 +291,13 @@ class InterruptReg extends Module {
     val fu_pc               = Input(UInt(LGC_ADDR_W.W))
     val fu_is_delay_slot    = Input(Bool())
     val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
-    val fu_interrupt        = Input(Vec(8, Bool()))
 
     val wb_epc       = Output(UInt(LGC_ADDR_W.W))
-    val wb_interrupt = Output(Vec(8, Bool()))
   })
 
   val pc_reg = RegInit(0.U(LGC_ADDR_W.W))
   when (io.fu_actual_issue_cnt =/= 0.U) {
     pc_reg := Mux(io.fu_is_delay_slot, io.fu_pc - 4.U, io.fu_pc)
   }
-
-  val interrupt_reg = RegInit(VecInit(Seq.fill(8)(false.B)))
-  interrupt_reg := io.fu_interrupt
-
   io.wb_epc := pc_reg
-  io.wb_interrupt := interrupt_reg
 }

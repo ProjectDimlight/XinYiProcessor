@@ -59,12 +59,15 @@ class S5I4 extends RawModule with PortConfig {
   val debug_wb_rf_wnum  = IO(Output(UInt(5.W)))
   val debug_wb_rf_wdata = IO(Output(UInt(32.W)))
 
+  val debug_pc = IO(Output(Vec(ISSUE_NUM, UInt(XLEN.W))))
+
   val axi3x1   = Module(new CPUAXI3x1)
   withClockAndReset(aclk, ~aresetn) {
     val datapath = Module(new DataPath)
     for (i <- 0 to 5) {
       datapath.io.interrupt(i) := ext_int(i)
     }
+    debug_pc := datapath.io.debug_pc
 
     axi3x1.io.i_addr_in       <> datapath.io.icache_axi.addr_in
     axi3x1.io.i_en            <> datapath.io.icache_axi.en

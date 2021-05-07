@@ -35,8 +35,8 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `define CONFREG_NUM_MONITOR  soc_lite.u_confreg.num_monitor
 `define CONFREG_UART_DISPLAY soc_lite.u_confreg.write_uart_valid
 `define CONFREG_UART_DATA    soc_lite.u_confreg.write_uart_data
-`define DEBUG 1'b0
-`define BEGIN_PC 32'hbfc009c4
+`define DEBUG 1'b1
+`define BEGIN_PC 32'hbfc00b14
 `define END_PC 32'hbfc00100
 
 typedef struct packed {
@@ -152,13 +152,13 @@ pipeline_memwb_t [1:0] pipe_wb;
 assign pipe_wb[0].en    = soc_lite.u_cpu.datapath.wb_stage_io_write_channel_vec_0_write_regs_en;
 assign pipe_wb[0].rd    = soc_lite.u_cpu.datapath.wb_stage_io_write_channel_vec_0_write_regs_rd;
 assign pipe_wb[0].wdata = soc_lite.u_cpu.datapath.wb_stage_io_write_channel_vec_0_write_regs_data;
-assign pipe_wb[0].pc    = soc_lite.u_cpu.datapath.wb_stage.issue_vec_0_pc;
+assign pipe_wb[0].pc    = soc_lite.u_cpu.debug_pc_0;
 assign pipe_wb[0].order = 1'b0;
 
 assign pipe_wb[1].en    = soc_lite.u_cpu.datapath.wb_stage_io_write_channel_vec_1_write_regs_en;
 assign pipe_wb[1].rd    = soc_lite.u_cpu.datapath.wb_stage_io_write_channel_vec_1_write_regs_rd;
 assign pipe_wb[1].wdata = soc_lite.u_cpu.datapath.wb_stage_io_write_channel_vec_1_write_regs_data;
-assign pipe_wb[1].pc    = soc_lite.u_cpu.datapath.wb_stage.issue_vec_1_pc;
+assign pipe_wb[1].pc    = soc_lite.u_cpu.debug_pc_1;
 assign pipe_wb[1].order = 1'b1;
 
 assign debug_wb_pc = pipe_wb[0].pc;

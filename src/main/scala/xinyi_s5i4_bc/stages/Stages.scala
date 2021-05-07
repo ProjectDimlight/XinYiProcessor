@@ -9,6 +9,7 @@ import xinyi_s5i4_bc.caches._
 import xinyi_s5i4_bc.fu._
 import ControlConst._
 import config.config._
+import EXCCodeConfig._
 
 class PCInterface extends Bundle {
   val enable = Bool()
@@ -163,7 +164,7 @@ class ISOut extends Path {
 // Issue Stage
 class ISStage extends Module {
   val io = IO(new Bundle {
-    val issue_cnt = Input(UInt(QUEUE_LEN_w.W))
+    val issue_cnt = Input(UInt(QUEUE_LEN_W.W))
     val inst = Input(Vec(ISSUE_NUM, new Instruction))
 
     // To Param Fetcher 
@@ -193,7 +194,7 @@ class ISStage extends Module {
   val raw = Wire(Vec(ISSUE_NUM, Bool()))
   val waw = Wire(Vec(ISSUE_NUM, Bool()))
 
-  val issue_cnt = Wire(UInt(QUEUE_LEN_w.W))
+  val issue_cnt = Wire(UInt(QUEUE_LEN_W.W))
 
   // Begin
   
@@ -360,3 +361,98 @@ class ISStage extends Module {
   }
 }
 
+// FU sorting stage
+class FUStage extends Module with CP0Config {
+  val io = IO(new Bundle {
+    val fu_out               = Input(Vec(TOT_PATH_NUM, new FUOut))
+    val fu_actual_issue_cnt  = Input(UInt(ISSUE_NUM_W.W))
+    val incoming_epc         = Input(UInt(LGC_ADDR_W.W))
+    val incoming_interrupt   = Input(Vec(8, Bool()))
+
+    val sorted_fu_out        = Output(Vec(ISSUE_NUM, new FUOut))
+    val fu_exception_order   = Output(UInt(ISSUE_NUM_W.W))
+    val fu_exception_handled = Output(Bool())
+    val fu_exception_target  = Output(UInt(LGC_ADDR_W.W))
+
+    val exc_info             = Output(new ExceptionInfo)
+  })
+
+    // check if exception handled
+  //    if any exception found in WB, forall will be False
+  // and the whole predicate will be True
+  
+  io.fu_exception_handled := false.B
+  io.fu_exception_target  := 0.U
+
+  // Mux: from Paths to Issues
+  val issue_vec = Wire(Vec(ISSUE_NUM, new FUOut))
+  for (i <- 0 until ISSUE_NUM) {
+    issue_vec(i) := FUOutBubble()
+
+    when (i.U < io.fu_actual_issue_cnt) {
+      for (j <- 0 until TOT_PATH_NUM) {
+        when (io.fu_out(j).order === i.U) {
+          issue_vec(i) := io.fu_out(j)
+        }
+      }
+    }
+  }
+
+  io.sorted_fu_out := issue_vec
+
+  // generate exception order
+  io.fu_exception_order := io.fu_actual_issue_cnt
+  
+  io.exc_info.pc := 0.U
+  io.exc_info.exc_code := NO_EXCEPTION
+  io.exc_info.data := 0.U
+  io.exc_info.in_branch_delay_slot := false.B
+  for (i <- ISSUE_NUM - 1 to 0 by -1) {
+    when (issue_vec(i).exception) {
+      
+      when (issue_vec(i).exc_code =/= EXC_CODE_ERET) {
+        io.exc_info.pc := issue_vec(i).pc
+        io.exc_info.exc_code := issue_vec(i).exc_code
+        io.exc_info.data := issue_vec(i).hi
+        // some of the exception info should be passed by HI
+        // for example: badvaddr in LSU
+        io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
+
+        io.fu_exception_order := i.U
+        io.fu_exception_handled := true.B
+        io.fu_exception_target  := EXCEPTION_ADDR.U
+      }
+      .otherwise {
+        io.fu_exception_order := (i+1).U
+
+        io.fu_exception_handled := true.B
+        io.fu_exception_target  := issue_vec(i).hi
+      }
+    }
+    .elsewhen ((issue_vec(i).write_target === DCP0) &
+               (issue_vec(i).rd === CP0_CAUSE_INDEX) &
+               (issue_vec(i).data(9, 8) =/= 0.U)) {
+       
+      io.exc_info.pc := issue_vec(i).pc + 4.U
+      io.exc_info.exc_code := EXC_CODE_INT
+      io.exc_info.data := Cat(Seq(0.U(16.W), 0.U(6.W), issue_vec(i).data(9, 8), 0.U(8.W)))
+      io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
+
+      io.fu_exception_order := i.U
+      io.fu_exception_handled := true.B
+      io.fu_exception_target  := EXCEPTION_ADDR.U
+    }
+  }
+  
+  // handle interrupt
+  when (io.incoming_interrupt.asUInt().orR) {
+    io.exc_info.pc := Mux(io.fu_actual_issue_cnt === 0.U, io.incoming_epc, issue_vec(0).pc)
+    io.exc_info.exc_code := EXC_CODE_INT
+    io.exc_info.data := Cat(Seq(0.U(16.W), Reverse(io.incoming_interrupt.asUInt), 0.U(8.W)))
+    io.exc_info.in_branch_delay_slot := 0.U
+    
+    io.fu_exception_order := 0.U
+    io.fu_exception_handled := true.B
+    io.fu_exception_target  := EXCEPTION_ADDR.U
+  }
+}
