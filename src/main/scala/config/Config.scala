@@ -11,7 +11,7 @@ import utils._
 object config {
   val TOP_NAME: String = s"mycpu_top"
 
-  val DEBUG: Boolean  = true
+  val DEBUG: Boolean  = false
   val DEBUG_BOOT_ADDR = 0xbfc00b14L
   val DEBUG_TEST_CASE = 65
 

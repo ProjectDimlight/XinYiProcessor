@@ -10,6 +10,7 @@ trait CacheState {
   val s_pending  = 1.U(3.W)
   val s_busy     = 2.U(3.W)
   val s_valid    = 3.U(3.W)
+  val s_valid2   = 4.U(3.W)
   val s_pending2 = 5.U(3.W)
   val s_busy2    = 6.U(3.W)
 }
@@ -134,12 +135,10 @@ class DummyDCache extends Module with CacheState {
         ),
         s_pending -> Mux(io.lower(j).stall, s_pending, s_busy),
         s_busy -> Mux(io.lower(j).valid, 
-          Mux(io.upper(j).rd & wr_ctrl_buffer(j), 
-            Mux(io.lower(j).stall, s_pending2, s_busy2), 
-            s_valid
-          ),
+          Mux(io.upper(j).rd & wr_ctrl_buffer(j), s_valid2, s_valid),
           s_busy
         ),
+        s_valid2 -> Mux(io.lower(j).stall, s_pending2, s_busy2),
         s_pending2 -> Mux(io.lower(j).stall, s_pending2, s_busy2),
         s_busy2 -> Mux(io.lower(j).valid, 
           s_valid,

@@ -46,7 +46,8 @@ class LSU extends Module with LSUConfig {
       MemWord  -> (addr(1, 0) =/= 0.U(2.W))
     )
   )
-  val normal = (io.exception_order > io.in.order) & !exception & !io.interrupt & !io.flush
+  val rd_normal = !exception & !io.flush
+  val wr_normal = (io.exception_order > io.in.order) & !exception & !io.interrupt & !io.flush
 
   val wr = (io.in.write_target === DMem)
   val rd = (io.in.rd =/= 0.U)
@@ -54,8 +55,8 @@ class LSU extends Module with LSUConfig {
   val i_byte = io.in.b(7, 0)
   val i_half = io.in.b(15, 0)
 
-  io.cache.wr   := normal & wr
-  io.cache.rd   := normal & rd
+  io.cache.wr   := wr_normal & wr
+  io.cache.rd   := rd_normal & rd
   io.cache.size := io.in.fu_ctrl(2, 1)
   io.cache.addr := addr
   io.cache.din  := MuxLookupBi(
