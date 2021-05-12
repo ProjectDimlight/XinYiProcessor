@@ -73,18 +73,28 @@ class IFOut extends Bundle {
 class IFStage extends Module {
   val io = IO(new Bundle {
     val in = new IFIn
-    val cache = Flipped(new ICacheCPU)
-    val full = Input(Bool())
     val out = new IFOut
+
+    val tlb   = Flipped(new TLBInterface)
+    val cache = Flipped(new ICacheCPU)
+    
+    val full = Input(Bool())
   })
+
+  // TLB
+  val lgc_addr = io.in.pc
+  io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W)
+  
+  val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
+  val addr = Mux(
+    lgc_addr(31, 30) === 2.U,
+    lgc_addr & 0x1FFFFFFF.U,
+    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0)
+  )
 
   // ICache
   io.cache.rd := !io.full
-  // io.cache.wr := false.B
-  io.cache.addr := io.in.pc
-  // If Cache instructions are supported, we might have to write into ICache
-  // I don't know
-  // io.cache.din := 0.U(32.W)
+  io.cache.addr := addr
 
   // Output to IF-ID Regs
   io.out.pc := io.in.pc
@@ -197,7 +207,6 @@ class ISStage extends Module {
   val issue_cnt = Wire(UInt(QUEUE_LEN_W.W))
 
   // Begin
-  
 
   issue_cnt := Mux(
     io.branch_cache_out.flush,

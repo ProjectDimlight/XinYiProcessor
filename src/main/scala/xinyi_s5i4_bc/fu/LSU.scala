@@ -19,6 +19,9 @@ trait LSUConfig {
 }
 
 class LSUIO extends FUIO {
+  // To TLB
+  val tlb             = Flipped(new TLBInterface)
+
   // To DCache
   val cache           = Flipped(new DCacheCPU)
   val stall_req       = Input(Bool())
@@ -29,13 +32,20 @@ class LSUIO extends FUIO {
   val flush           = Input(Bool())
 }
 
-class LSU extends Module with LSUConfig {
+class LSU extends Module with LSUConfig with TLBConfig {
   val io = IO(new LSUIO)
 
   io.out.is_delay_slot := io.in.is_delay_slot
 
-  val addr = Wire(UInt(LGC_ADDR_W.W))
-  addr := io.in.a + io.in.imm
+  val lgc_addr = io.in.a + io.in.imm
+  io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W)
+
+  val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
+  val addr = Mux(
+    lgc_addr(31, 30) === 2.U,
+    lgc_addr & 0x1FFFFFFF.U,
+    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0)
+  )
 
   val exception = MuxLookupBi(
     io.in.fu_ctrl,
@@ -45,7 +55,8 @@ class LSU extends Module with LSUConfig {
       MemHalfU -> (addr(0) =/= 0.U(1.W)),
       MemWord  -> (addr(1, 0) =/= 0.U(2.W))
     )
-  )
+  ) | !item.v // TLB Miss
+
   val rd_normal = !exception & !io.flush
   val wr_normal = (io.exception_order > io.in.order) & !exception & !io.interrupt & !io.flush
 
@@ -104,7 +115,9 @@ class LSU extends Module with LSUConfig {
       (io.in.pc(1, 0) =/= 0.U) -> EXC_CODE_ADEL,
       (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
       (rd & exception) -> EXC_CODE_ADEL,
-      (wr & exception) -> EXC_CODE_ADES
+      (wr & exception) -> EXC_CODE_ADES,
+      (rd & item.v) -> EXC_CODE_TLBL
+      (wr & item.v) -> EXC_CODE_TLBS
     )
   )
   io.out.exception := 

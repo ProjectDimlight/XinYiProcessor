@@ -59,11 +59,7 @@ class DummyICache extends Module with CacheState {
   )
   state_reg := state
 
-  io.lower.addr_in  := Mux(
-    io.upper.addr(31, 30) === 2.U,
-    io.upper.addr & 0x1FFFFFFF.U,
-    io.upper.addr
-  )
+  io.lower.addr_in  := io.upper.addr
   io.lower.en       := ((state === s_pending) | (state === s_busy) & (state_reg =/= s_busy))
   
   io.upper.dout     := io.lower.data
@@ -108,16 +104,12 @@ class DummyDCache extends Module with CacheState {
   val wr_ctrl_buffer = RegInit(VecInit(Seq.fill(LSU_PATH_NUM)(false.B)))
 
   for (j <- 0 until LSU_PATH_NUM) {
-    val addr = Mux(
-      io.upper(j).addr(31, 30) === 2.U,
-      io.upper(j).addr & 0x1FFFFFFF.U,
-      io.upper(j).addr
-    )
+
     when (io.stall & wr_ctrl_buffer(j) & io.lower(j).valid) {
       wr_ctrl_buffer(j) := false.B
     }
     .elsewhen (!io.stall) {
-      wr_addr_buffer(j) := addr
+      wr_addr_buffer(j) := io.upper(j).addr
       wr_data_buffer(j) := io.upper(j).din
       wr_size_buffer(j) := io.upper(j).size
       wr_ctrl_buffer(j) := io.upper(j).wr
@@ -153,7 +145,7 @@ class DummyDCache extends Module with CacheState {
     state_reg := state
 
     io.lower(j).size     := Mux(wr_ctrl_buffer(j), wr_size_buffer(j), io.upper(j).size)
-    io.lower(j).addr_in  := Mux(wr_ctrl_buffer(j), wr_addr_buffer(j), addr)
+    io.lower(j).addr_in  := Mux(wr_ctrl_buffer(j), wr_addr_buffer(j), io.upper(j).addr)
     io.lower(j).data_in  := Cat(0.U(32.W), wr_data_buffer(j))
     io.lower(j).rd       := !wr_ctrl_buffer(j) & io.upper(j).rd & ((state(1, 0) === s_pending) | (state(1, 0) === s_busy) & (state_reg =/= state))
     io.lower(j).wr       :=  wr_ctrl_buffer(j) & ((state(1, 0) === s_pending) | (state(1, 0) === s_busy) & (state_reg =/= state))

@@ -28,6 +28,9 @@ object EXCCodeConfig {
   val EXC_CODE_W: Int = 5 // width of EXC field
 
   val EXC_CODE_INT  = 0.U(EXC_CODE_W.W) // interrupt
+  val EXC_CODE_MOD  = 1.U(EXC_CODE_W.W) // TLB modification exception
+  val EXC_CODE_TLBL = 2.U(EXC_CODE_W.W) // TLB load miss 
+  val EXC_CODE_TLBS = 3.U(EXC_CODE_W.W) // TLB store miss 
   val EXC_CODE_ADEL = 4.U(EXC_CODE_W.W) // load or an instruction fetch exception
   val EXC_CODE_ADES = 5.U(EXC_CODE_W.W) // store exception
   val EXC_CODE_SYS  = 8.U(EXC_CODE_W.W) // syscall
