@@ -129,6 +129,9 @@ class CP0 extends Module with CP0Config {
     val soft_int_pending_vec = Output(Vec(2, Bool())) // software interrupt
     val time_int             = Output(Bool()) // time interruption
     val int_mask_vec         = Output(Vec(8, Bool())) // interrupt mask
+    val entry_hi             = Output(UInt(XLEN.W))
+    val entry_lo0            = Output(UInt(XLEN.W))
+    val entry_lo1            = Output(UInt(XLEN.W))
   })
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -140,7 +143,9 @@ class CP0 extends Module with CP0Config {
   }
 
   val cp0_reg_entry_lo0 = RegInit(CP0EntryLoInit)
+  io.entry_lo0 := cp0_reg_entry_lo0
   val cp0_reg_entry_lo1 = RegInit(CP0EntryLoInit)
+  io.entry_lo1 := cp0_reg_entry_lo1
 
   val cp0_reg_count = RegInit(0.U(XLEN.W))
 
@@ -150,6 +155,7 @@ class CP0 extends Module with CP0Config {
   }
 
   val cp0_reg_entry_hi = RegInit(CP0EntryHiInit)
+  io.entry_hi := cp0_reg_entry_hi
 
   def CP0CauseInit: CP0CauseBundle = {
     val initial_value = WireDefault(0.U.asTypeOf(new CP0CauseBundle))
@@ -233,16 +239,28 @@ class CP0 extends Module with CP0Config {
     when(io.write(i).we && io.exc_info.exc_code === NO_EXCEPTION) {
       switch(io.write(i).rd) {
         is(CP0_ENTRY_LO0_INDEX) {
-          // TODO update entry_lo0's field
+          cp0_reg_entry_lo0.PFN := io.write(i).data(29, 6)
+          cp0_reg_entry_lo0.C := io.write(i).data(5, 3)
+          cp0_reg_entry_lo0.D := io.write(i).data(2)
+          cp0_reg_entry_lo0.V := io.write(i).data(1)
+          cp0_reg_entry_lo0.G := io.write(i).data(0)
         }
         is(CP0_ENTRY_LO1_INDEX) {
-          // TODO update entry_lo1's field
+          cp0_reg_entry_lo1.PFN := io.write(i).data(29, 6)
+          cp0_reg_entry_lo1.C := io.write(i).data(5, 3)
+          cp0_reg_entry_lo1.D := io.write(i).data(2)
+          cp0_reg_entry_lo1.V := io.write(i).data(1)
+          cp0_reg_entry_lo1.G := io.write(i).data(0)
         }
         is(CP0_COUNT_INDEX) {
           cp0_reg_count := io.write(i).data
         }
         is(CP0_ENTRY_HI_INDEX) {
-          // TODO update entry_hi's field
+          cp0_reg_entry_hi.VPN2 := io.write(i).data(31, 13)
+          cp0_reg_entry_hi.VPN2X := io.write(i).data(12, 11)
+          cp0_reg_entry_hi.EHINV := io.write(i).data(10)
+          cp0_reg_entry_hi.ASIDX := io.write(i).data(9, 8)
+          cp0_reg_entry_hi.ASID := io.write(i).data(7, 0)
         }
         is(CP0_COMPARE_INDEX) {
           cp0_reg_compare := io.write(i).data
@@ -320,8 +338,11 @@ class CP0 extends Module with CP0Config {
     cp0_reg_status.EXL := 1.U
     cp0_reg_cause.EXC_CODE := io.exc_info.exc_code
 
+    // handle all kind exception
     when(io.exc_info.exc_code === EXC_CODE_ADEL || io.exc_info.exc_code === EXC_CODE_ADES) {
       cp0_reg_badvaddr := io.exc_info.data
+    }.elsewhen(io.exc_info.exc_code === EXC_CODE_TLBL || io.exc_info.exc_code === EXC_CODE_TLBS) { // instruction fetch exception & load exception
+      cp0_reg_entry_hi.VPN2 := io.exc_info.data // put VA[31:13] into
     }
   }
 }
