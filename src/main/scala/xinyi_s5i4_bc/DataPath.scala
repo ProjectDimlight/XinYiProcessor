@@ -248,9 +248,14 @@ class DataPath extends Module {
     }
   }
 
-  tlb.io.asid := cp0.io.asid
+  tlb.io.asid            := cp0.io.entry_hi(7, 0)
+  tlb.io.write.entry_hi  := cp0.io.entry_hi
+  tlb.io.write.entry_lo0 := cp0.io.entry_lo0
+  tlb.io.write.entry_lo1 := cp0.io.entry_lo1
 
   fu_stage.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
+  fu_stage.io.if_tlb_miss         := if_stage.io.tlb_miss
+  fu_stage.io.if_tlb_addr         := if_stage.io.tlb_addr
 
   fu_wb_reg.io.sorted_fu_out        := fu_stage.io.sorted_fu_out
   fu_wb_reg.io.fu_exception_order   := fu_stage.io.fu_exception_order

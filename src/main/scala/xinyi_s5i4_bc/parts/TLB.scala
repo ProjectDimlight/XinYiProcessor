@@ -1,6 +1,7 @@
 package xinyi_s5i4_bc.parts
 
 import chisel3._
+import chisel3.util._
 import config.config._
 
 trait TLBConfig {
@@ -27,7 +28,7 @@ class TLBEntry extends Bundle with TLBConfig {
   val i1   = new TLBItem
 }
 
-class TLBLookupInterface extends Bundle {
+class TLBLookupInterface extends Bundle with TLBConfig {
   val vpn2  = Input(UInt(VPN_W.W))
   val index = Output(UInt(32.W))
   val entry = Output(new TLBEntry)
@@ -35,27 +36,29 @@ class TLBLookupInterface extends Bundle {
 }
 
 class TLBWInterface extends Bundle {
-  val wen    = Input(Bool())
-  val index  = Input(UInt(32.W))
-  val entry  = Input(new TLBEntry)
+  val wen       = Input(Bool())
+  val index     = Input(UInt(32.W))
+  val entry_hi  = Input(UInt(XLEN.W))
+  val entry_lo0 = Input(UInt(XLEN.W))
+  val entry_lo1 = Input(UInt(XLEN.W))
 }
 
 class TLBInterface extends Bundle {
   val asid  = Input(UInt(8.W))
-  val path  = Vec(LSU_PATH_NUM + 1, new TLBInterface)  // LSU_NUM * D + 1 * I
+  val path  = Vec(LSU_PATH_NUM + 1, new TLBLookupInterface)  // LSU_NUM * D + 1 * I
   val write = new TLBWInterface 
 }
 
-class TLB extends Module {
+class TLB extends Module with TLBConfig {
   val io = IO(new TLBInterface)
 
-  val entry = RegInit(VecInit(TLB_ENTRY_NUM, TLBEntry))
+  val entry = RegInit(VecInit(Seq.fill(TLB_ENTRY_NUM)(0.U.asTypeOf(new TLBEntry))))
 
   // probe (by axid & vpn)
   for (j <- 0 to LSU_PATH_NUM) {
     val hit_one_hot = Wire(Vec(TLB_ENTRY_NUM, Bool()))
     for (i <- 0 until TLB_ENTRY_NUM) {
-      hit_one_hot(i) := (entry(i).g | (entry(i).asid === io.asid)) & (entry(i).vpn2 === io.path(j).lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W))
+      hit_one_hot(i) := (entry(i).g | (entry(i).asid === io.asid)) & (entry(i).vpn2 === io.path(j).vpn2)
     }
     
     io.path(j).miss  := !(hit_one_hot.asUInt().orR())
@@ -65,6 +68,18 @@ class TLB extends Module {
 
   // write (by index)
   when (io.write.wen) {
-    entry(io.write.index) := io.write.entry
+    entry(io.write.index).vpn2 := io.write.entry_hi(31, 13)
+    entry(io.write.index).g    := io.write.entry_lo1(0)
+    entry(io.write.index).asid := io.write.entry_hi(7, 0)
+  
+    entry(io.write.index).i0.pfn := io.write.entry_lo0(29, 6)
+    entry(io.write.index).i0.c   := io.write.entry_lo0(5, 3)
+    entry(io.write.index).i0.d   := io.write.entry_lo0(2)
+    entry(io.write.index).i0.v   := io.write.entry_lo0(1)
+
+    entry(io.write.index).i1.pfn := io.write.entry_lo1(29, 6)
+    entry(io.write.index).i1.c   := io.write.entry_lo1(5, 3)
+    entry(io.write.index).i1.d   := io.write.entry_lo1(2)
+    entry(io.write.index).i1.v   := io.write.entry_lo1(1)
   }
 }

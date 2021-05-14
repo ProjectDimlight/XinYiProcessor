@@ -129,6 +129,8 @@ class CP0 extends Module with CP0Config {
     val soft_int_pending_vec = Output(Vec(2, Bool())) // software interrupt
     val time_int             = Output(Bool()) // time interruption
     val int_mask_vec         = Output(Vec(8, Bool())) // interrupt mask
+
+    // TLB support
     val entry_hi             = Output(UInt(XLEN.W))
     val entry_lo0            = Output(UInt(XLEN.W))
     val entry_lo1            = Output(UInt(XLEN.W))
@@ -143,9 +145,9 @@ class CP0 extends Module with CP0Config {
   }
 
   val cp0_reg_entry_lo0 = RegInit(CP0EntryLoInit)
-  io.entry_lo0 := cp0_reg_entry_lo0
+  io.entry_lo0 := cp0_reg_entry_lo0.asUInt()
   val cp0_reg_entry_lo1 = RegInit(CP0EntryLoInit)
-  io.entry_lo1 := cp0_reg_entry_lo1
+  io.entry_lo1 := cp0_reg_entry_lo1.asUInt()
 
   val cp0_reg_count = RegInit(0.U(XLEN.W))
 
@@ -155,7 +157,7 @@ class CP0 extends Module with CP0Config {
   }
 
   val cp0_reg_entry_hi = RegInit(CP0EntryHiInit)
-  io.entry_hi := cp0_reg_entry_hi
+  io.entry_hi := cp0_reg_entry_hi.asUInt()
 
   def CP0CauseInit: CP0CauseBundle = {
     val initial_value = WireDefault(0.U.asTypeOf(new CP0CauseBundle))
@@ -215,10 +217,10 @@ class CP0 extends Module with CP0Config {
       io.read(i).rs,
       "hcafebabe".U,
       Seq(
-        CP0_ENTRY_LO0_INDEX -> cp0_reg_entry_lo0,
-        CP0_ENTRY_LO1_INDEX -> cp0_reg_entry_lo1,
+        CP0_ENTRY_LO0_INDEX -> cp0_reg_entry_lo0.asUInt(),
+        CP0_ENTRY_LO1_INDEX -> cp0_reg_entry_lo1.asUInt(),
         CP0_COUNT_INDEX -> cp0_reg_count,
-        CP0_ENTRY_HI_INDEX -> cp0_reg_entry_hi,
+        CP0_ENTRY_HI_INDEX -> cp0_reg_entry_hi.asUInt(),
         CP0_BADVADDR_INDEX -> cp0_reg_badvaddr,
         CP0_COMPARE_INDEX -> cp0_reg_compare,
         CP0_STATUS_INDEX -> cp0_reg_status.asUInt(),

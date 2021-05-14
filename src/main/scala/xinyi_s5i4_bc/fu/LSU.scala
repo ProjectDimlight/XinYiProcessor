@@ -16,11 +16,16 @@ trait LSUConfig {
   val MemHalf       = 2.U(FU_CTRL_W.W)
   val MemHalfU      = 3.U(FU_CTRL_W.W)
   val MemWord       = 4.U(FU_CTRL_W.W)
+
+  val TLBProbe      = 8.U(FU_CTRL_W.W)
+  val TLBRead       = 9.U(FU_CTRL_W.W)
+  val TLBWrite      = 10.U(FU_CTRL_W.W)
 }
 
 class LSUIO extends FUIO {
   // To TLB
-  val tlb             = Flipped(new TLBInterface)
+  val tlb             = Flipped(new TLBLookupInterface)
+  val tlbw            = Output(Bool())
 
   // To DCache
   val cache           = Flipped(new DCacheCPU)
@@ -44,7 +49,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
   val addr = Mux(
     lgc_addr(31, 30) === 2.U,
     lgc_addr & 0x1FFFFFFF.U,
-    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0)
+    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
   )
 
   val exception = MuxLookupBi(
@@ -116,7 +121,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
       (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
       (rd & exception) -> EXC_CODE_ADEL,
       (wr & exception) -> EXC_CODE_ADES,
-      (rd & item.v) -> EXC_CODE_TLBL
+      (rd & item.v) -> EXC_CODE_TLBL,
       (wr & item.v) -> EXC_CODE_TLBS
     )
   )
