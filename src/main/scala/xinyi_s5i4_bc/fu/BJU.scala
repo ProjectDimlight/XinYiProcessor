@@ -28,12 +28,9 @@ class BJU extends Module with BJUConfig {
   val io = IO(new Bundle {
     val path = Input(new FUIn)
     val branch_next_pc = Input(UInt(NEXT_PC_W.W))
-    val delay_slot_pending = Input(Bool())
-    val stall_frontend = Input(Bool())
-    val stall_backend = Input(Bool())
 
-    val branch_cache_out = new BranchCacheOut
-    val pc_interface = Output(new PCInterface)
+    val branch = Output(Bool())
+    val target = Output(UInt(XLEN.W))
   })
 
   val a = io.path.a.asSInt()
@@ -70,14 +67,6 @@ class BJU extends Module with BJUConfig {
     )
   )
 
-  val bc = Module(new BranchCache)
-  bc.io.in.branch := branch
-  bc.io.in.delay_slot_pending := io.delay_slot_pending
-  bc.io.in.target := target
-  bc.io.stall_frontend := io.stall_frontend
-  bc.io.stall_backend := io.stall_backend
-
-  io.branch_cache_out := bc.io.out
-  io.pc_interface.enable := branch
-  io.pc_interface.target := bc.io.branch_cached_pc
+  io.branch := branch
+  io.target := target
 }

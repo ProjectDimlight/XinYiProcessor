@@ -51,6 +51,7 @@ class DataPath extends Module {
 
   // FUs
   val bju           = Module(new BJU)
+  val bc            = Module(new BranchCache)
 
   // Regs
   val regs          = Module(new Regs)
@@ -68,9 +69,10 @@ class DataPath extends Module {
 
   // PC Stage
   pc_stage.io.pc      <> pc_if_reg.io.if_in.pc
-  pc_stage.io.branch  <> bju.io.pc_interface
   pc_stage.io.next_pc <> pc_if_reg.io.pc_out
 
+  pc_stage.io.branch.enable    := bju.io.branch
+  pc_stage.io.branch.target    := bc.io.branch_cached_pc
   pc_stage.io.exception.target := fu_wb_reg.io.wb_exception_target
   pc_stage.io.exception.enable := fu_wb_reg.io.wb_exception_handled
   
@@ -97,14 +99,14 @@ class DataPath extends Module {
 
   // Issue Queue
   issue_queue.io.in := id_stage.io.out
-  issue_queue.io.bc := bju.io.branch_cache_out
+  issue_queue.io.bc := bc.io.out
   issue_queue.io.actual_issue_cnt := is_stage.io.actual_issue_cnt
 
   // ISStage
   is_stage.io.issue_cnt        := issue_queue.io.issue_cnt
   is_stage.io.inst             := issue_queue.io.inst
   is_stage.io.forwarding       := forwarding
-  is_stage.io.branch_cache_out := bju.io.branch_cache_out
+  is_stage.io.branch_cache_out := bc.io.out
   is_stage.io.stall            := stall_backend
 
   stall_backend := false.B
@@ -178,9 +180,17 @@ class DataPath extends Module {
   // BJU
   bju.io.path                         := is_bju_reg.io.fu_path
   bju.io.branch_next_pc               := is_bju_reg.io.fu_branch_next_pc
-  bju.io.delay_slot_pending           := is_bju_reg.io.fu_delay_slot_pending
-  bju.io.stall_frontend               := stall_frontend
-  bju.io.stall_backend                := stall_backend
+
+  // BC
+  bc.io.in.branch := bju.io.branch
+  bc.io.in.target := bju.io.target
+  bc.io.in.delay_slot_pending := is_bju_reg.io.fu_delay_slot_pending
+  bc.io.stall_frontend := stall_frontend
+  bc.io.stall_backend  := stall_backend
+
+  bc.io.wr.flush := flush
+  bc.io.wr.stall := stall_frontend
+  bc.io.wr.inst  := id_stage.io.out
 
   // FUs
   dcache.io.lower <> io.dcache_axi
