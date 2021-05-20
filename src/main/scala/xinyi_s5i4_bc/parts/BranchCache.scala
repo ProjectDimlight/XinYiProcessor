@@ -59,7 +59,7 @@ class BranchCache extends Module {
 
   val id  = io.in.target(1 + BC_INDEX_W, 2)
   val row = MuxLookupBi(
-    id,
+    index,
     record(0),
     Array(
        1.U -> record(1),
