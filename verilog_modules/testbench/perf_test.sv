@@ -29,7 +29,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `timescale 1ns / 1ps
 // `include "cpu_defs.svh"
 
-`define TRACE_REF_FILE "../../../../../../../cpu132_gettrace/golden_trace.txt"
+`define TRACE_REF_FILE "../../../../../../../soc_axi_perf/golden_trace.txt"
 `define CONFREG_NUM_REG      soc_lite.u_confreg.num_data
 //`define CONFREG_OPEN_TRACE   soc_lite.u_confreg.open_trace
 `define CONFREG_OPEN_TRACE   1'b0
@@ -113,6 +113,7 @@ assign debug_wb_rf_wdata = soc_lite.debug_wb_rf_wdata;
 integer trace_ref;
 initial begin
     trace_ref = $fopen(`TRACE_REF_FILE, "r");
+    //trace_ref = $fopen(`TRACE_REF_FILE, "w");
 end
 
 //get reference result in falling edge
@@ -169,6 +170,19 @@ always @ (posedge sys_clk) begin
 end
 
 reg debug_wb_err;
+reg [31:0] total_inst_cnt;
+initial begin
+    total_inst_cnt = 0;
+end
+
+task write(input pipeline_memwb_t pipe_wb);
+   	if(pipe_wb.en && pipe_wb.rd != 5'd0)
+    begin
+        $fdisplay(trace_ref, "%h %h %h %h", `CONFREG_OPEN_TRACE,
+            pipe_wb.pc, pipe_wb.rd, pipe_wb.wdata);
+    end
+endtask 
+
 task judge(input pipeline_memwb_t pipe_wb);
 	if(pipe_wb.en && !$feof(trace_ref) && !debug_end) begin
 	    if (init) begin
@@ -179,7 +193,7 @@ task judge(input pipeline_memwb_t pipe_wb);
 			       	 ref_wb_pc, ref_wb_rf_wnum, ref_wb_rf_wdata);
 	    end
 		if (ref_wb_pc == `END_PC) return;
-		if (`CONFREG_OPEN_TRACE && pipe_wb.pc[31:3] != {28'hbfc0038, 1'b0} && (pipe_wb.rd != ref_wb_rf_wnum || pipe_wb.wdata != ref_wb_rf_wdata || pipe_wb.pc != ref_wb_pc))
+		if (pipe_wb.pc[31:3] != {28'hbfc0038, 1'b0} && (pipe_wb.rd != ref_wb_rf_wnum || pipe_wb.wdata != ref_wb_rf_wdata || pipe_wb.pc != ref_wb_pc))
 		begin
 			$display("--------------------------------------------------------------");
 			$display("[%t] Error!!!",$time);
@@ -188,9 +202,9 @@ task judge(input pipeline_memwb_t pipe_wb);
 			$display("    mycpu    : PC = 0x%8h, wb_rf_wnum = 0x%2h, wb_rf_wdata = 0x%8h, order = %d",
 					  pipe_wb.pc, pipe_wb.rd, pipe_wb.wdata, pipe_wb.order);
 			$display("--------------------------------------------------------------");
-			debug_wb_err <= 1'b1;
-			#40;
-			$finish;
+			//debug_wb_err <= 1'b1;
+			//#40;
+			//$finish;
 		end else begin
 //			$display("    reference: PC = 0x%8h, wb_rf_wnum = 0x%2h, wb_rf_wdata = 0x%8h, order = %d",
 //					  ref_wb_pc, ref_wb_rf_wnum, ref_wb_rf_wdata, pipe_wb.order);
@@ -204,9 +218,13 @@ begin
     #2;
     if(!resetn) begin
         debug_wb_err <= 1'b0;
+        total_inst_cnt = 0;
     end else begin
+        total_inst_cnt += soc_lite.u_cpu.datapath.wb_stage_io_wb_exception_order;
 		//judge(pipe_wb[0]);
 		//judge(pipe_wb[1]);
+		//write(pipe_wb[0]);
+		//write(pipe_wb[1]);
 	end
 end
 
@@ -296,6 +314,8 @@ begin
         debug_end <= 1'b1;
         $display("==============================================================");
         $display("Test end!");
+        
+        $display("Total instructions: %d\n", total_inst_cnt);
         #40;
         $fclose(trace_ref);
         if (global_err)

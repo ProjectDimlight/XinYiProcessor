@@ -7,7 +7,7 @@ import utils._
 class BranchCacheRecord extends Bundle {
   val tag   = UInt((XLEN - BC_INDEX_W - 2).W)
   val valid = Bool()
-  val inst  = Vec(2, Vec(BC_LINE_SIZE, new Instruction))
+  val inst  = Vec(BC_LINE_SIZE, Vec(FETCH_NUM, new Instruction))
 }
 
 class BranchCacheWriteIn extends Bundle {
@@ -36,19 +36,20 @@ class BranchCache extends Module {
     val wr  = new BranchCacheWriteIn
     val stall_frontend = Input(Bool())
     val stall_backend = Input(Bool())
+    val branch_cached_en = Output(Bool())
     val branch_cached_pc = Output(UInt(LGC_ADDR_W.W))
   })
 
   val record    = RegInit(VecInit(Seq.fill(BC_INDEX)(0.U.asTypeOf(new BranchCacheRecord))))
 
-  val state_reg = RegInit(2.U(BC_LINE_SIZE_W.W))
+  val state_reg = RegInit(BC_LINE_SIZE.U(BC_LINE_SIZE_W.W))
   val state     = Wire(UInt(BC_LINE_SIZE_W.W))
   val index_reg = RegInit(0.U(BC_INDEX_W.W))
   val index     = Wire(UInt(BC_INDEX_W.W))
   val hit_reg   = RegInit(false.B)
   val hit       = Wire(Bool())
 
-  val write_pos = RegInit(2.U(BC_LINE_SIZE_W.W))
+  val write_pos = RegInit(BC_LINE_SIZE.U(BC_LINE_SIZE_W.W))
   val write_pc  = RegInit(0.U(XLEN.W))
 
   // Out
@@ -90,6 +91,7 @@ class BranchCache extends Module {
     index_reg := id
     hit       := ht
     hit_reg   := ht
+    io.branch_cached_en := true.B
     state := 0.U
 
     when (!ht) {
@@ -98,14 +100,15 @@ class BranchCache extends Module {
     }
   }
   .otherwise {
+    io.branch_cached_en := false.B
     index := index_reg
     hit   := hit_reg
     state := state_reg
   }
   state_reg := Mux((state =/= 2.U) & !io.stall_frontend, state + 1.U, state)
-  io.branch_cached_pc := Mux(ht, io.in.target + (BC_LINE_SIZE * FETCH_NUM * 4).U, io.in.target)
+  io.branch_cached_pc := Mux(hit, io.in.target + (BC_LINE_SIZE * FETCH_NUM * 4).U, io.in.target)
 
-  when (state =/= 2.U) {
+  when (state =/= BC_LINE_SIZE.U) {
     // If hit, the queue will be overwritten with the contents of the BC
     // If miss, it will be filled with NOPBubbles, by default
     io.out.overwrite := true.B

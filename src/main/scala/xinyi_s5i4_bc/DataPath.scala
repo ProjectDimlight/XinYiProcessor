@@ -71,7 +71,7 @@ class DataPath extends Module {
   pc_stage.io.pc      <> pc_if_reg.io.if_in.pc
   pc_stage.io.next_pc <> pc_if_reg.io.pc_out
 
-  pc_stage.io.branch.enable    := bju.io.branch
+  pc_stage.io.branch.enable    := bc.io.branch_cached_en
   pc_stage.io.branch.target    := bc.io.branch_cached_pc
   pc_stage.io.exception.target := fu_wb_reg.io.wb_exception_target
   pc_stage.io.exception.enable := fu_wb_reg.io.wb_exception_handled
