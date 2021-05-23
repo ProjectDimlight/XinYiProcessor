@@ -35,7 +35,7 @@ class LSU extends Module with LSUConfig {
   io.out.is_delay_slot := io.in.is_delay_slot
 
   val addr = Wire(UInt(LGC_ADDR_W.W))
-  addr := io.in.a + io.in.imm
+  addr := io.in.imm
 
   val exception = MuxLookupBi(
     io.in.fu_ctrl,

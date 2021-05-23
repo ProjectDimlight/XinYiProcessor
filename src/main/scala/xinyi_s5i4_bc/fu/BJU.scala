@@ -9,9 +9,9 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.parts.ControlConst._
 
 trait BALConfig {
-  val JPC           = 25.U(FU_CTRL_W.W)
-  val BrGEPC        = 26.U(FU_CTRL_W.W)
-  val BrLTPC        = 27.U(FU_CTRL_W.W)
+  val JPC           = 24.U(FU_CTRL_W.W)
+  val BrGEPC        = 19.U(FU_CTRL_W.W)
+  val BrLTPC        = 22.U(FU_CTRL_W.W)
 }
 
 trait BJUConfig extends BALConfig {
@@ -38,21 +38,19 @@ class BJU extends Module with BJUConfig {
   val branch = Wire(Bool())
   branch := io.branch_next_pc =/= PC4 &
     MuxLookupBi(
-      io.path.fu_ctrl,
+      io.path.fu_ctrl(2, 0),
       true.B,
       Array(
         BrEQ    -> (a === b),
         BrNE    -> (a =/= b),
-        BrGE    -> (a >=  b),
-        BrGT    -> (a >   b),
-        BrLE    -> (a <=  b),
-        BrLT    -> (a <   b),
-        BrGEPC  -> (a >=  b),
-        BrLTPC  -> (a <   b)
+        BrGE    -> (a >=  0.S),
+        BrGT    -> (a >   0.S),
+        BrLE    -> (a <=  0.S),
+        BrLT    -> (a <   0.S)
       )
     )
 
-  val pc4 = io.path.pc + 4.U(LGC_ADDR_W.W)
+  val pc4 = io.path.pc
 
   val target = Wire(UInt(LGC_ADDR_W.W))
   target := MuxLookupBi(

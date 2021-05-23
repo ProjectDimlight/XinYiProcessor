@@ -258,7 +258,9 @@ class CP0 extends Module with CP0Config {
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
   // counter register autoincrement 1 each cycle
-  cp0_reg_count := Mux(cp0_reg_count === "hFFFFFFFF".U(XLEN.W), 0.U, cp0_reg_count + 1.U)
+  val count_double_reg = RegInit(false.B)
+  count_double_reg := !count_double_reg
+  cp0_reg_count := cp0_reg_count + count_double_reg
 
   for (i <- 0 until ISSUE_NUM) {
     when(io.write(i).we && io.write(i).rd === CP0_COMPARE_INDEX) {

@@ -47,7 +47,7 @@ trait ALUConfig {
   val ALU_MUL  = 18.U(FU_CTRL_W.W)
   val ALU_MULU = 19.U(FU_CTRL_W.W)
 
-  val ALU_ERET = 24.U(FU_CTRL_W.W)
+  val ALU_ERET = 25.U(FU_CTRL_W.W)
 }
 
 class ALU extends Module with ALUConfig with BALConfig {

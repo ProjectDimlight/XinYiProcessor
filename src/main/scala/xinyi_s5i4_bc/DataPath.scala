@@ -164,7 +164,10 @@ class DataPath extends Module {
     is_out(j).order         := is_stage.io.path(j).order
     is_out(j).a             := inst_params(is_stage.io.path(j).order)(0)
     is_out(j).b             := inst_params(is_stage.io.path(j).order)(1)
-    is_out(j).imm           := issue_queue.io.inst(is_stage.io.path(j).order).imm
+    if (j >= ALU_PATH_NUM)
+      is_out(j).imm         := issue_queue.io.inst(is_stage.io.path(j).order).imm + is_out(j).a
+    else
+      is_out(j).imm         := issue_queue.io.inst(is_stage.io.path(j).order).imm
     is_out(j).is_delay_slot := is_stage.io.is_delay_slot(is_stage.io.path(j).order)
   }
   is_fu_reg.io.is_out                 := is_out
@@ -173,6 +176,7 @@ class DataPath extends Module {
 
   // IS-BJU regs
   is_bju_reg.io.is_path               := is_out(is_stage.io.branch_jump_id)
+  is_bju_reg.io.is_path.pc            := is_out(is_stage.io.branch_jump_id).pc + 4.U
   is_bju_reg.io.is_branch_next_pc     := is_stage.io.branch_next_pc
   is_bju_reg.io.is_delay_slot_pending := is_stage.io.delay_slot_pending
   is_bju_reg.io.stall                 := stall_backend
