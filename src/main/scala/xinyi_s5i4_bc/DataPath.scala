@@ -101,6 +101,7 @@ class DataPath extends Module {
   issue_queue.io.in := id_stage.io.out
   issue_queue.io.bc := bc.io.out
   issue_queue.io.actual_issue_cnt := is_stage.io.actual_issue_cnt
+  issue_queue.io.stall_backend := stall_backend
 
   // ISStage
   is_stage.io.issue_cnt        := issue_queue.io.issue_cnt
@@ -176,7 +177,6 @@ class DataPath extends Module {
 
   // IS-BJU regs
   is_bju_reg.io.is_path               := is_out(is_stage.io.branch_jump_id)
-  is_bju_reg.io.is_path.pc            := is_out(is_stage.io.branch_jump_id).pc + 4.U
   is_bju_reg.io.is_branch_next_pc     := is_stage.io.branch_next_pc
   is_bju_reg.io.is_delay_slot_pending := is_stage.io.delay_slot_pending
   is_bju_reg.io.stall                 := stall_backend

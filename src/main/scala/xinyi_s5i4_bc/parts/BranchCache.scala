@@ -57,6 +57,7 @@ class BranchCache extends Module {
   io.out.overwrite := false.B
   io.out.flush := false.B
   io.out.keep_delay_slot := false.B
+  io.branch_cached_en := false.B
 
   val id  = io.in.target(1 + BC_INDEX_W, 2)
   val row = MuxLookupBi(
@@ -85,26 +86,29 @@ class BranchCache extends Module {
 
   // As the dummy BC always misses, next PC of PC stage should be target
   // If BC hits, next PC should be target + BC_LINE_SIZE * FETCH_NUM
-  when (io.in.branch & !io.stall_backend) {
-    io.out.flush := true.B
-    io.out.keep_delay_slot := io.in.delay_slot_pending
+  index := index_reg
+  hit   := hit_reg
+  state := state_reg
+  when (io.in.branch) {
     index     := id
     index_reg := id
     hit       := ht
     hit_reg   := ht
-    io.branch_cached_en := true.B
-    state := 0.U
 
-    when (!ht) {
-      write_pos := 0.U;
-      write_pc  := io.in.target;
+    when (!io.stall_backend) {
+      io.out.flush := true.B
+      io.out.keep_delay_slot := io.in.delay_slot_pending
+      io.branch_cached_en := true.B
+      state := 0.U
+
+      when (!ht) {
+        write_pos := 0.U;
+        write_pc  := io.in.target;
+      }
+      .otherwise {
+        write_pos := 2.U;
+      }
     }
-  }
-  .otherwise {
-    io.branch_cached_en := false.B
-    index := index_reg
-    hit   := hit_reg
-    state := state_reg
   }
   state_reg := Mux((state =/= 2.U) & !io.stall_frontend, state + 1.U, state)
   io.branch_cached_pc := Mux(hit, io.in.target + (BC_LINE_SIZE * FETCH_NUM * 4).U, io.in.target)
@@ -125,13 +129,14 @@ class BranchCache extends Module {
     val tag   = write_pc(XLEN - 1, 2 + BC_INDEX_W)
 
     when (write_pos === 0.U) {
-      record(index).valid   := true.B
-      record(index).tag     := tag
-      record(index).inst(0) := io.wr.inst
+      record(index_reg).valid   := false.B
+      record(index_reg).tag     := tag
+      record(index_reg).inst(0) := io.wr.inst
       write_pos := 1.U
     }
     when (write_pos === 1.U) {
-      record(index).inst(1) := io.wr.inst
+      record(index_reg).valid   := true.B
+      record(index_reg).inst(1) := io.wr.inst
       write_pos := 2.U
     }
   }

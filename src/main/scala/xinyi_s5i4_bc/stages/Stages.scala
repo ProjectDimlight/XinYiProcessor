@@ -115,11 +115,12 @@ class IDStage extends Module with ALUConfig{
     signed_x4 := Cat(io.in(i).inst(15, 0), 0.U(2.W)).asSInt()
 
     io.out(i).pc := io.in(i).pc
+    val pc4 = io.in(i).pc + 4.U
     io.out(i).imm := MuxCase(
       io.in(i).inst(15, 0),
       Array(
-         (decoder.io.dec.next_pc === Branch)  -> signed_x4.asUInt(),
-         (decoder.io.dec.next_pc === Jump)    -> Cat(io.in(i).inst(25, 0), 0.U(2.W)),
+         (decoder.io.dec.next_pc === Branch)  -> (signed_x4.asUInt() + pc4),
+         (decoder.io.dec.next_pc === Jump)    -> Cat(pc4(31, 28), io.in(i).inst(25, 0), 0.U(2.W)),
         ((decoder.io.dec.fu_ctrl === ALU_ADD  | 
           decoder.io.dec.fu_ctrl === ALU_ADDU | 
           decoder.io.dec.fu_ctrl === ALU_SUB  | 
@@ -197,7 +198,6 @@ class ISStage extends Module {
   val issue_cnt = Wire(UInt(QUEUE_LEN_W.W))
 
   // Begin
-  
 
   issue_cnt := Mux(
     io.branch_cache_out.flush,

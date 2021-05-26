@@ -9,7 +9,7 @@ import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.parts.ControlConst._
 
 trait BALConfig {
-  val JPC           = 24.U(FU_CTRL_W.W)
+  val JPC           = 16.U(FU_CTRL_W.W)
   val BrGEPC        = 19.U(FU_CTRL_W.W)
   val BrLTPC        = 22.U(FU_CTRL_W.W)
 }
@@ -33,8 +33,8 @@ class BJU extends Module with BJUConfig {
     val target = Output(UInt(XLEN.W))
   })
 
-  val a = io.path.a.asSInt()
-  val b = io.path.b.asSInt()
+  val a = io.path.a
+  val b = io.path.b
   val branch = Wire(Bool())
   branch := io.branch_next_pc =/= PC4 &
     MuxLookupBi(
@@ -43,27 +43,17 @@ class BJU extends Module with BJUConfig {
       Array(
         BrEQ    -> (a === b),
         BrNE    -> (a =/= b),
-        BrGE    -> (a >=  0.S),
-        BrGT    -> (a >   0.S),
-        BrLE    -> (a <=  0.S),
-        BrLT    -> (a <   0.S)
+        BrGE    -> (!a(31)),
+        BrGT    -> (!a(31) & a.orR()),
+        BrLE    -> (a(31) | !a.orR()),
+        BrLT    -> (a(31))
       )
     )
 
   val pc4 = io.path.pc
 
   val target = Wire(UInt(LGC_ADDR_W.W))
-  target := MuxLookupBi(
-    io.branch_next_pc,
-    0.U(LGC_ADDR_W.W),
-    Array(
-      // Note that syscall, trap, and all other exceptions will not be handled here
-      // They will be triggered and managed in FU
-      Branch -> (pc4 + io.path.imm),
-      Jump   -> Cat(pc4(31, 28), io.path.imm(27, 0)),
-      PCReg  -> io.path.a
-    )
-  )
+  target := Mux(io.branch_next_pc === PCReg, io.path.a, io.path.imm)
 
   io.branch := branch
   io.target := target

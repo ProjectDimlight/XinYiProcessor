@@ -7,6 +7,8 @@ import xinyi_s5i4_bc.fu._
 import ControlConst._
 import config.config._
 import EXCCodeConfig._
+import utils._
+import chisel3.util._
 
 class PCIFReg extends Module {
   val io = IO(new Bundle {
@@ -71,6 +73,7 @@ class IssueQueue extends Module {
     val inst             = Output(Vec(ISSUE_NUM, new Instruction))
 
     val stall = Input(Bool())
+    val stall_backend = Input(Bool())
     val flush = Input(Bool())
   })
 
@@ -184,6 +187,23 @@ class ISBJUReg extends Module with ALUConfig {
   .otherwise {
     when(!io.stall) {
       reg_path                := io.is_path
+      
+      val pc4 = io.is_path.pc + 4.U
+      reg_path.pc             := pc4
+      /*
+      reg_path.imm            := MuxLookupBi(
+        io.is_branch_next_pc,
+        0.U(LGC_ADDR_W.W),
+        Array(
+          // Note that syscall, trap, and all other exceptions will not be handled here
+          // They will be triggered and managed in FU
+          Branch -> (pc4 + io.is_path.imm),
+          Jump   -> Cat(pc4(31, 28), io.is_path.imm(27, 0)),
+          PCReg  -> io.is_path.a
+        )
+      )
+      */
+
       reg_branch_next_pc      := io.is_branch_next_pc
       reg_delay_slot_pending  := io.is_delay_slot_pending
     }

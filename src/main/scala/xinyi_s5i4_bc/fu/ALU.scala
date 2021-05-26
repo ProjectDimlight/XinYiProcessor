@@ -42,12 +42,12 @@ trait ALUConfig {
   val ALU_SUB  = 12.U(FU_CTRL_W.W)
   val ALU_SUBU = 13.U(FU_CTRL_W.W)
 
-  val ALU_DIV  = 16.U(FU_CTRL_W.W)
-  val ALU_DIVU = 17.U(FU_CTRL_W.W)
-  val ALU_MUL  = 18.U(FU_CTRL_W.W)
-  val ALU_MULU = 19.U(FU_CTRL_W.W)
+  val ALU_DIV  = 24.U(FU_CTRL_W.W)
+  val ALU_DIVU = 25.U(FU_CTRL_W.W)
+  val ALU_MUL  = 26.U(FU_CTRL_W.W)
+  val ALU_MULU = 27.U(FU_CTRL_W.W)
 
-  val ALU_ERET = 25.U(FU_CTRL_W.W)
+  val ALU_ERET = 28.U(FU_CTRL_W.W)
 }
 
 class ALU extends Module with ALUConfig with BALConfig {
