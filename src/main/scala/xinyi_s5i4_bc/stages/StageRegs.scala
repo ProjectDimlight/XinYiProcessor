@@ -151,7 +151,7 @@ class IssueQueue extends Module {
   head := head_n
 }
 
-class ISBJUReg extends Module with ALUConfig {
+class ISBJUReg extends Module with ALUConfig with BJUConfig {
   val io = IO(new Bundle{
     val is_path               = Input(new ISOut)
     val is_branch_next_pc     = Input(UInt(NEXT_PC_W.W))
@@ -178,6 +178,7 @@ class ISBJUReg extends Module with ALUConfig {
   init.is_delay_slot := false.B
 
   val reg_path                = RegInit(init)
+  val reg_xor                 = RegInit(0.U(XLEN.W))
   val reg_b_bc                = RegInit(0.U(LGC_ADDR_W.W))
   val reg_imm_bc              = RegInit(0.U(LGC_ADDR_W.W))
   val reg_branch_next_pc      = RegInit(0.U(NEXT_PC_W.W))
@@ -196,15 +197,30 @@ class ISBJUReg extends Module with ALUConfig {
       
       val pc4 = io.is_path.pc + 4.U
       reg_path.pc             := pc4
+      reg_xor                 := (io.is_path.a ^ io.is_path.b)
       reg_b_bc                := io.is_path.b + (4 + BC_LINE_SIZE * FETCH_NUM * 4).U
       reg_imm_bc              := io.is_path.imm + (BC_LINE_SIZE * FETCH_NUM * 4).U
-
+      
       reg_branch_next_pc      := io.is_branch_next_pc
       reg_delay_slot_pending  := io.is_delay_slot_pending
     }
   }
 
+  val a = reg_path.a
+  val b = reg_path.b
   io.fu_path                  := reg_path
+  io.fu_path.a                := MuxLookupBi(
+    reg_path.fu_ctrl(2, 0),
+    true.B,
+    Array(
+      BrEQ    -> !(reg_xor.orR()),
+      BrNE    -> reg_xor.orR(),
+      BrGE    -> (!a(31)),
+      BrGT    -> (!a(31) & a.orR()),
+      BrLE    -> (a(31) | !a.orR()),
+      BrLT    -> (a(31))
+    )
+  )
   io.fu_b_bc                  := reg_b_bc
   io.fu_imm_bc                := reg_imm_bc
   io.fu_branch_next_pc        := reg_branch_next_pc

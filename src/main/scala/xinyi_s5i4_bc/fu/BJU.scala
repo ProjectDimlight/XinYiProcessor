@@ -39,19 +39,7 @@ class BJU extends Module with BJUConfig {
   val a = io.path.a
   val b = io.path.b
   val branch = Wire(Bool())
-  branch := io.branch_next_pc =/= PC4 &
-    MuxLookupBi(
-      io.path.fu_ctrl(2, 0),
-      true.B,
-      Array(
-        BrEQ    -> !((a ^ b).orR()),
-        BrNE    -> (a ^ b).orR(),
-        BrGE    -> (!a(31)),
-        BrGT    -> (!a(31) & a.orR()),
-        BrLE    -> (a(31) | !a.orR()),
-        BrLT    -> (a(31))
-      )
-    )
+  branch := io.branch_next_pc =/= PC4 & a(0)
 
   val pc4 = io.path.pc
 
