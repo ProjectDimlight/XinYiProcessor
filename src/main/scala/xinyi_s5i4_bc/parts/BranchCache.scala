@@ -5,7 +5,6 @@ import config.config._
 import utils._
 
 class BranchCacheRecord extends Bundle {
-  val tag   = UInt((XLEN - BC_INDEX_W - 2).W)
   val valid = Bool()
   val inst  = Vec(BC_LINE_SIZE, Vec(FETCH_NUM, new Instruction))
 }
@@ -20,6 +19,7 @@ class BranchCacheIn extends Bundle {
   val branch = Input(Bool())
   val delay_slot_pending = Input(Bool())
   val target = Input(UInt(LGC_ADDR_W.W))
+  val target_bc = Input(UInt(LGC_ADDR_W.W))
 }
 
 class BranchCacheOut extends Bundle {
@@ -70,18 +70,10 @@ class BranchCache extends Module {
        4.U -> record(4),
        5.U -> record(5),
        6.U -> record(6),
-       7.U -> record(7),
-       8.U -> record(8),
-       9.U -> record(9),
-      10.U -> record(10),
-      11.U -> record(11),
-      12.U -> record(12),
-      13.U -> record(13),
-      14.U -> record(14),
-      15.U -> record(15)
+       7.U -> record(7)
     )
   )
-  val ht  = row.valid & (io.in.target(XLEN - 1, 2 + BC_INDEX_W) === row.tag)
+  val ht  = row.valid & !((io.in.target(XLEN - 1, 2 + BC_INDEX_W) ^ row.inst(0)(0).pc(XLEN - 1, 2 + BC_INDEX_W)).orR())
   //val ht = false.B
 
   // As the dummy BC always misses, next PC of PC stage should be target
@@ -111,7 +103,8 @@ class BranchCache extends Module {
     }
   }
   state_reg := Mux((state =/= 2.U) & !io.stall_frontend, state + 1.U, state)
-  io.branch_cached_pc := Mux(hit, io.in.target + (BC_LINE_SIZE * FETCH_NUM * 4).U, io.in.target)
+  //io.branch_cached_pc := Mux(hit, io.in.target + (BC_LINE_SIZE * FETCH_NUM * 4).U, io.in.target)
+  io.branch_cached_pc := Mux(hit, io.in.target_bc, io.in.target)
 
   when (state =/= BC_LINE_SIZE.U) {
     // If hit, the queue will be overwritten with the contents of the BC
@@ -122,15 +115,13 @@ class BranchCache extends Module {
 
   // In
   when (io.wr.flush) {
-    record := VecInit(Seq.fill(16)(0.U.asTypeOf(new BranchCacheRecord)))
+    record := VecInit(Seq.fill(BC_INDEX)(0.U.asTypeOf(new BranchCacheRecord)))
   }
   .elsewhen (!io.out.overwrite & !io.wr.stall) {
     val index = write_pc(1 + BC_INDEX_W, 2)
-    val tag   = write_pc(XLEN - 1, 2 + BC_INDEX_W)
 
     when (write_pos === 0.U) {
       record(index_reg).valid   := false.B
-      record(index_reg).tag     := tag
       record(index_reg).inst(0) := io.wr.inst
       write_pos := 1.U
     }

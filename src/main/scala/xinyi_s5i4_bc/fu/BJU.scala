@@ -27,10 +27,13 @@ trait BJUConfig extends BALConfig {
 class BJU extends Module with BJUConfig {
   val io = IO(new Bundle {
     val path = Input(new FUIn)
+    val b_bc   = Input(UInt(LGC_ADDR_W.W))
+    val imm_bc = Input(UInt(LGC_ADDR_W.W))
     val branch_next_pc = Input(UInt(NEXT_PC_W.W))
 
     val branch = Output(Bool())
     val target = Output(UInt(XLEN.W))
+    val target_bc = Output(UInt(XLEN.W))
   })
 
   val a = io.path.a
@@ -41,8 +44,8 @@ class BJU extends Module with BJUConfig {
       io.path.fu_ctrl(2, 0),
       true.B,
       Array(
-        BrEQ    -> (a === b),
-        BrNE    -> (a =/= b),
+        BrEQ    -> !((a ^ b).orR()),
+        BrNE    -> (a ^ b).orR(),
         BrGE    -> (!a(31)),
         BrGT    -> (!a(31) & a.orR()),
         BrLE    -> (a(31) | !a.orR()),
@@ -52,9 +55,12 @@ class BJU extends Module with BJUConfig {
 
   val pc4 = io.path.pc
 
-  val target = Wire(UInt(LGC_ADDR_W.W))
-  target := Mux(io.branch_next_pc === PCReg, io.path.a, io.path.imm)
+  val target    = Wire(UInt(LGC_ADDR_W.W))
+  target       := Mux(io.branch_next_pc === PCReg, io.path.b, io.path.imm)
+  val target_bc = Wire(UInt(LGC_ADDR_W.W))
+  target_bc    := Mux(io.branch_next_pc === PCReg, io.b_bc, io.imm_bc)
 
-  io.branch := branch
-  io.target := target
+  io.branch    := branch
+  io.target    := target
+  io.target_bc := target_bc
 }

@@ -22,12 +22,11 @@ object ControlConst {
   val Jump          = 3.U(2.W)
   val NEXT_PC_W     = PC4.getWidth
 
-  val AXXX          = 0.U(3.W)
-  val AReg          = 0.U(3.W)
-  val ACP0          = 1.U(3.W)
-  val AHi           = 2.U(3.W)
-  val ALo           = 3.U(3.W)
-  val AShamt        = 7.U(3.W)
+  val AXXX          = 0.U(2.W)
+  val AReg          = 0.U(2.W)
+  val ACP0          = 1.U(2.W)
+  val AHi           = 2.U(2.W)
+  val ALo           = 3.U(2.W)
   val PARAM_A_W     = AXXX.getWidth
 
   val BXXX          = 0.U(1.W)
@@ -117,12 +116,12 @@ val control_signal = ListLookup(io.inst,
       XOR        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_XOR   ,  PathALU   , IRS , IRT , IRD),
       XORI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_XOR   ,  PathALU   , IRS , IXX , IRT),
            
-      SLLV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SLL   ,  PathALU   , IRS , IRT , IRD),
-      SLL        -> List(  PC4     ,  AShamt ,  BReg   ,  DReg   , ALU_SLL   ,  PathALU   , IXX , IRT , IRD),
-      SRAV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SRA   ,  PathALU   , IRS , IRT , IRD),
-      SRA        -> List(  PC4     ,  AShamt ,  BReg   ,  DReg   , ALU_SRA   ,  PathALU   , IXX , IRT , IRD),
-      SRLV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SRL   ,  PathALU   , IRS , IRT , IRD),
-      SRL        -> List(  PC4     ,  AShamt ,  BReg   ,  DReg   , ALU_SRL   ,  PathALU   , IXX , IRT , IRD),
+      SLLV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SLL   ,  PathALU   , IRT , IRS , IRD),
+      SLL        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SLL   ,  PathALU   , IRT , IXX , IRD),
+      SRAV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SRA   ,  PathALU   , IRT , IRS , IRD),
+      SRA        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SRA   ,  PathALU   , IRT , IXX , IRD),
+      SRLV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SRL   ,  PathALU   , IRT , IRS , IRD),
+      SRL        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SRL   ,  PathALU   , IRT , IXX , IRD),
            
       BEQ        -> List(  Branch  ,  AReg   ,  BReg   ,  DXXX   , BrEQ      ,  PathALU   , IRS , IRT , IXX),
       BNE        -> List(  Branch  ,  AReg   ,  BReg   ,  DXXX   , BrNE      ,  PathALU   , IRS , IRT , IXX),
@@ -135,8 +134,8 @@ val control_signal = ListLookup(io.inst,
            
       J          -> List(  Jump    ,  AXXX   ,  BXXX   ,  DXXX   , ALU_XXX   ,  PathALU   , IXX , IXX , IXX),
       JAL        -> List(  Jump    ,  AXXX   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IXX , IXX , IRA),
-      JR         -> List(  PCReg   ,  AReg   ,  BXXX   ,  DXXX   , ALU_XXX   ,  PathALU   , IRS , IXX , IXX),
-      JALR       -> List(  PCReg   ,  AReg   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IRS , IXX , IRA),
+      JR         -> List(  PCReg   ,  AXXX   ,  BReg   ,  DXXX   , ALU_XXX   ,  PathALU   , IXX , IRS , IXX),
+      JALR       -> List(  PCReg   ,  AXXX   ,  BReg   ,  DReg   , JPC       ,  PathALU   , IXX , IRS , IRA),
            
       MFHI       -> List(  PC4     ,  AHi    ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IXX , IXX , IRD),
       MFLO       -> List(  PC4     ,  ALo    ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IXX , IXX , IRD),

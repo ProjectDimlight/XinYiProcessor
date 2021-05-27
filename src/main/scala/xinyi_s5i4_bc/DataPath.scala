@@ -130,8 +130,7 @@ class DataPath extends Module {
       Array(
         ACP0   -> cp0 .io.read(i).data,
         AHi    -> hilo.io.out_hi,
-        ALo    -> hilo.io.out_lo,
-        AShamt -> inst.imm(10, 6)
+        ALo    -> hilo.io.out_lo
       )
     )
 
@@ -176,18 +175,21 @@ class DataPath extends Module {
   is_fu_reg.io.stall                  := stall_backend
 
   // IS-BJU regs
-  is_bju_reg.io.is_path               := is_out(is_stage.io.branch_jump_id)
+  is_bju_reg.io.is_path               := is_out(is_stage.io.branch_jump_id(0))
   is_bju_reg.io.is_branch_next_pc     := is_stage.io.branch_next_pc
   is_bju_reg.io.is_delay_slot_pending := is_stage.io.delay_slot_pending
   is_bju_reg.io.stall                 := stall_backend
 
   // BJU
   bju.io.path                         := is_bju_reg.io.fu_path
+  bju.io.b_bc                         := is_bju_reg.io.fu_b_bc
+  bju.io.imm_bc                       := is_bju_reg.io.fu_imm_bc
   bju.io.branch_next_pc               := is_bju_reg.io.fu_branch_next_pc
 
   // BC
   bc.io.in.branch := bju.io.branch
   bc.io.in.target := bju.io.target
+  bc.io.in.target_bc := bju.io.target_bc
   bc.io.in.delay_slot_pending := is_bju_reg.io.fu_delay_slot_pending
   bc.io.stall_frontend := stall_frontend
   bc.io.stall_backend  := stall_backend

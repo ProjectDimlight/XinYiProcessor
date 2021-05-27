@@ -121,6 +121,10 @@ class IDStage extends Module with ALUConfig{
       Array(
          (decoder.io.dec.next_pc === Branch)  -> (signed_x4.asUInt() + pc4),
          (decoder.io.dec.next_pc === Jump)    -> Cat(pc4(31, 28), io.in(i).inst(25, 0), 0.U(2.W)),
+        ((decoder.io.dec.fu_ctrl === ALU_SLL  |
+          decoder.io.dec.fu_ctrl === ALU_SRL  |
+          decoder.io.dec.fu_ctrl === ALU_SRA
+        ) & decoder.io.dec.path === PathALU) -> io.in(i).inst(10, 6),
         ((decoder.io.dec.fu_ctrl === ALU_ADD  | 
           decoder.io.dec.fu_ctrl === ALU_ADDU | 
           decoder.io.dec.fu_ctrl === ALU_SUB  | 

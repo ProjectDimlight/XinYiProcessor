@@ -160,6 +160,8 @@ class ISBJUReg extends Module with ALUConfig {
     val flush                 = Input(Bool())
 
     val fu_path               = Output(new FUIn)
+    val fu_b_bc               = Output(UInt(LGC_ADDR_W.W))
+    val fu_imm_bc             = Output(UInt(LGC_ADDR_W.W))
     val fu_branch_next_pc     = Output(UInt(NEXT_PC_W.W))
     val fu_delay_slot_pending = Output(Bool())
   })
@@ -176,11 +178,15 @@ class ISBJUReg extends Module with ALUConfig {
   init.is_delay_slot := false.B
 
   val reg_path                = RegInit(init)
+  val reg_b_bc                = RegInit(0.U(LGC_ADDR_W.W))
+  val reg_imm_bc              = RegInit(0.U(LGC_ADDR_W.W))
   val reg_branch_next_pc      = RegInit(0.U(NEXT_PC_W.W))
   val reg_delay_slot_pending  = RegInit(false.B)
   
   when(io.flush) {
     reg_path                  := init
+    reg_b_bc                  := 0.U(LGC_ADDR_W.W)
+    reg_imm_bc                := 0.U(LGC_ADDR_W.W)
     reg_branch_next_pc        := 0.U(NEXT_PC_W.W)
     reg_delay_slot_pending    := false.B
   }
@@ -190,19 +196,8 @@ class ISBJUReg extends Module with ALUConfig {
       
       val pc4 = io.is_path.pc + 4.U
       reg_path.pc             := pc4
-      /*
-      reg_path.imm            := MuxLookupBi(
-        io.is_branch_next_pc,
-        0.U(LGC_ADDR_W.W),
-        Array(
-          // Note that syscall, trap, and all other exceptions will not be handled here
-          // They will be triggered and managed in FU
-          Branch -> (pc4 + io.is_path.imm),
-          Jump   -> Cat(pc4(31, 28), io.is_path.imm(27, 0)),
-          PCReg  -> io.is_path.a
-        )
-      )
-      */
+      reg_b_bc                := io.is_path.b + (4 + BC_LINE_SIZE * FETCH_NUM * 4).U
+      reg_imm_bc              := io.is_path.imm + (BC_LINE_SIZE * FETCH_NUM * 4).U
 
       reg_branch_next_pc      := io.is_branch_next_pc
       reg_delay_slot_pending  := io.is_delay_slot_pending
@@ -210,6 +205,8 @@ class ISBJUReg extends Module with ALUConfig {
   }
 
   io.fu_path                  := reg_path
+  io.fu_b_bc                  := reg_b_bc
+  io.fu_imm_bc                := reg_imm_bc
   io.fu_branch_next_pc        := reg_branch_next_pc
   io.fu_delay_slot_pending    := reg_delay_slot_pending
 }
