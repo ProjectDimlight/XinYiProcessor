@@ -166,7 +166,7 @@ class DataPath extends Module {
     is_out(j).a             := inst_params(is_stage.io.path(j).order)(0)
     is_out(j).b             := inst_params(is_stage.io.path(j).order)(1)
     if (j >= ALU_PATH_NUM)
-      is_out(j).imm         := issue_queue.io.inst(is_stage.io.path(j).order).imm + is_out(j).a
+      is_out(j).imm         := issue_queue.io.inst(is_stage.io.path(j).order).imm + is_out(j).b
     else
       is_out(j).imm         := issue_queue.io.inst(is_stage.io.path(j).order).imm
     is_out(j).is_delay_slot := is_stage.io.is_delay_slot(is_stage.io.path(j).order)
