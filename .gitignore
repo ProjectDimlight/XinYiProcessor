@@ -5,6 +5,7 @@ output/
 test_run_dir/*
 null/
 obj_dir/
+verilog_modules/test
 
 verilog_modules/IP/*
 !verilog_modules/IP/DIV.xci

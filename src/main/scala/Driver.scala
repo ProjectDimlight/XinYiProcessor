@@ -2,6 +2,7 @@ import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
 import xinyi_s5i4_bc._
 import config.config._
 import experiments._
+import xinyi_s5i4_bc.caches.L0DCache
 
 object Verilator extends App {
   DIV_IP_CORE = false
@@ -75,3 +76,17 @@ object Main extends App {
   Gen()
 }
 
+
+
+object GEN_L0DCache extends App {
+  def Gen(): Unit = {
+    val default_args = Array("-X", "verilog", "-td", "verilog_modules/test")
+    (new ChiselStage).execute(
+      default_args,
+      Seq(ChiselGeneratorAnnotation(() => new L0DCache))
+    )
+  }
+
+  Main.prompt("L0DCache")
+  Gen()
+}
