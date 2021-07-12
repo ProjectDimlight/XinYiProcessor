@@ -20,7 +20,6 @@ class L0DCacheLine extends Bundle with L0DcacheConfig {
   val data : UInt = UInt(XLEN.W)
   val tag  : UInt = UInt(TAG_WIDTH.W)
   val dirty: Bool = Bool()
-  val valid: Bool = Bool()
 }
 
 // separate address to tag and index
@@ -54,7 +53,7 @@ class L0DCache extends Module with L0DcacheConfig {
     val upper = new L0DCacheCPU
     val lower = new L0DCacheAXI
     val ready = Output(Bool())
-//    val flush = Input(Bool())
+    val flush = Input(Bool())
   })
 
 
@@ -62,8 +61,13 @@ class L0DCache extends Module with L0DcacheConfig {
   // Cache Data
   //>>>>>>>>>>>>
   val cache_entries = Mem(ENTRY_NUM, new L0DCacheLine)
+  val valid_entries = Reg(Vec(ENTRY_NUM, Bool()))
 
-  // get the indexed entry
+  when(reset.asBool() || io.flush) {
+    for (i <- 0 until ENTRY_NUM) {
+      valid_entries(i) := false.B
+    }
+  }
 
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -101,7 +105,7 @@ class L0DCache extends Module with L0DcacheConfig {
   //<<<<<<<<<<<<<<<<<<<<<<<<<<
 
   // get comparison signals
-  val is_valid = cache_entries(io.upper.addr.index).valid
+  val is_valid = valid_entries(io.upper.addr.index)
   val is_dirty = cache_entries(io.upper.addr.index).dirty
 
   val is_hit       = Wire(Bool())

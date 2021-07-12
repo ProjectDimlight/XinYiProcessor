@@ -1,5 +1,7 @@
 # XinYiProcessor
 
+![CI](https://github.com/ProjectDimlight/XinYiProcessor/workflows/Continuous%20Integration/badge.svg)
+
 ## 简介
 
 芯仪CPU是我们对RISC进行的一系列尝试。  
