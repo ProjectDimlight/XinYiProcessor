@@ -70,21 +70,38 @@ class IFOut extends Bundle {
 
 // Load load_num instructions at a time
 // Branch Cache
-class IFStage extends Module {
+class IFStage extends Module with TLBConfig {
   val io = IO(new Bundle {
-    val in = new IFIn
-    val cache = Flipped(new ICacheCPU)
-    val full = Input(Bool())
-    val out = new IFOut
+    val in       = new IFIn
+    val out      = new IFOut
+
+    val tlb      = Flipped(new TLBLookupInterface)
+    val cache    = Flipped(new ICacheCPU)
+    
+    val full     = Input(Bool())
+
+    val tlb_miss = Output(Bool())
+    val tlb_addr = Output(UInt(LGC_ADDR_W.W))
   })
+
+  // TLB
+  val lgc_addr = io.in.pc
+  io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W)
+  
+  val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
+  
+  val addr = Mux(
+    lgc_addr(31, 30) === 2.U,
+    lgc_addr & 0x1FFFFFFF.U,
+    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
+  )
+
+  io.tlb_miss := (lgc_addr(31, 30) =/= 2.U) & io.tlb.miss
+  io.tlb_addr := lgc_addr
 
   // ICache
   io.cache.rd := !io.full
-  // io.cache.wr := false.B
-  io.cache.addr := io.in.pc
-  // If Cache instructions are supported, we might have to write into ICache
-  // I don't know
-  // io.cache.din := 0.U(32.W)
+  io.cache.addr := addr
 
   // Output to IF-ID Regs
   io.out.pc := io.in.pc
@@ -212,53 +229,55 @@ class ISStage extends Module {
 
   def RAWPath(i: Int, j: Int) {
 
-    when ((io.forwarding(j).write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") |  // HiLo
-           io.forwarding(j).write_target === io.inst(i).dec.param_a) &       // Same source
-           io.forwarding(j).rd === io.inst(i).dec.rs1 &                      // Same ID
-          (io.inst(i).dec.param_a =/= AReg | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
-//    when (io.forwarding(j).ready) {
-        io.forwarding_path_id(i).rs1 := j.U
-//    }
-//    .otherwise {
-//      raw(i) := true.B
-//    }
+    when (
+      io.forwarding(j).write_target === DHiLo & io.inst(i).dec.param_a === BitPat("b01?") | // HiLo
+      io.forwarding(j).write_target === DReg  & io.inst(i).dec.param_a === AReg &           // Regs
+      io.forwarding(j).rd === io.inst(i).dec.rs1 & io.inst(i).dec.rs1 =/= 0.U               // Same ID, Not 0
+    ) {
+      io.forwarding_path_id(i).rs1 := j.U
     }
-    when ( io.forwarding(j).write_target === 0.U &       // rs2 ONLY relies on regs
-           io.forwarding(j).rd === io.inst(i).dec.rs2 &  // Same ID
-           io.inst(i).dec.rs2 =/= 0.U) {                 // Not Reg 0
-//    when (io.forwarding(j).ready) {
+    when (
+      io.forwarding(j).write_target === io.inst(i).dec.param_a &                            // Same source (implicit not HiLo)
+      io.forwarding(j).write_target =/= DReg                                                // Not Regs 
+    ) {
+      raw(i) := true.B
+    }
+
+    when (
+      io.forwarding(j).write_target === DReg &     // rs2 ONLY relies on regs
+      io.forwarding(j).rd === io.inst(i).dec.rs2 & // Same ID
+      io.inst(i).dec.rs2 =/= 0.U                   // Not 0
+    ) {
         io.forwarding_path_id(i).rs2 := j.U
-//    }
-//    .otherwise {
-//      raw(i) := true.B
-//    }
     }
   }
 
   def RAWInst(i: Int, k: Int) {
-    when ((io.inst(k).dec.write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") |  // HiLo
-           io.inst(k).dec.write_target === io.inst(i).dec.param_a) &         // Same source
-           io.inst(k).dec.rd === io.inst(i).dec.rs1 &                        // Same id
-          (io.inst(i).dec.param_a =/= AReg | io.inst(i).dec.rs1 =/= 0.U)) {  // Not Reg 0
+    when (
+      io.inst(k).dec.write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") | // HiLo
+      io.inst(k).dec.write_target === io.inst(i).dec.param_a &                          // Same source
+     (io.inst(k).dec.rd === io.inst(i).dec.rs1 & io.inst(i).dec.rs1 =/= 0.U |           // Same id, Not 0
+      io.inst(i).dec.param_a =/= AReg)                                                  // Not Regs
+    ) {
       raw(i) := true.B
     }
 
-    when ( io.inst(k).dec.write_target === 0.U &       // rs2 ONLY relies on regs
-           io.inst(k).dec.rd === io.inst(i).dec.rs2 &  // Same id
-           io.inst(i).dec.rs2 =/= 0.U) {
+    when (
+      io.inst(k).dec.write_target === 0.U &       // rs2 ONLY relies on regs
+      io.inst(k).dec.rd === io.inst(i).dec.rs2 &  // Same ID
+      io.inst(i).dec.rs2 =/= 0.U                  // Not 0
+    ) {
       raw(i) := true.B
     }
   }
 
   def WAWInst(i: Int, k: Int) {
-    when ((io.inst(k).dec.write_target === DHiLo & io.inst(i).dec.write_target === BitPat("b01?") |  // HiLo
-           io.inst(i).dec.write_target === DHiLo & io.inst(k).dec.write_target === BitPat("b01?") |  // HiLo
-           io.inst(k).dec.write_target === io.inst(i).dec.write_target) &        // Same source
-           io.inst(k).dec.rd === io.inst(i).dec.rd &                             // Same id
-          (io.inst(i).dec.write_target =/= DReg | io.inst(i).dec.rd =/= 0.U) |   // Not Reg 0
-          // (io.inst(k).dec.write_target === DCP0 & io.inst(i).dec.write_target === DCP0))
-          (io.inst(k).dec.write_target === DCP0))
-    { 
+    when (
+      io.inst(k).dec.write_target === DHiLo & io.inst(i).dec.write_target === BitPat("b01?") |  // HiLo
+      io.inst(i).dec.write_target === DHiLo & io.inst(k).dec.write_target === BitPat("b01?") |  // HiLo
+      io.inst(k).dec.write_target === io.inst(i).dec.write_target &                             // Same source
+     (io.inst(i).dec.write_target =/= DReg | io.inst(k).dec.rd === io.inst(i).dec.rd & io.inst(i).dec.rd =/= 0.U)  // Not Reg 0 
+    ) { 
       waw(i) := true.B
     }
   }
@@ -372,6 +391,9 @@ class FUStage extends Module with CP0Config {
     val fu_actual_issue_cnt  = Input(UInt(ISSUE_NUM_W.W))
     val incoming_epc         = Input(UInt(LGC_ADDR_W.W))
     val incoming_interrupt   = Input(Vec(8, Bool()))
+  
+    val if_tlb_miss          = Input(Bool())
+    val if_tlb_addr          = Input(UInt(LGC_ADDR_W.W))
 
     val sorted_fu_out        = Output(Vec(ISSUE_NUM, new FUOut))
     val fu_exception_order   = Output(UInt(ISSUE_NUM_W.W))
@@ -381,7 +403,7 @@ class FUStage extends Module with CP0Config {
     val exc_info             = Output(new ExceptionInfo)
   })
 
-    // check if exception handled
+  // check if exception handled
   //    if any exception found in WB, forall will be False
   // and the whole predicate will be True
   
@@ -404,6 +426,8 @@ class FUStage extends Module with CP0Config {
 
   io.sorted_fu_out := issue_vec
 
+  val exception_pc = Mux(io.fu_actual_issue_cnt === 0.U, io.incoming_epc, issue_vec(0).pc)
+  
   // generate exception order
   io.fu_exception_order := io.fu_actual_issue_cnt
   
@@ -411,6 +435,20 @@ class FUStage extends Module with CP0Config {
   io.exc_info.exc_code := NO_EXCEPTION
   io.exc_info.data := 0.U
   io.exc_info.in_branch_delay_slot := false.B
+
+  // IF stage tlb miss exception
+  when (io.if_tlb_miss) {
+    io.exc_info.pc := exception_pc
+    io.exc_info.exc_code := EXC_CODE_TLBL
+    io.exc_info.data := io.if_tlb_addr
+    io.exc_info.in_branch_delay_slot := false.B
+    
+    io.fu_exception_order := 0.U
+    io.fu_exception_handled := true.B
+    io.fu_exception_target  := EXCEPTION_ADDR.U
+  }
+
+  // normal exception handling
   for (i <- ISSUE_NUM - 1 to 0 by -1) {
     when (issue_vec(i).exception) {
       
@@ -450,7 +488,7 @@ class FUStage extends Module with CP0Config {
   
   // handle interrupt
   when (io.incoming_interrupt.asUInt().orR) {
-    io.exc_info.pc := Mux(io.fu_actual_issue_cnt === 0.U, io.incoming_epc, issue_vec(0).pc)
+    io.exc_info.pc := exception_pc
     io.exc_info.exc_code := EXC_CODE_INT
     io.exc_info.data := Cat(Seq(0.U(16.W), Reverse(io.incoming_interrupt.asUInt), 0.U(8.W)))
     io.exc_info.in_branch_delay_slot := 0.U

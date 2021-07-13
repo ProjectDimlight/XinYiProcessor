@@ -73,8 +73,8 @@ class BranchCache extends Module {
        7.U -> record(7)
     )
   )
-  //val ht  = row.valid & !((io.in.target(XLEN - 1, 2 + BC_INDEX_W) ^ row.inst(0)(0).pc(XLEN - 1, 2 + BC_INDEX_W)).orR())
-  val ht = false.B
+  val ht  = row.valid & !((io.in.target(XLEN - 1, 2 + BC_INDEX_W) ^ row.inst(0)(0).pc(XLEN - 1, 2 + BC_INDEX_W)).orR())
+  //val ht = false.B
 
   // As the dummy BC always misses, next PC of PC stage should be target
   // If BC hits, next PC should be target + BC_LINE_SIZE * FETCH_NUM

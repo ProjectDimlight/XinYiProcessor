@@ -52,6 +52,7 @@ class DataPath extends Module {
   // FUs
   val bju           = Module(new BJU)
   val bc            = Module(new BranchCache)
+  val tlb           = Module(new TLB)
 
   // Regs
   val regs          = Module(new Regs)
@@ -79,6 +80,7 @@ class DataPath extends Module {
 
   // IF Stage
   if_stage.io.in      <> pc_if_reg.io.if_in
+  if_stage.io.tlb     <> tlb.io.path(LSU_PATH_NUM)
   if_stage.io.cache   <> icache.io.upper
   if_stage.io.full    <> issue_queue.io.full
   if_stage.io.out     <> if_id_reg.io.if_out
@@ -222,6 +224,7 @@ class DataPath extends Module {
   def CreatePath(path_type: Int, j: Int, base: Int) = {
     if (path_type == 3) {
       var fu = Module(new LSU)
+      fu.io.tlb       <> tlb.io.path(j - base)
       fu.io.cache     <> dcache.io.upper(j - base)
       fu.io.stall_req <> dcache.io.stall_req(j - base)
 
@@ -261,7 +264,16 @@ class DataPath extends Module {
     }
   }
 
+  tlb.io.asid            := cp0.io.entry_hi(7, 0)
+  tlb.io.write.wen       := false.B
+  tlb.io.write.index     := 0.U
+  tlb.io.write.entry_hi  := cp0.io.entry_hi
+  tlb.io.write.entry_lo0 := cp0.io.entry_lo0
+  tlb.io.write.entry_lo1 := cp0.io.entry_lo1
+
   fu_stage.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
+  fu_stage.io.if_tlb_miss         := if_stage.io.tlb_miss
+  fu_stage.io.if_tlb_addr         := if_stage.io.tlb_addr
 
   fu_wb_reg.io.sorted_fu_out        := fu_stage.io.sorted_fu_out
   fu_wb_reg.io.fu_exception_order   := fu_stage.io.fu_exception_order

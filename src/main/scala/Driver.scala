@@ -2,6 +2,7 @@ import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
 import xinyi_s5i4_bc._
 import config.config._
 import experiments._
+import xinyi_s5i4_bc.fu.CP0
 
 object Verilator extends App {
   DIV_IP_CORE = false
@@ -9,36 +10,17 @@ object Verilator extends App {
   Main.Gen()
 }
 
-object Test extends App {
 
-
-  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-  //      some prettified prompt
-  //
-  //    basically it is out of
-  //  ziyue's personal taste.
-  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-  def prompt(module_name: String) = {
-    val XINYI = Console.BOLD + Console.YELLOW + "\n[Test] " + Console.RESET
-    println(XINYI + "generating verilog code for " + Console.CYAN + module_name + Console.RESET)
-  }
-
-
+object CP0 extends App {
   def Gen(): Unit = {
-
-    //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    //    start generating verilog code
-    //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-    val default_args = Array("-X", "verilog", "-td", "verilog/test")
-
+    val default_args = Array("-X", "verilog", "-td", "verilog_modules/test")
     (new ChiselStage).execute(
       default_args,
-      Seq(ChiselGeneratorAnnotation(() => new Test))
+      Seq(ChiselGeneratorAnnotation(() => new CP0))
     )
   }
 
-  prompt("test")
+  Main.prompt("CP0")
   Gen()
 }
 

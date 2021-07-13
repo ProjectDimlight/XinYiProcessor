@@ -156,7 +156,12 @@ val control_signal = ListLookup(io.inst,
            
       ERET       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , ALU_ERET  ,  PathALU   , CP0_EPC_INDEX , IXX , CP0_STATUS_INDEX),
       MFC0       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IRD , IXX , IRT),
-      MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_OR    ,  PathALU   , IRT , IXX , IRD)
+      MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_OR    ,  PathALU   , IRT , IXX , IRD),
+
+      TLBP       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , TLBProbe  ,  PathLSU   , CP0_ENTRY_HI_INDEX , IXX , CP0_INDEX_INDEX),
+      TLBR       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , TLBRead   ,  PathLSU   , CP0_INDEX_INDEX    , IXX , CP0_INDEX_INDEX),
+      TLBWI      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX),
+      TLBWR      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX),
   ))
 
   io.dec.next_pc       := control_signal(0)

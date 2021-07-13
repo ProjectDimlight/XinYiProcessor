@@ -16,9 +16,18 @@ trait LSUConfig {
   val MemHalf       = 2.U(FU_CTRL_W.W)
   val MemHalfU      = 3.U(FU_CTRL_W.W)
   val MemWord       = 4.U(FU_CTRL_W.W)
+
+  val TLBProbe      = 8.U(FU_CTRL_W.W)
+  val TLBRead       = 9.U(FU_CTRL_W.W)
+  val TLBWrite      = 10.U(FU_CTRL_W.W)
 }
 
 class LSUIO extends FUIO {
+  // To TLB
+  val tlb             = Flipped(new TLBLookupInterface)
+  val tlbw            = Output(Bool())
+  val tlbr            = Output(Bool())
+
   // To DCache
   val cache           = Flipped(new DCacheCPU)
   val stall_req       = Input(Bool())
@@ -29,22 +38,35 @@ class LSUIO extends FUIO {
   val flush           = Input(Bool())
 }
 
-class LSU extends Module with LSUConfig {
+class LSU extends Module with LSUConfig with TLBConfig {
   val io = IO(new LSUIO)
 
   io.out.is_delay_slot := io.in.is_delay_slot
 
-  val addr = Wire(UInt(LGC_ADDR_W.W))
-  addr := io.in.imm
+  val lgc_addr = io.in.imm
+  io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W)
 
-  val exception = 
+  val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
+  val addr = Mux(
+    lgc_addr(31, 30) === 2.U,
+    lgc_addr & 0x1FFFFFFF.U,
+    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
+  )
+  val tlb_miss = (lgc_addr(31, 30) =/= 2.U) & io.tlb.miss
+
+  io.tlbw := io.in.fu_ctrl === TLBWrite
+  io.tlbr := io.in.fu_ctrl === TLBRead
+
+  val exception =
     io.in.fu_ctrl(1) & addr(0) | 
-    io.in.fu_ctrl(2) & (addr(1) | addr(0))
+    io.in.fu_ctrl(2) & (addr(1) | addr(0)) |
+    tlb_miss // TLB Miss
+
   val rd_normal = !exception & !io.flush
   val wr_normal = (io.exception_order > io.in.order) & !exception & !io.interrupt & !io.flush
 
-  val wr = (io.in.write_target === DMem)
-  val rd = (io.in.rd =/= 0.U)
+  val wr = io.in.fu_ctrl(3) & (io.in.write_target === DMem)
+  val rd = io.in.fu_ctrl(3) & (io.in.rd =/= 0.U)
 
   val i_byte = io.in.a(7, 0)
   val i_half = io.in.a(15, 0)
@@ -77,7 +99,7 @@ class LSU extends Module with LSUConfig {
     io.cache.dout(15,  0)
   )
 
-  io.out.hi        := addr
+  io.out.hi        := lgc_addr
   io.out.data      := MuxLookupBi(
     io.in.fu_ctrl(2, 1),
     io.cache.dout,
@@ -98,7 +120,9 @@ class LSU extends Module with LSUConfig {
       (io.in.pc(1, 0) =/= 0.U) -> EXC_CODE_ADEL,
       (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
       (rd & exception) -> EXC_CODE_ADEL,
-      (wr & exception) -> EXC_CODE_ADES
+      (wr & exception) -> EXC_CODE_ADES,
+      (rd & item.v) -> EXC_CODE_TLBL,
+      (wr & item.v) -> EXC_CODE_TLBS
     )
   )
   io.out.exception := 

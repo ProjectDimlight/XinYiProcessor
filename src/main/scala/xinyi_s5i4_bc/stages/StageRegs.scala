@@ -319,8 +319,33 @@ class FUWBReg extends Module {
   io.wb_exc_info          := reg_exc_info
 }
 
+class TLBReadReg extends Module {
+  val io = IO(new Bundle{
+    val fu_wen       = Input(Bool())
+    val fu_entry_hi  = Input(UInt(XLEN.W))
+    val fu_entry_lo0 = Input(UInt(XLEN.W))
+    val fu_entry_lo1 = Input(UInt(XLEN.W))
+    val wb_wen       = Output(Bool())
+    val wb_entry_hi  = Output(UInt(XLEN.W))
+    val wb_entry_lo0 = Output(UInt(XLEN.W))
+    val wb_entry_lo1 = Output(UInt(XLEN.W))
+  })
+
+  val reg_wen = RegInit(false.B)
+  val reg_hi  = RegNext(hi)
+  val reg_lo0 = RegNext(lo0)
+  val reg_lo1 = RegNext(lo1)
+
+  reg_wen := fu_wen
+
+  wb_wen := reg_wen
+  wb_hi  := reg_hi
+  wb_lo0 := reg_lo0
+  wb_lo1 := reg_lo1
+}
+
 class InterruptReg extends Module {
-  val io = IO(new Bundle {
+  val io = IO(new Bundle{
     val fu_pc               = Input(UInt(LGC_ADDR_W.W))
     val fu_is_delay_slot    = Input(Bool())
     val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
