@@ -27,6 +27,7 @@ class LSUIO extends FUIO {
   val tlb             = Flipped(new TLBLookupInterface)
   val tlbw            = Output(Bool())
   val tlbr            = Output(Bool())
+  val tlbp            = Output(Bool())
 
   // To DCache
   val cache           = Flipped(new DCacheCPU)
@@ -56,6 +57,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
 
   io.tlbw := io.in.fu_ctrl === TLBWrite
   io.tlbr := io.in.fu_ctrl === TLBRead
+  io.tlbp := io.in.fu_ctrl === TLBProbe
 
   val exception =
     io.in.fu_ctrl(1) & addr(0) | 

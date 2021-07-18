@@ -30,6 +30,7 @@ class DataPath extends Module {
   val is_fu_reg     = Module(new ISFUReg)
   val fu_wb_reg     = Module(new FUWBReg)
   val interrupt_reg = Module(new InterruptReg)
+  val tlb_read_reg  = Module(new TLBReadReg)
 
   val icache = Module(new DummyICache)
   val dcache = Module(new DummyDCache)
@@ -221,12 +222,24 @@ class DataPath extends Module {
     }
   }
 
+  val tlbw_path = Wire(Vec(LSU_PATH_NUM, Bool()))
+  val tlbr_path = Wire(Vec(LSU_PATH_NUM, Bool()))
+  val tlbp_path = Wire(Vec(LSU_PATH_NUM, Bool()))
+  val tlbw = tlbw_path.asUInt().orR()
+  val tlbr = tlbr_path.asUInt().orR()
+  val tlbp = tlbp_path.asUInt().orR()
+  
+
   def CreatePath(path_type: Int, j: Int, base: Int) = {
     if (path_type == 3) {
       var fu = Module(new LSU)
       fu.io.tlb       <> tlb.io.path(j - base)
       fu.io.cache     <> dcache.io.upper(j - base)
       fu.io.stall_req <> dcache.io.stall_req(j - base)
+
+      tlbr_path(j - base) := fu.io.tlbr
+      tlbw_path(j - base) := fu.io.tlbw
+      tlbp_path(j - base) := fu.io.tlbp
 
       fu.io.in := is_fu_reg.io.fu_in(j)
       forwarding(j).write_target := fu.io.out.write_target
@@ -264,17 +277,20 @@ class DataPath extends Module {
     }
   }
 
-  tlb.io.asid            := cp0.io.entry_hi(7, 0)
-  tlb.io.write.wen       := false.B
-  tlb.io.write.index     := 0.U
-  tlb.io.write.entry_hi  := cp0.io.entry_hi
-  tlb.io.write.entry_lo0 := cp0.io.entry_lo0
-  tlb.io.write.entry_lo1 := cp0.io.entry_lo1
+  // FU TLBW
+  tlb.io.asid            := cp0.io.write_tlb.entry_hi(7, 0)
+  tlb.io.wen             := tlbw
+  tlb.io.read .index     := cp0.io.write_tlb.index
+  tlb.io.write.index     := cp0.io.write_tlb.index
+  tlb.io.write.entry_hi  := cp0.io.write_tlb.entry_hi
+  tlb.io.write.entry_lo0 := cp0.io.write_tlb.entry_lo0
+  tlb.io.write.entry_lo1 := cp0.io.write_tlb.entry_lo1
 
   fu_stage.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
   fu_stage.io.if_tlb_miss         := if_stage.io.tlb_miss
   fu_stage.io.if_tlb_addr         := if_stage.io.tlb_addr
 
+  // FU WB Reg
   fu_wb_reg.io.sorted_fu_out        := fu_stage.io.sorted_fu_out
   fu_wb_reg.io.fu_exception_order   := fu_stage.io.fu_exception_order
   fu_wb_reg.io.fu_exception_handled := fu_stage.io.fu_exception_handled
@@ -319,6 +335,20 @@ class DataPath extends Module {
   }
   interrupt_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
   fu_stage.io.incoming_epc             := interrupt_reg.io.wb_epc
+
+  // FU TLBR Reg
+  tlb_read_reg.io.fu_tlbp      := tlbp
+  tlb_read_reg.io.fu_wen       := tlbr
+  tlb_read_reg.io.fu_entry_hi  := tlb.io.read.entry_hi
+  tlb_read_reg.io.fu_entry_lo0 := tlb.io.read.entry_lo0
+  tlb_read_reg.io.fu_entry_lo1 := tlb.io.read.entry_lo1
+
+  cp0.io.read_tlb_en        := tlb_read_reg.io.wb_wen
+  cp0.io.tlb_probe_en       := tlb_read_reg.io.wb_tlbp
+  cp0.io.read_tlb.entry_hi  := tlb_read_reg.io.wb_entry_hi
+  cp0.io.read_tlb.entry_lo0 := tlb_read_reg.io.wb_entry_lo0
+  cp0.io.read_tlb.entry_lo1 := tlb_read_reg.io.wb_entry_lo1
+  
 
   // WB Stage
   wb_stage.io.wb_in := fu_wb_reg.io.wb_in

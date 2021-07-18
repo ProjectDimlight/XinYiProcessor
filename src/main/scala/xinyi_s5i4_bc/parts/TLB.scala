@@ -35,15 +35,15 @@ class TLBLookupInterface extends Bundle with TLBConfig {
   val miss  = Output(Bool())
 }
 
-class TLBRInterface extends Bundle {
-  val index     = Input(UInt(XLEN.W))
+class TLBRInterface extends Bundle with TLBConfig {
+  val index     = Input(UInt(TLB_INDEX_W.W))
   val entry_hi  = Output(UInt(XLEN.W))
   val entry_lo0 = Output(UInt(XLEN.W))
   val entry_lo1 = Output(UInt(XLEN.W))
 }
 
-class TLBWInterface extends Bundle {
-  val index     = Input(UInt(32.W))
+class TLBWInterface extends Bundle with TLBConfig {
+  val index     = Input(UInt(TLB_INDEX_W.W))
   val entry_hi  = Input(UInt(XLEN.W))
   val entry_lo0 = Input(UInt(XLEN.W))
   val entry_lo1 = Input(UInt(XLEN.W))
@@ -53,7 +53,6 @@ class TLBInterface extends Bundle {
   val asid  = Input(UInt(8.W))
   val path  = Vec(LSU_PATH_NUM + 1, new TLBLookupInterface)  // LSU_NUM * D + 1 * I
   val read  = new TLBRInterface
-  val ren   = Input(Bool())
   val write = new TLBWInterface 
   val wen   = Input(Bool())
 }
@@ -76,17 +75,15 @@ class TLB extends Module with TLBConfig {
   }
   
   // read (by index)
-  when (io.ren) {
-    val hit_one_hot = Wire(Vec(TLB_ENTRY_NUM, Bool()))
-    for (i <- 0 until TLB_ENTRY_NUM) {
-      hit_one_hot(i) := i.U === io.path(j).addr
-    }
-    
-    val rd_entry = Mux1H(hit_one_hot, entry)
-    io.read.hi  := Cat(rd_entry.vpn2, 0.U((XLEN - 8 - VPN_W).W), rd_entry.asid)
-    io.read.lo0 := Cat(0.U((XLEN - 6 - PFN_W).W), rd_entry.i0.pfn, rd_entry.i0.c, rd_entry.i0.d, rd_entry.i0.v, rd_entry.g)
-    io.read.lo1 := Cat(0.U((XLEN - 6 - PFN_W).W), rd_entry.i1.pfn, rd_entry.i1.c, rd_entry.i1.d, rd_entry.i1.v, rd_entry.g)
+  val hit_one_hot = Wire(Vec(TLB_ENTRY_NUM, Bool()))
+  for (i <- 0 until TLB_ENTRY_NUM) {
+    hit_one_hot(i) := i.U === io.read.index
   }
+  
+  val rd_entry = Mux1H(hit_one_hot, entry)
+  io.read.entry_hi  := Cat(rd_entry.vpn2, 0.U((XLEN - 8 - VPN_W).W), rd_entry.asid)
+  io.read.entry_lo0 := Cat(0.U((XLEN - 6 - PFN_W).W), rd_entry.i0.pfn, rd_entry.i0.c, rd_entry.i0.d, rd_entry.i0.v, rd_entry.g)
+  io.read.entry_lo1 := Cat(0.U((XLEN - 6 - PFN_W).W), rd_entry.i1.pfn, rd_entry.i1.c, rd_entry.i1.d, rd_entry.i1.v, rd_entry.g)
 
   // write (by index)
   when (io.wen) {

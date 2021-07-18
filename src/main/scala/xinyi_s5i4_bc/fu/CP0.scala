@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import utils._
 import config.config._
+import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.parts.ControlConst._
 import chisel3.experimental.BundleLiterals._
 import EXCCodeConfig._
@@ -14,6 +15,7 @@ trait CP0Config {
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
   val CP0_INDEX_WIDTH: Int = 5
 
+  val CP0_INDEX_INDEX     = 0.U(CP0_INDEX_WIDTH.W)
   val CP0_ENTRY_LO0_INDEX = 2.U(CP0_INDEX_WIDTH.W)
   val CP0_ENTRY_LO1_INDEX = 3.U(CP0_INDEX_WIDTH.W)
   val CP0_BADVADDR_INDEX  = 8.U(CP0_INDEX_WIDTH.W)
@@ -52,6 +54,11 @@ class ExceptionInfo extends Bundle {
   val in_branch_delay_slot = Bool() // exception happened in branch delay slot
 }
 
+class CP0IndexBundle extends Bundle with TLBConfig {
+  val P = Bool()
+  val IGNORE1 = UInt((XLEN - 1- TLB_INDEX_W).W)
+  val Index = UInt(TLB_INDEX_W.W)
+}
 
 class CP0EntryLoBundle extends Bundle {
   val FILL = UInt(2.W)
@@ -69,7 +76,6 @@ class CP0EntryHiBundle extends Bundle {
   val ASIDX = UInt(2.W)
   val ASID  = UInt(8.W)
 }
-
 
 class CP0StatusBundle extends Bundle {
   val CU      = UInt(4.W)
@@ -119,7 +125,7 @@ class CP0ReadInterface extends Bundle {
 }
 
 // CP0 modules
-class CP0 extends Module with CP0Config {
+class CP0 extends Module with CP0Config with TLBConfig {
   val io = IO(new Bundle {
     val read     = Vec(ISSUE_NUM, new CP0ReadInterface)
     val write    = Vec(ISSUE_NUM, new RegWriteInterface)
@@ -131,9 +137,10 @@ class CP0 extends Module with CP0Config {
     val int_mask_vec         = Output(Vec(8, Bool())) // interrupt mask
 
     // TLB support
-    val entry_hi             = Output(UInt(XLEN.W))
-    val entry_lo0            = Output(UInt(XLEN.W))
-    val entry_lo1            = Output(UInt(XLEN.W))
+    val tlb_probe_en = Input(Bool())
+    val read_tlb_en  = Input(Bool())
+    val read_tlb     = Flipped(new TLBRInterface)
+    val write_tlb    = Flipped(new TLBWInterface)
   })
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -143,11 +150,15 @@ class CP0 extends Module with CP0Config {
     val initial_value = WireDefault(0.U.asTypeOf(new CP0EntryLoBundle))
     initial_value
   }
+  
+  def CP0IndexInit: CP0IndexBundle = {
+    val initial_value = WireDefault(0.U.asTypeOf(new CP0IndexBundle))
+    initial_value
+  }
+  val cp0_reg_index = RegInit(CP0IndexInit)
 
   val cp0_reg_entry_lo0 = RegInit(CP0EntryLoInit)
-  io.entry_lo0 := cp0_reg_entry_lo0.asUInt()
   val cp0_reg_entry_lo1 = RegInit(CP0EntryLoInit)
-  io.entry_lo1 := cp0_reg_entry_lo1.asUInt()
 
   val cp0_reg_count = RegInit(0.U(XLEN.W))
 
@@ -157,7 +168,6 @@ class CP0 extends Module with CP0Config {
   }
 
   val cp0_reg_entry_hi = RegInit(CP0EntryHiInit)
-  io.entry_hi := cp0_reg_entry_hi.asUInt()
 
   def CP0CauseInit: CP0CauseBundle = {
     val initial_value = WireDefault(0.U.asTypeOf(new CP0CauseBundle))
@@ -179,7 +189,6 @@ class CP0 extends Module with CP0Config {
     initial_value.IGNORE3 := 0.U(3.W)
     initial_value
   }
-
 
   val cp0_reg_status = RegInit(CP0StatusInit)
 
@@ -240,6 +249,12 @@ class CP0 extends Module with CP0Config {
   for (i <- 0 until ISSUE_NUM) {
     when(io.write(i).we && io.exc_info.exc_code === NO_EXCEPTION) {
       switch(io.write(i).rd) {
+        is(CP0_INDEX_INDEX) {
+          cp0_reg_index.Index := io.write(i).data(TLB_INDEX_W - 1, 0)
+          when (io.tlb_probe_en) {
+            cp0_reg_index.P := io.write(i).data(XLEN - 1)
+          }
+        }
         is(CP0_ENTRY_LO0_INDEX) {
           cp0_reg_entry_lo0.PFN := io.write(i).data(29, 6)
           cp0_reg_entry_lo0.C := io.write(i).data(5, 3)
@@ -349,4 +364,35 @@ class CP0 extends Module with CP0Config {
       cp0_reg_entry_hi.VPN2 := io.exc_info.data // put VA[31:13] into
     }
   }
+
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  // handle tlb read/write
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+  when (io.read_tlb_en) {
+    cp0_reg_entry_hi.VPN2  := io.read_tlb.entry_hi(31, 13)
+    cp0_reg_entry_hi.VPN2X := io.read_tlb.entry_hi(12, 11)
+    cp0_reg_entry_hi.EHINV := io.read_tlb.entry_hi(10)
+    cp0_reg_entry_hi.ASIDX := io.read_tlb.entry_hi( 9,  8)
+    cp0_reg_entry_hi.ASID  := io.read_tlb.entry_hi( 7,  0)
+
+    cp0_reg_entry_lo0.FILL := io.read_tlb.entry_lo0(31, 30)
+    cp0_reg_entry_lo0.PFN  := io.read_tlb.entry_lo0(29, 6)
+    cp0_reg_entry_lo0.C    := io.read_tlb.entry_lo0( 5, 3)
+    cp0_reg_entry_lo0.D    := io.read_tlb.entry_lo0(2)
+    cp0_reg_entry_lo0.V    := io.read_tlb.entry_lo0(1)
+    cp0_reg_entry_lo0.G    := io.read_tlb.entry_lo0(0)
+
+    cp0_reg_entry_lo1.FILL := io.read_tlb.entry_lo1(31, 30)
+    cp0_reg_entry_lo1.PFN  := io.read_tlb.entry_lo1(29, 6)
+    cp0_reg_entry_lo1.C    := io.read_tlb.entry_lo1( 5, 3)
+    cp0_reg_entry_lo1.D    := io.read_tlb.entry_lo1(2)
+    cp0_reg_entry_lo1.V    := io.read_tlb.entry_lo1(1)
+    cp0_reg_entry_lo1.G    := io.read_tlb.entry_lo1(0)
+  }
+  io.read_tlb.index      := cp0_reg_index.asUInt()
+  io.write_tlb.index     := cp0_reg_index.asUInt()
+  io.write_tlb.entry_hi  := cp0_reg_entry_hi.asUInt()
+  io.write_tlb.entry_lo0 := cp0_reg_entry_lo0.asUInt()
+  io.write_tlb.entry_lo1 := cp0_reg_entry_lo1.asUInt()
 }

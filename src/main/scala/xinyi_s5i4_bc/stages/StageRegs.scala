@@ -321,27 +321,32 @@ class FUWBReg extends Module {
 
 class TLBReadReg extends Module {
   val io = IO(new Bundle{
+    val fu_tlbp      = Input(Bool())
     val fu_wen       = Input(Bool())
     val fu_entry_hi  = Input(UInt(XLEN.W))
     val fu_entry_lo0 = Input(UInt(XLEN.W))
     val fu_entry_lo1 = Input(UInt(XLEN.W))
+    val wb_tlbp      = Output(Bool())
     val wb_wen       = Output(Bool())
     val wb_entry_hi  = Output(UInt(XLEN.W))
     val wb_entry_lo0 = Output(UInt(XLEN.W))
     val wb_entry_lo1 = Output(UInt(XLEN.W))
   })
 
-  val reg_wen = RegInit(false.B)
-  val reg_hi  = RegNext(hi)
-  val reg_lo0 = RegNext(lo0)
-  val reg_lo1 = RegNext(lo1)
+  val reg_wen  = RegInit(false.B)
+  val reg_tlbp = RegInit(false.B)
+  val reg_hi   = RegNext(io.fu_entry_hi)
+  val reg_lo0  = RegNext(io.fu_entry_lo0)
+  val reg_lo1  = RegNext(io.fu_entry_lo1)
 
-  reg_wen := fu_wen
+  reg_wen  := io.fu_wen
+  reg_tlbp := io.fu_tlbp
 
-  wb_wen := reg_wen
-  wb_hi  := reg_hi
-  wb_lo0 := reg_lo0
-  wb_lo1 := reg_lo1
+  io.wb_wen       := reg_wen
+  io.wb_tlbp      := reg_tlbp
+  io.wb_entry_hi  := reg_hi
+  io.wb_entry_lo0 := reg_lo0
+  io.wb_entry_lo1 := reg_lo1
 }
 
 class InterruptReg extends Module {
