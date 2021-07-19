@@ -67,8 +67,8 @@ class LSU extends Module with LSUConfig with TLBConfig {
   val rd_normal = !exception & !io.flush
   val wr_normal = (io.exception_order > io.in.order) & !exception & !io.interrupt & !io.flush
 
-  val wr = io.in.fu_ctrl(3) & (io.in.write_target === DMem)
-  val rd = io.in.fu_ctrl(3) & (io.in.rd =/= 0.U)
+  val wr = !io.in.fu_ctrl(3) & (io.in.write_target === DMem)
+  val rd = !io.in.fu_ctrl(3) & (io.in.rd =/= 0.U)
 
   val i_byte = io.in.a(7, 0)
   val i_half = io.in.a(15, 0)

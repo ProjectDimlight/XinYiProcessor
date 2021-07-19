@@ -37,7 +37,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `define CONFREG_UART_DISPLAY soc_lite.u_confreg.write_uart_valid
 `define CONFREG_UART_DATA    soc_lite.u_confreg.write_uart_data
 `define DEBUG 1'b0
-`define BEGIN_PC 32'hbfc00b14
+`define BEGIN_PC 32'hbfc00000
 `define END_PC 32'hbfc00100
 
 typedef struct packed {
@@ -62,7 +62,7 @@ wire [7 :0] switch;
 wire [3 :0] btn_key_col;
 wire [3 :0] btn_key_row;
 wire [1 :0] btn_step;
-assign switch      = 8'hf7;
+assign switch      = 8'hf9;
 assign btn_key_row = 4'd0;
 assign btn_step    = 2'd3;
 
