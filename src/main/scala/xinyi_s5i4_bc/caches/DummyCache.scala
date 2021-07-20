@@ -21,19 +21,10 @@ class ICacheCPU extends Bundle {
   val dout = Output(UInt((XLEN * ISSUE_NUM).W))
 }
 
-class ICacheAXI extends Bundle {
-  val addr_in     = Output(UInt(PHY_ADDR_W.W))
-  val en          = Output(Bool())
-  val addr_out    = Input(UInt(PHY_ADDR_W.W))
-  val data        = Input(UInt(L1_W.W))
-  val stall       = Input(Bool())
-  val valid       = Input(Bool())
-}
-
 class DummyICache extends Module with CacheState {
   val io = IO(new Bundle{
     val upper = new ICacheCPU
-    val lower = new ICacheAXI
+    val lower = new AXIIO
   
     val stall_req = Output(Bool())
   })
@@ -90,7 +81,7 @@ class DCacheAXI extends Bundle {
 class DummyDCache extends Module with CacheState {
   val io = IO(new Bundle{
     val upper = Vec(LSU_PATH_NUM, new DCacheCPU)
-    val lower = Vec(LSU_PATH_NUM, new DCacheAXI)
+    val lower = Vec(LSU_PATH_NUM, new AXIIO)
 
     val last_stall = Input(Bool())
     val stall = Input(Bool())

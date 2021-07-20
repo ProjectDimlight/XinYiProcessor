@@ -17,8 +17,10 @@ class DataPath extends Module {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
     val interrupt   = Input(Vec(6, Bool()))
-    val icache_axi  = new ICacheAXI
-    val dcache_axi  = Vec(LSU_PATH_NUM, new DCacheAXI)
+    //val icache_axi  = new ICacheAXI
+    //val dcache_axi  = Vec(LSU_PATH_NUM, new DCacheAXI)
+    val icache_axi  = new AXIIO
+    val dcache_axi  = Vec(LSU_PATH_NUM, new AXIIO)
 
     val debug_pc    = Output(Vec(ISSUE_NUM, UInt(XLEN.W)))
   })
