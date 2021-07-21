@@ -1,5 +1,6 @@
 package xinyi_s5i4_bc.caches
 
+import xinyi_s5i4_bc._
 import chisel3._
 import chisel3.util._
 import config.config._
@@ -32,28 +33,64 @@ class DummyICache extends Module with CacheState {
   val state_reg = RegInit(s_idle)
   val state     = Wire(UInt(2.W))
   
+  val cnt       = RegInit(0.U(2.W))
+  val data      = RegInit(VecInit(Seq.fill(FETCH_NUM)(0.U(XLEN.W))))
+
   state := MuxLookupBi(
     state_reg,
     s_idle,
     Array(
       s_idle -> Mux(io.upper.rd, 
-        Mux(io.lower.stall, s_pending, s_busy),
+        s_busy,
         s_idle
       ),
-      s_pending -> Mux(io.lower.stall, s_pending, s_busy),
-      s_busy -> Mux(io.lower.valid, s_valid, s_busy),
+      s_busy -> Mux(cnt === 2.U, s_valid, s_busy),
       s_valid -> Mux(io.upper.rd,
-        Mux(io.lower.stall, s_pending, s_busy),
+        s_busy,
         s_idle
       )
     )
   )
   state_reg := state
 
-  io.lower.addr_in  := io.upper.addr
-  io.lower.en       := ((state === s_pending) | (state === s_busy) & (state_reg =/= s_busy))
+  when (state === s_idle) {
+    cnt := 0.U
+  } 
+  .elsewhen (io.lower.rvalid) {
+    data(cnt) := io.lower.rdata 
+    cnt := cnt + 1.U
+  }
+
+  val addr_in  = io.upper.addr
+  val rd       = (state === s_busy)
   
-  io.upper.dout     := io.lower.data
+  io.lower.arid    <> 0.U
+  io.lower.araddr  <> addr_in
+  io.lower.arlen   <> 1.U
+  io.lower.arsize  <> 2.U
+  io.lower.arburst <> 1.U
+  io.lower.arlock  <> 0.U
+  io.lower.arcache <> 0.U
+  io.lower.arprot  <> 0.U
+  io.lower.arvalid <> rd
+  io.lower.rready  <> rd
+  io.lower.awid    <> 0.U
+  io.lower.awaddr  <> 0.U
+  io.lower.awlen   <> 0.U
+  io.lower.awsize  <> 0.U
+  io.lower.awburst <> 1.U
+  io.lower.awlock  <> 0.U
+  io.lower.awcache <> 0.U
+  io.lower.awprot  <> 0.U
+  io.lower.awvalid <> 0.U
+  io.lower.wid     <> 0.U
+  io.lower.wdata   <> 0.U
+  io.lower.wstrb   <> 0.U
+  io.lower.wlast   <> 0.U
+  io.lower.wvalid  <> 0.U
+  io.lower.bready  <> 1.U
+
+  io.upper.dout     := data.asUInt()
   io.stall_req      := (state =/= s_valid) & (state =/= s_idle)
 }
 
@@ -78,6 +115,13 @@ class DCacheAXI extends Bundle {
   val valid       = Input(Bool())
 }
 
+class WriteBufferRecord extends Bundle {
+  val addr = UInt(LGC_ADDR_W.W)
+  val data = UInt(XLEN.W)
+  val size = UInt(2.W)
+  val ctrl = Bool()
+}
+
 class DummyDCache extends Module with CacheState {
   val io = IO(new Bundle{
     val upper = Vec(LSU_PATH_NUM, new DCacheCPU)
@@ -89,21 +133,18 @@ class DummyDCache extends Module with CacheState {
     val stall_req = Output(Vec(LSU_PATH_NUM, Bool()))
   })
 
-  val wr_data_buffer = RegInit(VecInit(Seq.fill(LSU_PATH_NUM)(0.U(LGC_ADDR_W.W))))
-  val wr_addr_buffer = RegInit(VecInit(Seq.fill(LSU_PATH_NUM)(0.U(XLEN.W))))
-  val wr_size_buffer = RegInit(VecInit(Seq.fill(LSU_PATH_NUM)(0.U(2.W))))
-  val wr_ctrl_buffer = RegInit(VecInit(Seq.fill(LSU_PATH_NUM)(false.B)))
+  val wr_buffer = RegInit(VecInit(Seq.fill(LSU_PATH_NUM)(0.U.asTypeOf(new WriteBufferRecord))))
 
   for (j <- 0 until LSU_PATH_NUM) {
 
-    when (io.stall & wr_ctrl_buffer(j) & io.lower(j).valid) {
-      wr_ctrl_buffer(j) := false.B
+    when (io.stall & wr_buffer(j).ctrl & io.lower(j).bvalid) {
+      wr_buffer(j).ctrl := false.B
     }
     .elsewhen (!io.stall) {
-      wr_addr_buffer(j) := io.upper(j).addr
-      wr_data_buffer(j) := io.upper(j).din
-      wr_size_buffer(j) := io.upper(j).size
-      wr_ctrl_buffer(j) := io.upper(j).wr
+      wr_buffer(j).addr := io.upper(j).addr
+      wr_buffer(j).data := io.upper(j).din
+      wr_buffer(j).size := io.upper(j).size
+      wr_buffer(j).ctrl := io.upper(j).wr
     }
 
     val state_reg = RegInit(s_idle)
@@ -112,38 +153,59 @@ class DummyDCache extends Module with CacheState {
       state_reg,
       s_idle,
       Array(
-        s_idle -> Mux(!io.last_stall & (io.upper(j).rd | wr_ctrl_buffer(j)), 
-          Mux(io.lower(j).stall, s_pending, s_busy),
+        s_idle -> Mux(!io.last_stall & (io.upper(j).rd | wr_buffer(j).ctrl), 
+          s_busy,
           s_idle
         ),
-        s_pending -> Mux(io.lower(j).stall, s_pending, s_busy),
-        s_busy -> Mux(io.lower(j).valid, 
-          Mux(io.upper(j).rd & wr_ctrl_buffer(j), s_valid2, s_valid),
+        s_busy -> Mux(io.lower(j).bvalid | io.lower(j).rvalid & io.lower(j).rlast, 
+          Mux(io.upper(j).rd & wr_buffer(j).ctrl, s_busy2, s_valid),
           s_busy
         ),
-        s_valid2 -> Mux(io.lower(j).stall, s_pending2, s_busy2),
-        s_pending2 -> Mux(io.lower(j).stall, s_pending2, s_busy2),
-        s_busy2 -> Mux(io.lower(j).valid, 
-          s_valid,
-          s_busy2
-        ),
-        s_valid -> Mux(!io.last_stall & (io.upper(j).rd | wr_ctrl_buffer(j)),
-          Mux(io.lower(j).stall, s_pending, s_busy),
+        s_busy2 -> Mux(io.lower(j).rvalid & io.lower(j).rlast, s_valid, s_busy2),
+        s_valid -> Mux(!io.last_stall & (io.upper(j).rd | wr_buffer(j).ctrl),
+          s_busy,
           s_idle
         )
       )
     )
     state_reg := state
+  
+    val size     = Mux(wr_buffer(j).ctrl, wr_buffer(j).size, io.upper(j).size)
+    val strb     = MuxLookupBi(size, 15.U, Array(0.U -> 1.U, 1.U -> 3.U))
+    val addr_in  = Mux(wr_buffer(j).ctrl, wr_buffer(j).addr, io.upper(j).addr)
+    val data_in  = Cat(0.U(32.W), wr_buffer(j).data)
+    val rd       = !wr_buffer(j).ctrl & io.upper(j).rd & (state(1, 0) === s_busy)
+    val wr       =  wr_buffer(j).ctrl & (state(1, 0) === s_busy)
 
-    io.lower(j).size     := Mux(wr_ctrl_buffer(j), wr_size_buffer(j), io.upper(j).size)
-    io.lower(j).addr_in  := Mux(wr_ctrl_buffer(j), wr_addr_buffer(j), io.upper(j).addr)
-    io.lower(j).data_in  := Cat(0.U(32.W), wr_data_buffer(j))
-    io.lower(j).rd       := !wr_ctrl_buffer(j) & io.upper(j).rd & ((state(1, 0) === s_pending) | (state(1, 0) === s_busy) & (state_reg =/= state))
-    io.lower(j).wr       :=  wr_ctrl_buffer(j) & ((state(1, 0) === s_pending) | (state(1, 0) === s_busy) & (state_reg =/= state))
+    io.lower(j).arid    <> 0.U
+    io.lower(j).araddr  <> addr_in
+    io.lower(j).arlen   <> 0.U
+    io.lower(j).arsize  <> size
+    io.lower(j).arburst <> 1.U
+    io.lower(j).arlock  <> 0.U
+    io.lower(j).arcache <> 0.U
+    io.lower(j).arprot  <> 0.U
+    io.lower(j).arvalid <> rd
+    io.lower(j).rready  <> rd
+    io.lower(j).awid    <> 0.U
+    io.lower(j).awaddr  <> addr_in
+    io.lower(j).awlen   <> 0.U
+    io.lower(j).awsize  <> size
+    io.lower(j).awburst <> 1.U
+    io.lower(j).awlock  <> 0.U
+    io.lower(j).awcache <> 0.U
+    io.lower(j).awprot  <> 0.U
+    io.lower(j).awvalid <> wr
+    io.lower(j).wid     <> 0.U
+    io.lower(j).wdata   <> data_in
+    io.lower(j).wstrb   <> strb
+    io.lower(j).wlast   <> 1.U
+    io.lower(j).wvalid  <> wr
+    io.lower(j).bready  <> 1.U
 
     val valid = (state === s_valid) & (state_reg =/= s_valid)
     val data_reg = RegInit(0.U(XLEN.W))
-    val data = io.lower(j).data_out(L1_W - 1, L1_W - XLEN)
+    val data = io.lower(j).rdata
     when (valid) {
       data_reg := data
     }

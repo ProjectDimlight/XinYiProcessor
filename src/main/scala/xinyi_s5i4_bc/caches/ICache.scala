@@ -79,7 +79,7 @@ class ICache extends Module with ICacheConfig {
 
 
   // not valid
-  io.cpu_io.valid := state =/= s_idle
+  // io.cpu_io.valid := state =/= s_idle
 
 
 

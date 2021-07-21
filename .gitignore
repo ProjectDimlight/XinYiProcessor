@@ -1,6 +1,9 @@
 ### Project Specific stuff
 verilog/
-!src/main/verilog/
+
+src/main/verilog/*
+!src/main/verilog/AXICrossbar.xci
+
 verilog_modules/mycpu_top
 output/
 test_run_dir/*
@@ -8,7 +11,6 @@ null/
 obj_dir/
 verilog_modules/test
 reference/
-
 
 verilog_modules/IP/*
 !verilog_modules/IP/DIV.xci

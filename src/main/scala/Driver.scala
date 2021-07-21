@@ -2,7 +2,7 @@ import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
 import xinyi_s5i4_bc._
 import config.config._
 import experiments._
-import xinyi_s5i4_bc.fu.CP0
+import xinyi_s5i4_bc.fu._
 import xinyi_s5i4_bc.caches.L0DCache
 
 object Verilator extends App {
