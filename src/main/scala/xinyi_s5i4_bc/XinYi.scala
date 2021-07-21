@@ -67,7 +67,7 @@ class S5I4 extends RawModule with PortConfig {
   debug_wb_rf_wnum  := 0.U
   debug_wb_rf_wdata := 0.U
 
-  def Connect[S <: UInt](out: S, in0: Bits, in1: Bits, in2: Bits, input: Boolean = false) : S = {
+  def Connect[S <: UInt](out: S, in0: Bits, in2: Bits, in1: Bits, input: Boolean = false) : S = {
     val w = in0.getWidth
     if (input) {
       in0 := out(w-1, 0)

@@ -41,19 +41,23 @@ class DummyICache extends Module with CacheState {
     s_idle,
     Array(
       s_idle -> Mux(io.upper.rd, 
-        s_busy,
+        s_pending,
         s_idle
+      ),
+      s_pending -> Mux(io.lower.arready,
+        s_busy,
+        s_pending
       ),
       s_busy -> Mux(cnt === 2.U, s_valid, s_busy),
       s_valid -> Mux(io.upper.rd,
-        s_busy,
+        s_pending,
         s_idle
       )
     )
   )
   state_reg := state
 
-  when (state === s_idle) {
+  when (state === s_pending) {
     cnt := 0.U
   } 
   .elsewhen (io.lower.rvalid) {
@@ -62,7 +66,7 @@ class DummyICache extends Module with CacheState {
   }
 
   val addr_in  = io.upper.addr
-  val rd       = (state === s_busy)
+  val rd       = state(1, 0) === s_pending
   
   io.lower.arid    <> 0.U
   io.lower.araddr  <> addr_in
@@ -73,7 +77,7 @@ class DummyICache extends Module with CacheState {
   io.lower.arcache <> 0.U
   io.lower.arprot  <> 0.U
   io.lower.arvalid <> rd
-  io.lower.rready  <> rd
+  io.lower.rready  <> 1.U
   io.lower.awid    <> 0.U
   io.lower.awaddr  <> 0.U
   io.lower.awlen   <> 0.U
@@ -154,16 +158,24 @@ class DummyDCache extends Module with CacheState {
       s_idle,
       Array(
         s_idle -> Mux(!io.last_stall & (io.upper(j).rd | wr_buffer(j).ctrl), 
-          s_busy,
+          s_pending,
           s_idle
         ),
+        s_pending -> Mux(io.lower(j).arready | io.lower(j).awready,
+          s_busy,
+          s_pending
+        ),
         s_busy -> Mux(io.lower(j).bvalid | io.lower(j).rvalid & io.lower(j).rlast, 
-          Mux(io.upper(j).rd & wr_buffer(j).ctrl, s_busy2, s_valid),
+          Mux(io.upper(j).rd & wr_buffer(j).ctrl, s_pending2, s_valid),
           s_busy
+        ),
+        s_pending2 -> Mux(io.lower(j).arready,
+          s_busy2,
+          s_pending2
         ),
         s_busy2 -> Mux(io.lower(j).rvalid & io.lower(j).rlast, s_valid, s_busy2),
         s_valid -> Mux(!io.last_stall & (io.upper(j).rd | wr_buffer(j).ctrl),
-          s_busy,
+          s_pending,
           s_idle
         )
       )
@@ -174,8 +186,15 @@ class DummyDCache extends Module with CacheState {
     val strb     = MuxLookupBi(size, 15.U, Array(0.U -> 1.U, 1.U -> 3.U))
     val addr_in  = Mux(wr_buffer(j).ctrl, wr_buffer(j).addr, io.upper(j).addr)
     val data_in  = Cat(0.U(32.W), wr_buffer(j).data)
-    val rd       = !wr_buffer(j).ctrl & io.upper(j).rd & (state(1, 0) === s_busy)
-    val wr       =  wr_buffer(j).ctrl & (state(1, 0) === s_busy)
+    
+    val rd  =  (state(1, 0) === s_pending) & !wr_buffer(j).ctrl
+    val wr  =  (state === s_pending) & wr_buffer(j).ctrl
+    val wrd = RegInit(false.B)
+    wrd := Mux(
+      (state === s_pending) & wr_buffer(j).ctrl,
+      true.B,
+      Mux(io.lower(j).wready, false.B, wrd)
+    )
 
     io.lower(j).arid    <> 0.U
     io.lower(j).araddr  <> addr_in
@@ -186,7 +205,7 @@ class DummyDCache extends Module with CacheState {
     io.lower(j).arcache <> 0.U
     io.lower(j).arprot  <> 0.U
     io.lower(j).arvalid <> rd
-    io.lower(j).rready  <> rd
+    io.lower(j).rready  <> 1.U
     io.lower(j).awid    <> 0.U
     io.lower(j).awaddr  <> addr_in
     io.lower(j).awlen   <> 0.U
@@ -200,7 +219,7 @@ class DummyDCache extends Module with CacheState {
     io.lower(j).wdata   <> data_in
     io.lower(j).wstrb   <> strb
     io.lower(j).wlast   <> 1.U
-    io.lower(j).wvalid  <> wr
+    io.lower(j).wvalid  <> wrd
     io.lower(j).bready  <> 1.U
 
     val valid = (state === s_valid) & (state_reg =/= s_valid)
