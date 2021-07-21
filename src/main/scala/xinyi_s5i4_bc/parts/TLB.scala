@@ -5,8 +5,8 @@ import chisel3.util._
 import config.config._
 
 trait TLBConfig {
-  val TLB_ENTRY_NUM = 64
-  val TLB_INDEX_W   = 6
+  val TLB_ENTRY_NUM = 4
+  val TLB_INDEX_W   = 2
   val PAGE_SIZE_W   = 12
   val VPN_W         = LGC_ADDR_W - PAGE_SIZE_W - 1
   val PFN_W         = PHY_ADDR_W - PAGE_SIZE_W

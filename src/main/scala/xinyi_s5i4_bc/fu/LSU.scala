@@ -53,7 +53,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
     lgc_addr & 0x1FFFFFFF.U,
     Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
   )
-  val tlb_miss = (lgc_addr(31, 30) =/= 2.U) & io.tlb.miss
+  val tlb_miss = (lgc_addr(31, 30) =/= 2.U) & (io.tlb.miss | !item.v)
 
   io.tlbw := io.in.fu_ctrl === TLBWrite
   io.tlbr := io.in.fu_ctrl === TLBRead
@@ -61,8 +61,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
 
   val exception =
     io.in.fu_ctrl(1) & addr(0) | 
-    io.in.fu_ctrl(2) & (addr(1) | addr(0)) |
-    tlb_miss // TLB Miss
+    io.in.fu_ctrl(2) & (addr(1) | addr(0))
 
   val rd_normal = !exception & !io.flush
   val wr_normal = (io.exception_order > io.in.order) & !exception & !io.interrupt & !io.flush
@@ -76,6 +75,14 @@ class LSU extends Module with LSUConfig with TLBConfig {
   io.cache.wr   := wr_normal & wr
   io.cache.rd   := rd_normal & rd
   io.cache.size := io.in.fu_ctrl(2, 1)
+  io.cache.strb := MuxLookupBi(
+    io.in.fu_ctrl(2, 1),
+    15.U,
+    Array(
+      0.U -> (1.U << addr(1, 0)),
+      1.U -> (3.U << addr(1, 0))
+    )
+  )
   io.cache.addr := addr
   io.cache.din  := MuxLookupBi(
     io.in.fu_ctrl(2, 1),
@@ -121,10 +128,10 @@ class LSU extends Module with LSUConfig with TLBConfig {
     Array(
       (io.in.pc(1, 0) =/= 0.U) -> EXC_CODE_ADEL,
       (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
+      (rd & tlb_miss) -> EXC_CODE_TLBL,
+      (wr & tlb_miss) -> EXC_CODE_TLBS,
       (rd & exception) -> EXC_CODE_ADEL,
-      (wr & exception) -> EXC_CODE_ADES,
-      (rd & item.v) -> EXC_CODE_TLBL,
-      (wr & item.v) -> EXC_CODE_TLBS
+      (wr & exception) -> EXC_CODE_ADES
     )
   )
   io.out.exception := 

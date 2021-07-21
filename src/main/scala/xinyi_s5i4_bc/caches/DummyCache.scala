@@ -102,6 +102,7 @@ class DCacheCPU extends Bundle {
   val rd   = Input (Bool())
   val wr   = Input (Bool())
   val size = Input (UInt(2.W))
+  val strb = Input (UInt(4.W))
   val addr = Input (UInt(PHY_ADDR_W.W))
   val din  = Input (UInt(XLEN.W))
   val dout = Output(UInt(XLEN.W))
@@ -137,27 +138,15 @@ class DummyDCache extends Module with CacheState {
     val stall_req = Output(Vec(LSU_PATH_NUM, Bool()))
   })
 
-  val wr_buffer = RegInit(VecInit(Seq.fill(LSU_PATH_NUM)(0.U.asTypeOf(new WriteBufferRecord))))
-
   for (j <- 0 until LSU_PATH_NUM) {
-
-    when (io.stall & wr_buffer(j).ctrl & io.lower(j).bvalid) {
-      wr_buffer(j).ctrl := false.B
-    }
-    .elsewhen (!io.stall) {
-      wr_buffer(j).addr := io.upper(j).addr
-      wr_buffer(j).data := io.upper(j).din
-      wr_buffer(j).size := io.upper(j).size
-      wr_buffer(j).ctrl := io.upper(j).wr
-    }
-
     val state_reg = RegInit(s_idle)
     val state     = Wire(UInt(3.W))
+
     state := MuxLookupBi(
       state_reg,
       s_idle,
       Array(
-        s_idle -> Mux(!io.last_stall & (io.upper(j).rd | wr_buffer(j).ctrl), 
+        s_idle -> Mux(!io.last_stall & (io.upper(j).rd | io.upper(j).wr), 
           s_pending,
           s_idle
         ),
@@ -166,15 +155,10 @@ class DummyDCache extends Module with CacheState {
           s_pending
         ),
         s_busy -> Mux(io.lower(j).bvalid | io.lower(j).rvalid & io.lower(j).rlast, 
-          Mux(io.upper(j).rd & wr_buffer(j).ctrl, s_pending2, s_valid),
+          s_valid,
           s_busy
         ),
-        s_pending2 -> Mux(io.lower(j).arready,
-          s_busy2,
-          s_pending2
-        ),
-        s_busy2 -> Mux(io.lower(j).rvalid & io.lower(j).rlast, s_valid, s_busy2),
-        s_valid -> Mux(!io.last_stall & (io.upper(j).rd | wr_buffer(j).ctrl),
+        s_valid -> Mux(!io.last_stall & (io.upper(j).rd | io.upper(j).wr),
           s_pending,
           s_idle
         )
@@ -182,19 +166,16 @@ class DummyDCache extends Module with CacheState {
     )
     state_reg := state
   
-    val size     = Mux(wr_buffer(j).ctrl, wr_buffer(j).size, io.upper(j).size)
-    val strb     = MuxLookupBi(size, 15.U, Array(0.U -> 1.U, 1.U -> 3.U))
-    val addr_in  = Mux(wr_buffer(j).ctrl, wr_buffer(j).addr, io.upper(j).addr)
-    val data_in  = Cat(0.U(32.W), wr_buffer(j).data)
+    val size     = io.upper(j).size
+    //val strb     = MuxLookupBi(size, 15.U, Array(0.U -> 1.U, 1.U -> 3.U))
+    val strb     = io.upper(j).strb
+    val addr_in  = io.upper(j).addr
+    val data_in  = io.upper(j).din
     
-    val rd  =  (state(1, 0) === s_pending) & !wr_buffer(j).ctrl
-    val wr  =  (state === s_pending) & wr_buffer(j).ctrl
+    val rd  =  (state === s_pending) & io.upper(j).rd
+    val wr  =  (state === s_pending) & io.upper(j).wr
     val wrd = RegInit(false.B)
-    wrd := Mux(
-      (state === s_pending) & wr_buffer(j).ctrl,
-      true.B,
-      Mux(io.lower(j).wready, false.B, wrd)
-    )
+    wrd := Mux(wr, true.B, Mux(io.lower(j).wready, false.B, wrd))
 
     io.lower(j).arid    <> 0.U
     io.lower(j).araddr  <> addr_in
