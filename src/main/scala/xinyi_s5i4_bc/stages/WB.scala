@@ -68,7 +68,7 @@ class WBStage extends Module {
     io.write_channel_vec(order).write_regs_rd := fu_tmp_res.rd
     io.write_channel_vec(order).write_cp0_data := fu_tmp_res.data
     io.write_channel_vec(order).write_cp0_rd := fu_tmp_res.rd
-    io.write_channel_vec(order).write_hi_data := fu_tmp_res.hi
+    io.write_channel_vec(order).write_hi_data := Mux(fu_tmp_res.write_target === DHi, fu_tmp_res.data, fu_tmp_res.hi)
     io.write_channel_vec(order).write_lo_data := fu_tmp_res.data
   }
 
