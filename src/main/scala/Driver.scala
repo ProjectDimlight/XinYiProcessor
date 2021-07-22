@@ -6,9 +6,23 @@ import xinyi_s5i4_bc.fu._
 import xinyi_s5i4_bc.caches.L0DCache
 
 object Verilator extends App {
+  def Gen(): Unit = {
+
+    //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    //    start generating verilog code
+    //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+    val default_args = Array("-X", "verilog", "-td", "verilog_modules/mycpu_top")
+
+    (new ChiselStage).execute(
+      default_args,
+      Seq(ChiselGeneratorAnnotation(() => new SimTop))
+    )
+  }
+
   DIV_IP_CORE = false
   Main.prompt("mycpu_top (for verilator test)")
-  Main.Gen()
+  Gen()
 }
 
 

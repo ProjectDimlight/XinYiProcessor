@@ -16,6 +16,11 @@ verilog_modules/IP/*
 !verilog_modules/IP/DIV.xci
 !verilog_modules/IP/DIVU.xci
 
+.bloop
+.metals
+func_test_v0.01
+system_test_v0.01
+
 ### XilinxISE template
 # intermediate build files
 *.bgn
