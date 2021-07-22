@@ -1,9 +1,8 @@
 import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
 import xinyi_s5i4_bc._
 import config.config._
-import experiments._
 import xinyi_s5i4_bc.fu._
-import xinyi_s5i4_bc.caches.L0DCache
+import xinyi_s5i4_bc.caches.ICache
 
 object Verilator extends App {
   DIV_IP_CORE = false
@@ -12,18 +11,6 @@ object Verilator extends App {
 }
 
 
-object CP0 extends App {
-  def Gen(): Unit = {
-    val default_args = Array("-X", "verilog", "-td", "verilog_modules/test")
-    (new ChiselStage).execute(
-      default_args,
-      Seq(ChiselGeneratorAnnotation(() => new CP0))
-    )
-  }
-
-  Main.prompt("CP0")
-  Gen()
-}
 
 object Main extends App {
 
@@ -60,15 +47,15 @@ object Main extends App {
 
 
 
-object GEN_L0DCache extends App {
+object ICache extends App {
   def Gen(): Unit = {
     val default_args = Array("-X", "verilog", "-td", "verilog_modules/test")
     (new ChiselStage).execute(
       default_args,
-      Seq(ChiselGeneratorAnnotation(() => new L0DCache))
+      Seq(ChiselGeneratorAnnotation(() => new ICache))
     )
   }
 
-  Main.prompt("L0DCache")
+  Main.prompt("ICache")
   Gen()
 }
