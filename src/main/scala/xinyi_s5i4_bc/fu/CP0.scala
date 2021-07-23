@@ -212,7 +212,7 @@ class CP0 extends Module with CP0Config with TLBConfig {
   io.soft_int_pending_vec(1) := cp0_reg_cause.IP(1)
   io.soft_int_pending_vec(0) := cp0_reg_cause.IP(0)
 
-  io.int_mask_vec := Reverse(cp0_reg_status.IM).asBools
+  io.int_mask_vec := cp0_reg_status.IM.asBools
 
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

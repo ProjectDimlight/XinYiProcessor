@@ -490,7 +490,7 @@ class FUStage extends Module with CP0Config {
   when (io.incoming_interrupt.asUInt().orR) {
     io.exc_info.pc := exception_pc
     io.exc_info.exc_code := EXC_CODE_INT
-    io.exc_info.data := Cat(Seq(0.U(16.W), Reverse(io.incoming_interrupt.asUInt), 0.U(8.W)))
+    io.exc_info.data := Cat(Seq(0.U(16.W), io.incoming_interrupt.asUInt, 0.U(8.W)))
     io.exc_info.in_branch_delay_slot := 0.U
     
     io.fu_exception_order := 0.U
