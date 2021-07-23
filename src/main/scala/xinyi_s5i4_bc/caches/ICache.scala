@@ -71,17 +71,17 @@ class ICache extends Module with ICacheConfig {
   val replace     = Wire(Vec(SET_ASSOCIATIVE, Bool())) // indicate replace
   val replace_vec = Wire(Vec(GROUP_NUM, UInt(SET_ASSOCIATIVE.W)))
 
+  // BRAM and LUTRAM write-enable
+  val ram_we = Wire(Vec(SET_ASSOCIATIVE, Bool())) // replace and fetch the replaced data from AXI
 
   // write-read addr
   val wr_addr = RegInit(0.U(INDEX_WIDTH.W))
   val rd_addr = RegInit(0.U(INDEX_WIDTH.W))
 
   // write-read data
-  val wr_block     = Wire(UInt(BLOCK_WIDTH.W)) // single write data
   val rd_block_vec = Wire(Vec(SET_ASSOCIATIVE, UInt(BLOCK_WIDTH.W))) // read data blocks
   val rd_block     = Wire(UInt(BLOCK_WIDTH.W)) // single read block
 
-  val tag_valid_wr_data = Wire(Vec(SET_ASSOCIATIVE, new ICacheTagValid))
   val tag_valid_rd_data = Wire(Vec(SET_ASSOCIATIVE, new ICacheTagValid))
 
   // TODO to combinational logic
@@ -103,13 +103,46 @@ class ICache extends Module with ICacheConfig {
   val hit_access = Wire(UInt(log2Ceil(SET_ASSOCIATIVE).W))
   hit_access := hit_vec.indexWhere((x: Bool) => x === true.B)
 
+
+  //>>>>>>>>>>>>>>>
+  //  INNER LOGIC
+  //<<<<<<<<<<<<<<<
+
+  // ICache FSM state
+  val s_idle :: s_axi_pending :: s_axi_wait :: Nil = Enum(3)
+
+  val state = RegInit(s_idle)
+
+
+  // select replace from selection vector
+  replace := replace_vec(io.cpu_io.addr.index).asBools()
+  for (i <- 0 until SET_ASSOCIATIVE) {
+    ram_we(i) := replace(i) && state === s_axi_wait && io.axi_io.rvalid && io.axi_io.rlast
+  }
+
+
+  // burst_count: calculate how many bytes has been burst from the AXI
+  val burst_count = RegInit(0.U(OFFSET_WIDTH.W))
+
+  // buffer for received data from AXI
+  val receive_buffer = RegInit(VecInit(Seq.fill(BLOCK_INST_NUM)(0.U(XLEN.W))))
+
+
+  // not valid
+  io.cpu_io.stall_req := state =/= s_idle
+
+
+  //>>>>>>>>>>>>
+  //  RAM DATA
+  //<<<<<<<<<<<<
+
   // PLRU records
   for (i <- 0 until GROUP_NUM) {
     val plru_record = CreatePLRU(i.asUInt())
   }
 
-  // select replace from selection vector
-  replace := replace_vec(io.cpu_io.addr.index).asBools()
+
+
 
   // data and tag-valid brams
   for (i <- 0 until SET_ASSOCIATIVE) {
@@ -129,40 +162,21 @@ class ICache extends Module with ICacheConfig {
                         Cat((rd_block >> (inst_offset_index << 2)) (31, 0), 0.U(XLEN.W)), // read single instruction
                         (rd_block >> (inst_offset_index(2, 1) << 3)) (63, 0)) // read two instructions
 
-  //>>>>>>>>>>>>>
-  //  ICache FSM
-  //<<<<<<<<<<<<<
-
-  // ICache FSM state
-  val s_idle :: s_axi_pending :: s_axi_wait :: Nil = Enum(3)
-
-  val state = RegInit(s_idle)
-
-
-
-
-  //>>>>>>>>>>>>>>>
-  //  INNER LOGIC
-  //<<<<<<<<<<<<<<<
-
-  // burst_count: calculate how many bytes has been burst from the AXI
-  val burst_count = RegInit(0.U(OFFSET_WIDTH.W))
-
-
-  // not valid
-  io.cpu_io.stall_req := state =/= s_idle
 
 
 
   //>>>>>>>>>>>>>>>>>
   // STATE TRANSFER
   //<<<<<<<<<<<<<<<<<
+
+  // when FSM is idle
   when(state === s_idle) {
     when(io.cpu_io.rd && miss) { // read request and cache miss
       state := s_axi_pending // wait for the AXI ready
     }
   }
 
+  // when FSM is pending, waiting for AXI ready
   when(state === s_axi_pending) {
     when(io.axi_io.arready) {
       state := s_axi_wait
@@ -171,12 +185,20 @@ class ICache extends Module with ICacheConfig {
     }
   }
 
+  // AXI working, wait
   when(state === s_axi_wait) {
-    when(io.axi_io.rvalid && io.axi_io.rlast) {
-      // no further data transfer, back to IDLE
-      state := s_refill
+
+    // still receiving
+    when(io.axi_io.rvalid) {
+      receive_buffer(burst_count) := io.axi_io.rdata
 
       burst_count := burst_count + 1.U // increment burst count by 1
+
+      // the last received data
+      when(io.axi_io.rlast) {
+        // no further data transfer, back to IDLE
+        state := s_idle
+      }
     }
   }
 
@@ -188,15 +210,37 @@ class ICache extends Module with ICacheConfig {
 
 
   // calculated
-  // TODO io.axi_io.arlen := (LINE_WIDTH / 32 - 1).U
+  io.axi_io.arlen := (BLOCK_INST_NUM - 1).U
   io.axi_io.arsize := 4.U // 4 bytes per burst
   io.axi_io.arburst := 1.U // INCR mode
-
+  io.axi_io.rready := state === s_axi_wait
+  io.axi_io.araddr := Cat(io.cpu_io.addr.tag, io.cpu_io.addr.index, 0.U(OFFSET_WIDTH.W))
 
   // zeros
   io.axi_io.arid := 0.U
+  io.axi_io.arprot := 0.U
+  io.axi_io.arcache := 0.U
+  io.axi_io.arlock := 0.U
+
   io.axi_io.awid := 0.U
+  io.axi_io.awlen := 0.U
+  io.axi_io.awaddr := 0.U
+  io.axi_io.awlock := 0.U
+  io.axi_io.awvalid := 0.U
+  io.axi_io.awsize := 0.U
+  io.axi_io.awcache := 0.U
+  io.axi_io.awburst := 0.U
+  io.axi_io.awprot := 0.U
+
   io.axi_io.wid := 0.U
+  io.axi_io.wvalid := 0.U
+  io.axi_io.wstrb := 0.U
+  io.axi_io.wlast := 0.U
+  io.axi_io.wdata := 0.U
+
+  io.axi_io.bready := 0.U
+
+
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   //  FUNCTIONAL CREATING MODULES
@@ -222,9 +266,9 @@ class ICache extends Module with ICacheConfig {
     data_bram.io.rst := reset
 
     // port 1: write
-    data_bram.io.wea := replace(i)
+    data_bram.io.wea := ram_we(i)
     data_bram.io.addra := wr_addr
-    data_bram.io.dina := wr_block
+    data_bram.io.dina := receive_buffer.asUInt()
 
     // port 2: read
     data_bram.io.web := false.B
@@ -243,9 +287,9 @@ class ICache extends Module with ICacheConfig {
     tag_valid_bram.io.rst := reset
 
     // port 1: write
-    tag_valid_bram.io.wea := replace(i)
+    tag_valid_bram.io.wea := ram_we(i)
     tag_valid_bram.io.addra := wr_addr
-    tag_valid_bram.io.dina := tag_valid_wr_data(i).asUInt()
+    tag_valid_bram.io.dina := Cat(io.cpu_io.addr.tag, true.B)
 
     // port 2: read
     tag_valid_bram.io.addrb := rd_addr
@@ -253,5 +297,4 @@ class ICache extends Module with ICacheConfig {
 
     tag_valid_bram
   }
-
 }
