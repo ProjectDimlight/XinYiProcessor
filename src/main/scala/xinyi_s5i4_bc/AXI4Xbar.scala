@@ -91,26 +91,23 @@ class CrossbarNto1(n: Int) extends Module {
     val out = new AXI4Bundle
   })
 
-  val s_idle :: s_readResp :: s_writeResp :: Nil = Enum(3)
+  val s_idle :: s_readReq :: s_readResp :: s_write_Req :: s_writeResp :: Nil =
+    Enum(5)
   val r_state = RegInit(s_idle)
-  val inputArb_r = Module(new Arbiter(new AXI4BundleAR, n))
-  (inputArb_r.io.in zip io.in.map(_.ar)).map { case (arb, in) => arb <> in }
-  val thisReq_r = inputArb_r.io.out
-  val inflightSrc_r = Reg(UInt(log2Ceil(n).W))
+  val read_arbiter = Module(new Arbiter(new AXI4BundleAR, n))
+  (read_arbiter.io.in zip io.in.map(_.ar)).map { case (arb, in) => arb <> in }
+  val inflight_read_index = Reg(UInt(log2Ceil(n).W))
+  val inflight_request = Reg(chiselTypeOf(read_arbiter.io.out.bits))
 
-  io.out.ar.bits := Mux(
-    r_state === s_idle,
-    thisReq_r.bits,
-    io.in(inflightSrc_r).ar.bits
-  )
+  io.out.ar.bits := inflight_request
   // bind correct valid and ready signals
-  io.out.ar.valid := thisReq_r.valid && (r_state === s_idle)
+  io.out.ar.valid := r_state === s_readReq
   io.in.map(_.ar.ready := false.B)
-  thisReq_r.ready := io.out.ar.ready && (r_state === s_idle)
+  read_arbiter.io.out.ready := (r_state === s_idle)
 
   io.in.map(_.r.bits := io.out.r.bits)
   io.in.map(_.r.valid := false.B)
-  (io.in(inflightSrc_r).r, io.out.r) match {
+  (io.in(inflight_read_index).r, io.out.r) match {
     case (l, r) => {
       l.valid := r.valid
       r.ready := l.ready
@@ -119,10 +116,16 @@ class CrossbarNto1(n: Int) extends Module {
 
   switch(r_state) {
     is(s_idle) {
-      when(thisReq_r.fire()) {
-        inflightSrc_r := inputArb_r.io.chosen
-        io.in(inputArb_r.io.chosen).ar.ready := true.B
-        when(thisReq_r.valid) { r_state := s_readResp }
+      when(read_arbiter.io.out.valid) {
+        inflight_read_index := read_arbiter.io.chosen
+        inflight_request := read_arbiter.io.out.bits
+        r_state := s_readReq
+      }
+    }
+    is(s_readReq) {
+      when(io.out.ar.fire()) {
+        io.in(inflight_read_index).ar.ready := true.B
+        r_state := s_readResp
       }
     }
     is(s_readResp) {
@@ -131,29 +134,29 @@ class CrossbarNto1(n: Int) extends Module {
   }
 
   val w_state = RegInit(s_idle)
-  val inputArb_w = Module(new Arbiter(new AXI4BundleAW, n))
-  (inputArb_w.io.in zip io.in.map(_.aw)).map { case (arb, in) => arb <> in }
-  val thisReq_w = inputArb_w.io.out
-  val inflightSrc_w = Reg(UInt(log2Ceil(n).W))
+  val write_arbiter = Module(new Arbiter(new AXI4BundleAW, n))
+  (write_arbiter.io.in zip io.in.map(_.aw)).map { case (arb, in) => arb <> in }
+  val thisReq_w = write_arbiter.io.out
+  val inflight_write_index = Reg(UInt(log2Ceil(n).W))
 
   io.out.aw.bits := Mux(
     w_state === s_idle,
     thisReq_w.bits,
-    io.in(inflightSrc_w).aw.bits
+    io.in(inflight_write_index).aw.bits
   )
   // bind correct valid and ready signals
   io.out.aw.valid := thisReq_w.valid && (w_state === s_idle)
   io.in.map(_.aw.ready := false.B)
   thisReq_w.ready := io.out.aw.ready && (w_state === s_idle)
 
-  io.out.w.valid := io.in(inflightSrc_w).w.valid
-  io.out.w.bits := io.in(inflightSrc_w).w.bits
+  io.out.w.valid := io.in(inflight_write_index).w.valid
+  io.out.w.bits := io.in(inflight_write_index).w.bits
   io.in.map(_.w.ready := false.B)
-  io.in(inflightSrc_w).w.ready := io.out.w.ready
+  io.in(inflight_write_index).w.ready := io.out.w.ready
 
   io.in.map(_.b.bits := io.out.b.bits)
   io.in.map(_.b.valid := false.B)
-  (io.in(inflightSrc_w).b, io.out.b) match {
+  (io.in(inflight_write_index).b, io.out.b) match {
     case (l, r) => {
       l.valid := r.valid
       r.ready := l.ready
@@ -163,9 +166,10 @@ class CrossbarNto1(n: Int) extends Module {
   switch(w_state) {
     is(s_idle) {
       when(thisReq_w.fire()) {
-        inflightSrc_w := inputArb_w.io.chosen
-        io.in(inputArb_w.io.chosen).aw.ready := true.B
-        when(thisReq_w.valid) { w_state := s_writeResp }
+        inflight_write_index := write_arbiter.io.chosen
+        w_state := s_writeResp
+        // io.in(write_arbiter.io.chosen).aw.ready := true.B
+        // when(thisReq_w.valid) { w_state := s_writeResp }
       }
     }
     is(s_writeResp) {
@@ -173,12 +177,23 @@ class CrossbarNto1(n: Int) extends Module {
     }
   }
 
-  // printf(p"[${GTimer()}]: XbarNto1 Debug Start-----------\n")
+  io.in.map(_.b.bits := io.out.b.bits)
+  io.in.map(_.b.valid := false.B)
+  (io.in(inflight_write_index).b, io.out.b) match {
+    case (l, r) => {
+      l.valid := r.valid
+      r.ready := l.ready
+    }
+  }
+
+  // printf("-----------XbarNto1 Debug Start-----------\n")
   // printf(
-  //   p"r_state=${r_state},inflightSrc_r=${inflightSrc_r},w_state=${w_state},inflightSrc_w=${inflightSrc_w}\n"
+  //   p"r_state=${r_state},inflight_read_index=${inflight_read_index},read_arbiter.io.chosen=${read_arbiter.io.chosen}\n"
   // )
-  // printf(p"inputArb_r.io.chosen=${inputArb_r.io.chosen}, inputArb_w.io.chosen=${inputArb_w.io.chosen}\n")
-  // printf(p"thisReq_r=${thisReq_r}, thisReq_w=${thisReq_w}\n")
+  // printf(
+  //   p"w_state=${w_state},inflight_write_index=${inflight_write_index}, write_arbiter.io.chosen=${write_arbiter.io.chosen}\n"
+  // )
+  // printf(p"thisReq_w=${thisReq_w}\n")
   // for (i <- 0 until n) {
   //   printf(p"io.in(${i}): \n${io.in(i)}\n")
   // }

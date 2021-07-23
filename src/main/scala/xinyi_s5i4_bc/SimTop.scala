@@ -25,7 +25,7 @@ class SimTop extends RawModule with PortConfig {
   val arready      = IO(Input(Bool()))
   //r
   val rid          = IO(Input(UInt(AXI_R_ID_WIDTH.W)))
-  val rdata        = IO(Input(UInt(L1_W.W)))
+  val rdata        = IO(Input(UInt(L2_W.W)))
   val rresp        = IO(Input(UInt(2.W)))
   val rlast        = IO(Input(Bool()))
   val rvalid       = IO(Input(Bool()))
@@ -43,8 +43,8 @@ class SimTop extends RawModule with PortConfig {
   val awready      = IO(Input(Bool()))
   //w
   val wid          = IO(Output(UInt(AXI_W_ID_WIDTH.W)))
-  val wdata        = IO(Output(UInt(L1_W.W)))
-  val wstrb        = IO(Output(UInt((L1_W/8).W)))
+  val wdata        = IO(Output(UInt(L2_W.W)))
+  val wstrb        = IO(Output(UInt((L2_W/8).W)))
   val wlast        = IO(Output(Bool()))
   val wvalid       = IO(Output(Bool()))
   val wready       = IO(Input(Bool()))

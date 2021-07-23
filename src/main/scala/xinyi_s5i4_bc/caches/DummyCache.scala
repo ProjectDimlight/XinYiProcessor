@@ -61,7 +61,7 @@ class DummyICache extends Module with CacheState {
     cnt := 0.U
   } 
   .elsewhen (io.lower.rvalid) {
-    data(cnt) := io.lower.rdata 
+    data(cnt) := RegNext(io.lower.rdata)
     cnt := cnt + 1.U
   }
 
