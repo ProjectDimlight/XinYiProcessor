@@ -153,7 +153,7 @@ class IssueQueue extends Module {
 
 class ISBJUReg extends Module with ALUConfig with BJUConfig {
   val io = IO(new Bundle{
-    val is_path               = Input(new ISOut)
+    val is_path               = Input(new FUIn)
     val is_branch_next_pc     = Input(UInt(NEXT_PC_W.W))
     val is_delay_slot_pending = Input(Bool())
     val stall                 = Input(Bool())
@@ -166,7 +166,7 @@ class ISBJUReg extends Module with ALUConfig with BJUConfig {
     val fu_delay_slot_pending = Output(Bool())
   })
 
-  val init  = Wire(new ISOut)
+  val init  = Wire(new FUIn)
   init.write_target := DXXX
   init.rd := 0.U
   init.fu_ctrl := ALU_ADD
@@ -175,6 +175,7 @@ class ISBJUReg extends Module with ALUConfig with BJUConfig {
   init.a := 0.U
   init.b := 0.U
   init.imm := 0.U
+  init.ov := false.B
   init.is_delay_slot := false.B
 
   val reg_path                = RegInit(init)
@@ -229,7 +230,7 @@ class ISBJUReg extends Module with ALUConfig with BJUConfig {
 
 class ISFUReg extends Module with ALUConfig {
   val io = IO(new Bundle {
-    val is_out              = Flipped(Vec(TOT_PATH_NUM, new ISOut))
+    val is_out              = Input(Vec(TOT_PATH_NUM, new FUIn))
     val is_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
     val stall               = Input(Bool())
     val flush               = Input(Bool())
@@ -239,7 +240,7 @@ class ISFUReg extends Module with ALUConfig {
     val stalled             = Output(Bool())
   })
 
-  val init = Wire(Vec(TOT_PATH_NUM, new ISOut))
+  val init = Wire(Vec(TOT_PATH_NUM, new FUIn))
   for (i <- 0 until TOT_PATH_NUM) {
     init(i).write_target := DXXX
     init(i).rd := 0.U
@@ -249,6 +250,7 @@ class ISFUReg extends Module with ALUConfig {
     init(i).a := 0.U
     init(i).b := 0.U
     init(i).imm := 0.U
+    init(i).ov := false.B
     init(i).is_delay_slot := false.B
   }
 

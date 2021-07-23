@@ -13,7 +13,7 @@ import xinyi_s5i4_bc.fu._
 import ControlConst._
 import EXCCodeConfig._
 
-class DataPath extends Module {
+class DataPath extends Module with ALUConfig {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
     val interrupt   = Input(Vec(6, Bool()))
@@ -148,19 +148,33 @@ class DataPath extends Module {
 
     when (is_stage.io.forwarding_path_id(i).rs1 =/= TOT_PATH_NUM.U) {
       val j = is_stage.io.forwarding_path_id(i).rs1
-      val path = is_fu_reg.io.is_out(j)
-      inst_params(i)(0) := Mux(inst.dec.param_a === AHi, forwarding(j).hi, forwarding(j).data)
+      val fwd = MuxLookupBi(j(1, 0),
+        forwarding(0),
+        Array(
+          1.U -> forwarding(1),
+          2.U -> forwarding(2),
+          3.U -> forwarding(3)
+        )
+      )
+      inst_params(i)(0) := Mux(inst.dec.param_a === AHi, fwd.hi, fwd.data)
     }
 
     when (is_stage.io.forwarding_path_id(i).rs2 =/= TOT_PATH_NUM.U) {
       val j = is_stage.io.forwarding_path_id(i).rs2
-      val path = is_fu_reg.io.is_out(j)
-      inst_params(i)(1) := forwarding(j).data
+      val fwd = MuxLookupBi(j(1, 0),
+        forwarding(0),
+        Array(
+          1.U -> forwarding(1),
+          2.U -> forwarding(2),
+          3.U -> forwarding(3)
+        )
+      )
+      inst_params(i)(1) := fwd.data
     }
   }
 
   // IS-FU regs
-  val is_out = Wire(Vec(TOT_PATH_NUM, new ISOut))
+  val is_out = Wire(Vec(TOT_PATH_NUM, new FUIn))
   for (j <- 0 until TOT_PATH_NUM) {
     is_out(j).write_target  := is_stage.io.path(j).write_target
     is_out(j).rd            := is_stage.io.path(j).rd
@@ -173,6 +187,12 @@ class DataPath extends Module {
       is_out(j).imm         := issue_queue.io.inst(is_stage.io.path(j).order).imm + is_out(j).b
     else
       is_out(j).imm         := issue_queue.io.inst(is_stage.io.path(j).order).imm
+      // Precalculate add or sub
+    is_out(j).ov          := Mux(
+      is_out(j).fu_ctrl(1),
+      (is_out(j).a + is_out(j).b)(XLEN - 1),
+      (is_out(j).a - is_out(j).b)(XLEN - 1)
+    )
     is_out(j).is_delay_slot := is_stage.io.is_delay_slot(is_stage.io.path(j).order)
   }
   is_fu_reg.io.is_out                 := is_out
@@ -209,20 +229,7 @@ class DataPath extends Module {
   dcache.io.last_stall <> is_fu_reg.io.stalled
   dcache.io.stall <> stall_backend
 
-  val exception_by_path = Wire(Vec(ISSUE_NUM, Vec(TOT_PATH_NUM, Bool())))
-  val exception_by_order = Wire(Vec(ISSUE_NUM, Bool()))
-  for (i <- 0 until ISSUE_NUM) {
-    exception_by_path(i) := 0.U.asTypeOf(Vec(TOT_PATH_NUM, Bool()))
-    exception_by_order(i) := exception_by_path(i).asUInt().orR()
-  }
-  
-  val min_exception_order = Wire(UInt(ISSUE_NUM_W.W))
-  min_exception_order := ISSUE_NUM.U
-  for (i <- ISSUE_NUM - 1 to 0 by -1) {
-    when (exception_by_order(i)) {
-      min_exception_order := i.U
-    }
-  }
+  val exception_by_path = Wire(Vec(TOT_PATH_NUM, Bool()))
 
   val tlbw_path = Wire(Vec(LSU_PATH_NUM, Bool()))
   val tlbr_path = Wire(Vec(LSU_PATH_NUM, Bool()))
@@ -251,12 +258,17 @@ class DataPath extends Module {
       forwarding(j).ready        := fu.io.out.ready
       forwarding(j).order        := fu.io.out.order
 
-      fu.io.exception_order := min_exception_order
+      if (j - base == 0) {
+        fu.io.exception_in       := (fu.io.in.order =/= 0.U) & exception_by_path(0) 
+      }
+      else {
+        fu.io.exception_in       := exception_by_path(base)
+      }
       fu.io.interrupt       := has_interrupt
       fu.io.flush           := flush
 
       fu_stage.io.fu_out(j) := fu.io.out
-      exception_by_path(fu.io.out.order)(j) := fu.io.out.exception
+      exception_by_path(j) := fu.io.out.exception
 
       fu
     }
@@ -273,7 +285,7 @@ class DataPath extends Module {
       
       fu_stage.io.fu_out(j) := fu.io.out
 
-      exception_by_path(fu.io.out.order)(j) := fu.io.out.exception
+      exception_by_path(j) := fu.io.out.exception
 
       fu
     }

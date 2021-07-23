@@ -34,7 +34,7 @@ class LSUIO extends FUIO {
   val stall_req       = Input(Bool())
 
   // Exception
-  val exception_order = Input(UInt(ISSUE_NUM.W))
+  val exception_in    = Input(Bool())
   val interrupt       = Input(Bool())
   val flush           = Input(Bool())
 }
@@ -64,7 +64,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
     io.in.fu_ctrl(2) & (addr(1) | addr(0))
 
   val rd_normal = !exception & !io.flush
-  val wr_normal = (io.exception_order > io.in.order) & !exception & !io.interrupt & !io.flush
+  val wr_normal = !io.exception_in & !exception & !io.interrupt & !io.flush
 
   val wr = !io.in.fu_ctrl(3) & (io.in.write_target === DMem)
   val rd = !io.in.fu_ctrl(3) & (io.in.rd =/= 0.U)
@@ -108,7 +108,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
     io.cache.dout(15,  0)
   )
 
-  io.out.hi        := lgc_addr
+  io.out.hi        := 0.U
   io.out.data      := MuxLookupBi(
     io.in.fu_ctrl(2, 1),
     io.cache.dout,
@@ -139,5 +139,6 @@ class LSU extends Module with LSUConfig with TLBConfig {
     (io.in.fu_ctrl === FU_XXX) |
     (rd & exception) |
     (wr & exception)
+  io.out.exc_meta  := lgc_addr
 }
 

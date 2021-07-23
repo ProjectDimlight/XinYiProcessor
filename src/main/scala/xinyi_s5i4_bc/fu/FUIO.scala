@@ -13,6 +13,7 @@ class FUIn extends Bundle {
   val a             = UInt(XLEN.W)
   val b             = UInt(XLEN.W)
   val imm           = UInt(XLEN.W)
+  val ov            = Bool()
   // meta
   val pc            = UInt(LGC_ADDR_W.W)
   val order         = UInt(ISSUE_NUM_W.W)
@@ -36,6 +37,7 @@ class FUOut extends Forwarding {
   val pc            = UInt(XLEN.W)
   val exc_code      = UInt(EXC_CODE_W.W)
   val exception     = Bool()
+  val exc_meta      = UInt(XLEN.W)
   // delay slot
   val is_delay_slot = Bool()
 }
@@ -57,6 +59,7 @@ object FUOutBubble {
     init.pc            := 0.U
     init.exc_code      := NO_EXCEPTION
     init.exception     := false.B
+    init.exc_meta      := 0.U
     init.is_delay_slot := false.B
     init
   }

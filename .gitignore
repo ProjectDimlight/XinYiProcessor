@@ -3,6 +3,8 @@ verilog/
 
 src/main/verilog/*
 !src/main/verilog/AXICrossbar.xci
+!src/main/verilog/DIV.xci
+!src/main/verilog/DIVU.xci
 
 verilog_modules/mycpu_top
 output/
@@ -12,6 +14,7 @@ obj_dir/
 verilog_modules/test
 reference/
 
+<<<<<<< HEAD
 verilog_modules/IP/*
 !verilog_modules/IP/DIV.xci
 !verilog_modules/IP/DIVU.xci
@@ -21,6 +24,8 @@ verilog_modules/IP/*
 func_test_v0.01
 system_test_v0.01
 
+=======
+>>>>>>> 49d52ee988ab581667f9d99bd38697790b0c4df4
 ### XilinxISE template
 # intermediate build files
 *.bgn
