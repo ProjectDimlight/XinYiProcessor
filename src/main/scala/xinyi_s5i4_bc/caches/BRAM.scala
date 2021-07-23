@@ -107,9 +107,9 @@ class DualPortRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1) e
 
 
 // wrapper class for dual_port_lutram
-class DualPortLUTRAM(DATA_WIDTH: Int = XLEN, SIZE: Int = 1024, LATENCY: Int = 1) extends BlackBox(Map(
+class DualPortLUTRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1) extends BlackBox(Map(
   "DATA_WIDTH" -> DATA_WIDTH,
-  "SIZE" -> SIZE,
+  "DEPTH" -> DEPTH,
   "LATENCY" -> LATENCY)) with HasBlackBoxInline {
 
   override val desiredName = "dual_port_lutram"
@@ -118,8 +118,8 @@ class DualPortLUTRAM(DATA_WIDTH: Int = XLEN, SIZE: Int = 1024, LATENCY: Int = 1)
     val clk   = Input(Clock())
     val rst   = Input(Reset())
     val wea   = Input(Bool())
-    val addra = Input(UInt(log2Ceil(SIZE).W))
-    val addrb = Input(UInt(log2Ceil(SIZE).W))
+    val addra = Input(UInt(log2Ceil(DEPTH).W))
+    val addrb = Input(UInt(log2Ceil(DEPTH).W))
     val dina  = Input(UInt(DATA_WIDTH.W))
     val douta = Output(UInt(DATA_WIDTH.W))
     val doutb = Output(UInt(DATA_WIDTH.W))
@@ -130,7 +130,7 @@ class DualPortLUTRAM(DATA_WIDTH: Int = XLEN, SIZE: Int = 1024, LATENCY: Int = 1)
             s"""
                |module dual_port_lutram #(
                |	parameter DATA_WIDTH = 32,
-               |	parameter SIZE      = 1024,
+               |	parameter DEPTH      = 1024,
                |	parameter LATENCY    = 1,
                |	parameter LATENCY_A  = LATENCY,
                |	parameter LATENCY_B  = LATENCY
@@ -147,7 +147,7 @@ class DualPortLUTRAM(DATA_WIDTH: Int = XLEN, SIZE: Int = 1024, LATENCY: Int = 1)
                |
                |xpm_memory_dpdistram #(
                |	// Common module parameters
-               |	.MEMORY_SIZE(DATA_WIDTH * SIZ#),
+               |	.MEMORY_SIZE(DATA_WIDTH * DEPTH),
                |	.CLOCKING_MODE("common_clock"),
                |	.USE_MEM_INIT(0),
                |	.MESSAGE_CONTROL(0),
