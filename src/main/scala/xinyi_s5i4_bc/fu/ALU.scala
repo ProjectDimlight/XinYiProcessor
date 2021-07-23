@@ -50,8 +50,11 @@ trait ALUConfig {
   val ALU_ERET = 28.U(FU_CTRL_W.W)
 }
 
+class ALUIO extends FUIO {
+}
+
 class ALU extends Module with ALUConfig with BALConfig {
-  val io = IO(new FUIO)
+  val io = IO(new ALUIO)
 
   io.out.is_delay_slot := io.in.is_delay_slot
 
@@ -156,29 +159,35 @@ class ALU extends Module with ALUConfig with BALConfig {
     )
   )
 
-  val hi = Mux(
-    io.in.write_target === DHi,
-    io.out.data,
-    MuxLookupBi(
-      io.in.fu_ctrl,
-      "hcafebabe".U,
-      Seq(
-        ALU_DIV -> div_res(XLEN - 1, 0),
-        ALU_DIVU -> divu_res(XLEN - 1, 0),
-        ALU_MUL -> mul_ab_reg(2 * XLEN - 1, XLEN),
-        ALU_MULU -> mulu_ab_reg(2 * XLEN - 1, XLEN),
-        ALU_ERET -> io.in.a
-      )
+  val hi =
+  MuxLookupBi(
+    io.in.fu_ctrl(1, 0),
+    "hcafebabe".U,
+    Seq(
+      0.U -> div_res(XLEN - 1, 0),
+      1.U -> divu_res(XLEN - 1, 0),
+      2.U -> mul_ab_reg(2 * XLEN - 1, XLEN),
+      3.U -> mulu_ab_reg(2 * XLEN - 1, XLEN)
     )
   )
+  
+  io.out.hi := hi
 
-  // TODO update exception in ALU
-  val ov = ((io.in.fu_ctrl === ALU_ADD) &&
-    (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) &&
-    (io.in.a(XLEN - 1) =/= (io.in.a + io.in.b)(XLEN - 1))) ||
+  val ov =
+    ((io.in.fu_ctrl === ALU_ADD) &&
+      (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) &&
+      (io.in.a(XLEN - 1) =/= (io.in.a + io.in.b)(XLEN - 1))) ||
     ((io.in.fu_ctrl === ALU_SUB) &&
       (io.in.a(XLEN - 1) =/= io.in.b(XLEN - 1)) &&
       (io.in.a(XLEN - 1) =/= (io.in.a - io.in.b)(XLEN - 1)))
+  /*
+  val ov = ((io.in.fu_ctrl === ALU_ADD) &&
+            (io.in.a(XLEN - 1) === io.in.b(XLEN - 1)) ||
+            (io.in.fu_ctrl === ALU_SUB) &&
+            (io.in.a(XLEN - 1) =/= io.in.b(XLEN - 1))) &&
+          io.in.a(XLEN - 1) ^ io.in.ov
+  */
+  //val ov = io.in.ov
 
   io.out.exc_code := MuxCase(
     NO_EXCEPTION,
@@ -198,10 +207,8 @@ class ALU extends Module with ALUConfig with BALConfig {
     (io.in.fu_ctrl === FU_BREAK) |
     (io.in.fu_ctrl === ALU_ERET) |
     ov
-  io.out.hi := Mux(
-    io.out.exc_code === EXC_CODE_ADEL,
-    io.in.pc,
-    hi
+  io.out.exc_meta := Mux(
+    io.in.fu_ctrl === ALU_ERET , io.in.a, io.in.pc
   )
 }
 

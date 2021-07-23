@@ -455,7 +455,7 @@ class FUStage extends Module with CP0Config {
       when (issue_vec(i).exc_code =/= EXC_CODE_ERET) {
         io.exc_info.pc := issue_vec(i).pc
         io.exc_info.exc_code := issue_vec(i).exc_code
-        io.exc_info.data := issue_vec(i).hi
+        io.exc_info.data := issue_vec(i).exc_meta
         // some of the exception info should be passed by HI
         // for example: badvaddr in LSU
         io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
@@ -468,7 +468,7 @@ class FUStage extends Module with CP0Config {
         io.fu_exception_order := (i+1).U
 
         io.fu_exception_handled := true.B
-        io.fu_exception_target  := issue_vec(i).hi
+        io.fu_exception_target  := issue_vec(i).exc_meta
       }
     }
     .elsewhen ((issue_vec(i).write_target === DCP0) &
