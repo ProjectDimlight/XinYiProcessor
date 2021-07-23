@@ -5,29 +5,24 @@ VERILATOR		?= verilator
 VERILATOR_FLAGS	?= --cc --exe --top-module mycpu_top --threads 1 --assert --x-assign unique --output-split 20000 -O3 
 
 # directories
-VERILOG_DIR 	?= verilog_modules
-MYCPU_DIR		?= $(VERILOG_DIR)/mycpu_top
-AXI_DIR			?= $(VERILOG_DIR)/AXI_complex
+VERILOG_DIR 	?= src/main/verilog
+MYCPU_DIR 		?= src/main/verilog/mycpu
 
 # source codes
-MYCPU_V			?= $(MYCPU_DIR)/mycpu_top.v 
-AXI_V			?= $(AXI_DIR)/AXI_complex_triport.v
-COPY_AXI		?= cat $(AXI_V) >> $(MYCPU_V)	
+MYCPU_V			?= $(MYCPU_DIR)/mycpu_top.v
 
 
-.PHONY: main no_ip_div verilator copy_axi checkstyle clean
+.PHONY: main no_ip_div verilator checkstyle clean
 
 
 main:
 	$(SBT) $(SBT_FLAGS) "runMain Main"
-	$(COPY_AXI)
 
 # generate verilog code for verilator
 no_ip_div:
 	$(SBT) $(SBT_FLAGS) "runMain Verilator"
-	sed -i 's/\[32:0\]\sdiv_res_hi/\[31:0\] div_res_hi/g' $(MYCPU_DIR)/mycpu_top.v
-	sed -i 's/\[64:0\]\s_div_res_T_2/\[63:0\] _div_res_T_2/g' $(MYCPU_DIR)/mycpu_top.v
-	$(COPY_AXI)
+	sed -i 's/\[32:0\]\sdiv_res_hi/\[31:0\] div_res_hi/g' $(MYCPU_V)
+	sed -i 's/\[64:0\]\s_div_res_T_2/\[63:0\] _div_res_T_2/g' $(MYCPU_V)
 
 	
 verilator:
@@ -39,4 +34,4 @@ checkstyle:
 
 
 clean:
-	-@rm -rf $(MYCPU_DIR)/
+	-@rm -rf $(MYCPU_DIR)

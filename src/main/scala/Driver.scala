@@ -30,7 +30,7 @@ object Main extends App {
     //    start generating verilog code
     //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-    val default_args = Array("-X", "verilog", "-td", "verilog_modules/mycpu_top")
+    val default_args = Array("-X", "verilog", "-td", "src/main/verilog/mycpu")
 
     (new ChiselStage).execute(
       default_args,
