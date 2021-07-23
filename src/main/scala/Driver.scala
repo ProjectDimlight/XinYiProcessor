@@ -11,10 +11,7 @@ object Verilator extends App {
 }
 
 
-
 object Main extends App {
-
-
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   //      some prettified prompt
   //
@@ -44,7 +41,6 @@ object Main extends App {
   prompt("mycpu_top")
   Gen()
 }
-
 
 
 object ICache extends App {

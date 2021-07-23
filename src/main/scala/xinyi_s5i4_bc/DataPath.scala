@@ -34,7 +34,7 @@ class DataPath extends Module with ALUConfig {
   val interrupt_reg = Module(new InterruptReg)
   val tlb_read_reg  = Module(new TLBReadReg)
 
-  val icache = Module(new DummyICache)
+  val icache = Module(new ICache)
   val dcache = Module(new DummyDCache)
 
   val stall_frontend = Wire(Bool())
@@ -84,13 +84,13 @@ class DataPath extends Module with ALUConfig {
   // IF Stage
   if_stage.io.in      <> pc_if_reg.io.if_in
   if_stage.io.tlb     <> tlb.io.path(LSU_PATH_NUM)
-  if_stage.io.cache   <> icache.io.upper
+  if_stage.io.cache   <> icache.io.cpu_io
   if_stage.io.full    <> issue_queue.io.full
   if_stage.io.out     <> if_id_reg.io.if_out
 
-  icache.io.lower      <> io.icache_axi
+  icache.io.axi_io      <> io.icache_axi
   
-  stall_frontend := icache.io.stall_req | issue_queue.io.full
+  stall_frontend := icache.io.cpu_io.stall_req | issue_queue.io.full
   
   pc_stage.io.stall    := stall_frontend
   pc_if_reg.io.stall   := stall_frontend
