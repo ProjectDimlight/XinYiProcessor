@@ -1,10 +1,12 @@
-### Project Specific stuff
-verilog/
-
+# verilog sources
 src/main/verilog/*
 !src/main/verilog/AXICrossbar.xci
 !src/main/verilog/DIV.xci
 !src/main/verilog/DIVU.xci
+
+# nscscc projects
+nscscc2021_group_v0.01
+
 
 verilog_modules/mycpu_top
 output/
