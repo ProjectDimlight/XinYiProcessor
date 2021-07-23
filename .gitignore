@@ -3,6 +3,8 @@ verilog/
 
 src/main/verilog/*
 !src/main/verilog/AXICrossbar.xci
+!src/main/verilog/DIV.xci
+!src/main/verilog/DIVU.xci
 
 verilog_modules/mycpu_top
 output/
@@ -11,10 +13,6 @@ null/
 obj_dir/
 verilog_modules/test
 reference/
-
-verilog_modules/IP/*
-!verilog_modules/IP/DIV.xci
-!verilog_modules/IP/DIVU.xci
 
 ### XilinxISE template
 # intermediate build files
