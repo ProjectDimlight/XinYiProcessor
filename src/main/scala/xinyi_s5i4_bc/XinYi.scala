@@ -126,6 +126,8 @@ class S5I4 extends RawModule with PortConfig {
     Connect(axi3x1.io.s_axi_rlast    , datapath.io.icache_axi.rlast    , datapath.io.dcache_axi(0).rlast    , datapath.io.dcache_axi(1).rlast    , true)
     Connect(axi3x1.io.s_axi_rvalid   , datapath.io.icache_axi.rvalid   , datapath.io.dcache_axi(0).rvalid   , datapath.io.dcache_axi(1).rvalid   , true)
     Connect(axi3x1.io.s_axi_rready   , datapath.io.icache_axi.rready   , datapath.io.dcache_axi(0).rready   , datapath.io.dcache_axi(1).rready   )
+    axi3x1.io.s_axi_awqos := 0.U
+    axi3x1.io.s_axi_arqos := 0.U
     
     awid      <> axi3x1.io.m_axi_awid     
     awaddr    <> axi3x1.io.m_axi_awaddr   
@@ -164,94 +166,4 @@ class S5I4 extends RawModule with PortConfig {
     rvalid    <> axi3x1.io.m_axi_rvalid   
     rready    <> axi3x1.io.m_axi_rready   
   }
-
-  /*
-  val axi3x1   = Module(new CPUAXI3x1)
-  withClockAndReset(aclk, ~aresetn) {
-    val datapath = Module(new DataPath)
-    for (i <- 0 to 5) {
-      datapath.io.interrupt(i) := ext_int(i)
-    }
-    debug_pc := datapath.io.debug_pc
-
-    axi3x1.io.i_addr_in       <> datapath.io.icache_axi.addr_in
-    axi3x1.io.i_en            <> datapath.io.icache_axi.en
-    axi3x1.io.i_addr_out      <> datapath.io.icache_axi.addr_out
-    axi3x1.io.i_data          <> datapath.io.icache_axi.data
-    axi3x1.io.i_stall         <> datapath.io.icache_axi.stall
-    axi3x1.io.i_valid         <> datapath.io.icache_axi.valid
-
-    axi3x1.io.d_0_addr_in     <> datapath.io.dcache_axi(()0).addr_in
-    axi3x1.io.d_0_data_in     <> datapath.io.dcache_axi(()0).data_in
-    axi3x1.io.d_0_wr          <> datapath.io.dcache_axi(()0).wr
-    axi3x1.io.d_0_rd          <> datapath.io.dcache_axi(()0).rd
-    axi3x1.io.d_0_size        <> datapath.io.dcache_axi(()0).size
-    axi3x1.io.d_0_addr_out    <> datapath.io.dcache_axi(()0).addr_out
-    axi3x1.io.d_0_data_out    <> datapath.io.dcache_axi(()0).data_out
-    axi3x1.io.d_0_stall       <> datapath.io.dcache_axi(()0).stall
-    axi3x1.io.d_0_valid       <> datapath.io.dcache_axi(()0).valid
-
-    axi3x1.io.d_1_addr_in     <> datapath.io.dcache_axi(()1).addr_in
-    axi3x1.io.d_1_data_in     <> datapath.io.dcache_axi(()1).data_in
-    axi3x1.io.d_1_wr          <> datapath.io.dcache_axi(()1).wr
-    axi3x1.io.d_1_rd          <> datapath.io.dcache_axi(()1).rd
-    axi3x1.io.d_1_size        <> datapath.io.dcache_axi(()1).size
-    axi3x1.io.d_1_addr_out    <> datapath.io.dcache_axi(()1).addr_out
-    axi3x1.io.d_1_data_out    <> datapath.io.dcache_axi(()1).data_out
-    axi3x1.io.d_1_stall       <> datapath.io.dcache_axi(()1).stall
-    axi3x1.io.d_1_valid       <> datapath.io.dcache_axi(()1).valid
-  }
-
-  debug_wb_pc       := 0.U
-  debug_wb_rf_wen   := 0.U
-  debug_wb_rf_wnum  := 0.U
-  debug_wb_rf_wdata := 0.U
-
-  axi3x1.io.clk             <> aclk
-  axi3x1.io.rst             <> ~aresetn
-
-//////////////////////////////////////////////////////////////////////
-
-  // ar
-  arid         <> axi3x1.io.arid
-  araddr       <> axi3x1.io.araddr
-  arlen        <> axi3x1.io.arlen
-  arsize       <> axi3x1.io.arsize
-  arburst      <> axi3x1.io.arburst
-  arlock       <> axi3x1.io.arlock
-  arcache      <> axi3x1.io.arcache
-  arprot       <> axi3x1.io.arprot
-  arvalid      <> axi3x1.io.arvalid
-  arready      <> axi3x1.io.arready
-  //r
-  rid          <> axi3x1.io.rid
-  rdata        <> axi3x1.io.rdata
-  rresp        <> axi3x1.io.rresp
-  rlast        <> axi3x1.io.rlast
-  rvalid       <> axi3x1.io.rvalid
-  rready       <> axi3x1.io.rready
-  //aw
-  awid         <> axi3x1.io.awid
-  awaddr       <> axi3x1.io.awaddr
-  awlen        <> axi3x1.io.awlen
-  awsize       <> axi3x1.io.awsize
-  awburst      <> axi3x1.io.awburst
-  awlock       <> axi3x1.io.awlock
-  awcache      <> axi3x1.io.awcache
-  awprot       <> axi3x1.io.awprot
-  awvalid      <> axi3x1.io.awvalid
-  awready      <> axi3x1.io.awready
-  //w
-  wid          <> axi3x1.io.wid
-  wdata        <> axi3x1.io.wdata
-  wstrb        <> axi3x1.io.wstrb
-  wlast        <> axi3x1.io.wlast
-  wvalid       <> axi3x1.io.wvalid
-  wready       <> axi3x1.io.wready
-  //b
-  bid          <> axi3x1.io.bid
-  bresp        <> axi3x1.io.bresp
-  bvalid       <> axi3x1.io.bvalid
-  bready       <> axi3x1.io.bready
-  */
 }
