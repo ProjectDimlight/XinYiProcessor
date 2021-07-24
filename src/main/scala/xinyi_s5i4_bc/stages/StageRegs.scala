@@ -300,6 +300,7 @@ class FUWBReg extends Module {
   exc_info_init.exc_code := NO_EXCEPTION
   exc_info_init.data := 0.U
   exc_info_init.in_branch_delay_slot := false.B
+  exc_info_init.eret := false.B
 
   val reg_out                = RegInit(VecInit(Seq.fill(ISSUE_NUM)(FUOutBubble())))
   val reg_exception_order    = RegInit(0.U(ISSUE_NUM_W.W))

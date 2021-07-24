@@ -50,6 +50,7 @@ class ExceptionInfo extends Bundle {
   val pc                   = UInt(XLEN.W)
   val data                 = UInt(XLEN.W)
   val in_branch_delay_slot = Bool() // exception happened in branch delay slot
+  val eret                 = Bool()
 }
 
 class CP0IndexBundle extends Bundle with TLBConfig {
@@ -207,10 +208,12 @@ class CP0 extends Module with CP0Config with TLBConfig {
   // output Cause.IP0 ~ Cause.IP7 as
   // software interrupt source
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-  io.soft_int_pending_vec(1) := cp0_reg_cause.IP(1)
-  io.soft_int_pending_vec(0) := cp0_reg_cause.IP(0)
+  // io.soft_int_pending_vec(1) := cp0_reg_cause.IP(1)
+  // io.soft_int_pending_vec(0) := cp0_reg_cause.IP(0)
+  io.soft_int_pending_vec(1) := 0.U
+  io.soft_int_pending_vec(0) := 0.U
 
-  io.int_mask_vec := cp0_reg_status.IM.asBools
+  io.int_mask_vec := (cp0_reg_status.IM).asBools
 
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -304,8 +307,8 @@ class CP0 extends Module with CP0Config with TLBConfig {
           cp0_reg_status.IGNORE3 := 0.U(3.W)
           */
           cp0_reg_status.IM := io.write(i).data(15, 8)
-          cp0_reg_status.EXL := io.write(i).data(1)
           cp0_reg_status.IE := io.write(i).data(0)
+          cp0_reg_status.EXL := io.write(i).data(1)
         }
       }
     }
@@ -361,6 +364,10 @@ class CP0 extends Module with CP0Config with TLBConfig {
     }.elsewhen(io.exc_info.exc_code === EXC_CODE_TLBL || io.exc_info.exc_code === EXC_CODE_TLBS) { // instruction fetch exception & load exception
       cp0_reg_entry_hi.VPN2 := io.exc_info.data // put VA[31:13] into
     }
+  }
+
+  when (io.exc_info.eret) {
+    cp0_reg_status.EXL := 0.U
   }
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>

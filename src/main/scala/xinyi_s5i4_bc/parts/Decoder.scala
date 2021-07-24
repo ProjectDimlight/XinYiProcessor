@@ -154,7 +154,7 @@ val control_signal = ListLookup(io.inst,
       SH         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemHalf   ,  PathLSU   , IRT , IRS , IXX),
       SW         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemWord   ,  PathLSU   , IRT , IRS , IXX),
            
-      ERET       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , ALU_ERET  ,  PathALU   , CP0_EPC_INDEX , IXX , CP0_STATUS_INDEX),
+      ERET       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DXXX   , ALU_ERET  ,  PathALU   , CP0_EPC_INDEX , IXX , IXX),
       MFC0       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IRD , IXX , IRT),
       MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_OR    ,  PathALU   , IRT , IXX , IRD),
 
