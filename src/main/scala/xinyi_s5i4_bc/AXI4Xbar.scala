@@ -91,15 +91,15 @@ class CrossbarNto1(n: Int) extends Module {
     val out = new AXI4Bundle
   })
 
-  val s_idle :: s_readReq :: s_readResp :: s_write_Req :: s_writeResp :: Nil =
+  val s_idle :: s_readReq :: s_readResp :: s_writeReq :: s_writeResp :: Nil =
     Enum(5)
   val r_state = RegInit(s_idle)
   val read_arbiter = Module(new Arbiter(new AXI4BundleAR, n))
   (read_arbiter.io.in zip io.in.map(_.ar)).map { case (arb, in) => arb <> in }
   val inflight_read_index = Reg(UInt(log2Ceil(n).W))
-  val inflight_request = Reg(chiselTypeOf(read_arbiter.io.out.bits))
+  val inflight_read_request = Reg(chiselTypeOf(read_arbiter.io.out.bits))
 
-  io.out.ar.bits := inflight_request
+  io.out.ar.bits := inflight_read_request
   // bind correct valid and ready signals
   io.out.ar.valid := r_state === s_readReq
   io.in.map(_.ar.ready := false.B)
@@ -118,7 +118,7 @@ class CrossbarNto1(n: Int) extends Module {
     is(s_idle) {
       when(read_arbiter.io.out.valid) {
         inflight_read_index := read_arbiter.io.chosen
-        inflight_request := read_arbiter.io.out.bits
+        inflight_read_request := read_arbiter.io.out.bits
         r_state := s_readReq
       }
     }
@@ -136,18 +136,14 @@ class CrossbarNto1(n: Int) extends Module {
   val w_state = RegInit(s_idle)
   val write_arbiter = Module(new Arbiter(new AXI4BundleAW, n))
   (write_arbiter.io.in zip io.in.map(_.aw)).map { case (arb, in) => arb <> in }
-  val thisReq_w = write_arbiter.io.out
   val inflight_write_index = Reg(UInt(log2Ceil(n).W))
+  val inflight_write_request = Reg(chiselTypeOf(write_arbiter.io.out.bits))
 
-  io.out.aw.bits := Mux(
-    w_state === s_idle,
-    thisReq_w.bits,
-    io.in(inflight_write_index).aw.bits
-  )
+  io.out.aw.bits := inflight_write_request
   // bind correct valid and ready signals
-  io.out.aw.valid := thisReq_w.valid && (w_state === s_idle)
+  io.out.aw.valid := w_state === s_writeReq
   io.in.map(_.aw.ready := false.B)
-  thisReq_w.ready := io.out.aw.ready && (w_state === s_idle)
+  write_arbiter.io.out.ready := w_state === s_idle
 
   io.out.w.valid := io.in(inflight_write_index).w.valid
   io.out.w.bits := io.in(inflight_write_index).w.bits
@@ -165,11 +161,18 @@ class CrossbarNto1(n: Int) extends Module {
 
   switch(w_state) {
     is(s_idle) {
-      when(thisReq_w.fire()) {
+      when(write_arbiter.io.out.valid) {
         inflight_write_index := write_arbiter.io.chosen
-        w_state := s_writeResp
+        inflight_write_request := write_arbiter.io.out.bits
+        w_state := s_writeReq
         // io.in(write_arbiter.io.chosen).aw.ready := true.B
-        // when(thisReq_w.valid) { w_state := s_writeResp }
+        // when(inflight_write_request.valid) { w_state := s_writeResp }
+      }
+    }
+    is(s_writeReq) {
+      when(io.out.aw.fire()) {
+        io.in(inflight_write_index).aw.ready := true.B
+        w_state := s_writeResp
       }
     }
     is(s_writeResp) {
@@ -193,7 +196,7 @@ class CrossbarNto1(n: Int) extends Module {
   // printf(
   //   p"w_state=${w_state},inflight_write_index=${inflight_write_index}, write_arbiter.io.chosen=${write_arbiter.io.chosen}\n"
   // )
-  // printf(p"thisReq_w=${thisReq_w}\n")
+  // printf(p"inflight_write_request=${inflight_write_request}\n")
   // for (i <- 0 until n) {
   //   printf(p"io.in(${i}): \n${io.in(i)}\n")
   // }

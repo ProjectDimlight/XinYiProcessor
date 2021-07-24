@@ -67,19 +67,6 @@ class SimTop extends RawModule with PortConfig {
   debug_wb_rf_wnum  := 0.U
   debug_wb_rf_wdata := 0.U
 
-  def Connect[S <: UInt](out: S, in0: Bits, in2: Bits, in1: Bits, input: Boolean = false) : S = {
-    val w = in0.getWidth
-    if (input) {
-      in0 := out(w-1, 0)
-      in1 := out(2*w-1, w)
-      in2 := out(3*w-1, 2*w)
-    }
-    else {
-      out := Cat(in2, in1, in0)
-    }
-    out
-  }
-
   withClockAndReset(aclk, ~aresetn) {
     val axi3x1 = Module(new CrossbarNto1(3))
     val datapath = Module(new DataPath)
