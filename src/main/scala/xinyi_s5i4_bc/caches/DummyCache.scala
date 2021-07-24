@@ -16,15 +16,10 @@ trait CacheState {
   val s_busy2    = 6.U(3.W)
 }
 
-class ICacheCPU extends Bundle {
-  val rd   = Input (Bool())
-  val addr = Input (UInt(LGC_ADDR_W.W))
-  val dout = Output(UInt((XLEN * ISSUE_NUM).W))
-}
 
 class DummyICache extends Module with CacheState {
   val io = IO(new Bundle{
-    val upper = new ICacheCPU
+    val upper = new ICacheCPUIO
     val lower = new AXIIO
   
     val stall_req = Output(Bool())
@@ -94,7 +89,7 @@ class DummyICache extends Module with CacheState {
   io.lower.wvalid  <> 0.U
   io.lower.bready  <> 1.U
 
-  io.upper.dout     := data.asUInt()
+  io.upper.data     := data.asUInt()
   io.stall_req      := (state =/= s_valid) & (state =/= s_idle)
 }
 

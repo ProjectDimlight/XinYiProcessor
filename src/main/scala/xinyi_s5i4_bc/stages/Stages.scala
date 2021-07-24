@@ -76,7 +76,7 @@ class IFStage extends Module with TLBConfig {
     val out      = new IFOut
 
     val tlb      = Flipped(new TLBLookupInterface)
-    val cache    = Flipped(new ICacheCPU)
+    val cache    = Flipped(new ICacheCPUIO)
     
     val full     = Input(Bool())
 
@@ -101,11 +101,13 @@ class IFStage extends Module with TLBConfig {
 
   // ICache
   io.cache.rd := !io.full
-  io.cache.addr := addr
+  io.cache.addr := addr.asTypeOf(new ICacheAddr)
+  // TODO connect to real flush signal
+  io.cache.flush := false.B
 
   // Output to IF-ID Regs
   io.out.pc := io.in.pc
-  io.out.inst := io.cache.dout
+  io.out.inst := io.cache.data
 }
 
 class IDIn extends Bundle {

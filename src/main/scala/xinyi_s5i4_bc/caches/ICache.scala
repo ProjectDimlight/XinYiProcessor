@@ -18,7 +18,7 @@ trait ICacheConfig {
 
   // width
   val BLOCK_WIDTH  = BLOCK_INST_NUM * XLEN // each cache block has 8 instructions
-  val INDEX_WIDTH  = 10
+  val INDEX_WIDTH  = 12
   val OFFSET_WIDTH = log2Ceil(BLOCK_WIDTH >> 3)
   val TAG_WIDTH    = XLEN - INDEX_WIDTH - OFFSET_WIDTH
 
