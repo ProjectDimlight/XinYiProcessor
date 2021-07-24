@@ -36,7 +36,7 @@ THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 `define CONFREG_UART_DISPLAY soc_lite.u_confreg.write_uart_valid
 `define CONFREG_UART_DATA    soc_lite.u_confreg.write_uart_data
 `define DEBUG 1'b0
-`define BEGIN_PC 32'hbfc00b14
+`define BEGIN_PC 32'hbfc00bd4
 `define END_PC 32'hbfc00100
 
 typedef struct packed {

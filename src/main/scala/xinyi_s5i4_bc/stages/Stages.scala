@@ -435,6 +435,7 @@ class FUStage extends Module with CP0Config {
   io.exc_info.exc_code := NO_EXCEPTION
   io.exc_info.data := 0.U
   io.exc_info.in_branch_delay_slot := false.B
+  io.exc_info.eret := false.B
 
   // IF stage tlb miss exception
   when (io.if_tlb_miss) {
@@ -469,6 +470,7 @@ class FUStage extends Module with CP0Config {
 
         io.fu_exception_handled := true.B
         io.fu_exception_target  := issue_vec(i).exc_meta
+        io.exc_info.eret := true.B
       }
     }
     .elsewhen ((issue_vec(i).write_target === DCP0) &
