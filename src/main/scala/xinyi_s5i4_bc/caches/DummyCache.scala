@@ -19,10 +19,10 @@ trait CacheState {
 
 class DummyICache extends Module with CacheState {
   val io = IO(new Bundle{
-    val upper = new ICacheCPUIO
-    val lower = new AXIIO
+    val cpu_io = new ICacheCPUIO
+    val axi_io = new AXIIO
   
-    val stall_req = Output(Bool())
+    // val stall_req = Output(Bool())
   })
   
   val state_reg = RegInit(s_idle)
@@ -35,16 +35,16 @@ class DummyICache extends Module with CacheState {
     state_reg,
     s_idle,
     Array(
-      s_idle -> Mux(io.upper.rd, 
+      s_idle -> Mux(io.cpu_io.rd, 
         s_pending,
         s_idle
       ),
-      s_pending -> Mux(io.lower.arready,
+      s_pending -> Mux(io.axi_io.arready,
         s_busy,
         s_pending
       ),
       s_busy -> Mux(cnt === 2.U, s_valid, s_busy),
-      s_valid -> Mux(io.upper.rd,
+      s_valid -> Mux(io.cpu_io.rd,
         s_pending,
         s_idle
       )
@@ -55,42 +55,42 @@ class DummyICache extends Module with CacheState {
   when (state === s_pending) {
     cnt := 0.U
   } 
-  .elsewhen (io.lower.rvalid) {
-    data(cnt) := io.lower.rdata 
+  .elsewhen (io.axi_io.rvalid) {
+    data(cnt) := io.axi_io.rdata 
     cnt := cnt + 1.U
   }
 
-  val addr_in  = io.upper.addr
+  val addr_in  = io.cpu_io.addr
   val rd       = state(1, 0) === s_pending
   
-  io.lower.arid    <> 0.U
-  io.lower.araddr  <> addr_in
-  io.lower.arlen   <> 1.U
-  io.lower.arsize  <> 2.U
-  io.lower.arburst <> 1.U
-  io.lower.arlock  <> 0.U
-  io.lower.arcache <> 0.U
-  io.lower.arprot  <> 0.U
-  io.lower.arvalid <> rd
-  io.lower.rready  <> 1.U
-  io.lower.awid    <> 0.U
-  io.lower.awaddr  <> 0.U
-  io.lower.awlen   <> 0.U
-  io.lower.awsize  <> 0.U
-  io.lower.awburst <> 1.U
-  io.lower.awlock  <> 0.U
-  io.lower.awcache <> 0.U
-  io.lower.awprot  <> 0.U
-  io.lower.awvalid <> 0.U
-  io.lower.wid     <> 0.U
-  io.lower.wdata   <> 0.U
-  io.lower.wstrb   <> 0.U
-  io.lower.wlast   <> 0.U
-  io.lower.wvalid  <> 0.U
-  io.lower.bready  <> 1.U
+  io.axi_io.arid    <> 0.U
+  io.axi_io.araddr  <> addr_in
+  io.axi_io.arlen   <> 1.U
+  io.axi_io.arsize  <> 2.U
+  io.axi_io.arburst <> 1.U
+  io.axi_io.arlock  <> 0.U
+  io.axi_io.arcache <> 0.U
+  io.axi_io.arprot  <> 0.U
+  io.axi_io.arvalid <> rd
+  io.axi_io.rready  <> 1.U
+  io.axi_io.awid    <> 0.U
+  io.axi_io.awaddr  <> 0.U
+  io.axi_io.awlen   <> 0.U
+  io.axi_io.awsize  <> 0.U
+  io.axi_io.awburst <> 1.U
+  io.axi_io.awlock  <> 0.U
+  io.axi_io.awcache <> 0.U
+  io.axi_io.awprot  <> 0.U
+  io.axi_io.awvalid <> 0.U
+  io.axi_io.wid     <> 0.U
+  io.axi_io.wdata   <> 0.U
+  io.axi_io.wstrb   <> 0.U
+  io.axi_io.wlast   <> 0.U
+  io.axi_io.wvalid  <> 0.U
+  io.axi_io.bready  <> 1.U
 
-  io.upper.data     := data.asUInt()
-  io.stall_req      := (state =/= s_valid) & (state =/= s_idle)
+  io.cpu_io.data     := data.asUInt()
+  io.cpu_io.stall_req      := (state =/= s_valid) & (state =/= s_idle)
 }
 
 class DCacheCPU extends Bundle {

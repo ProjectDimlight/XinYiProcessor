@@ -34,7 +34,7 @@ class DataPath extends Module with ALUConfig {
   val interrupt_reg = Module(new InterruptReg)
   val tlb_read_reg  = Module(new TLBReadReg)
 
-  val icache = Module(new ICache)
+  val icache = Module(new DummyICache)
   val dcache = Module(new DummyDCache)
 
   val stall_frontend = Wire(Bool())

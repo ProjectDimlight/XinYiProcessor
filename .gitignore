@@ -16,6 +16,9 @@ obj_dir/
 verilog_modules/test
 reference/
 
+.metals
+.vscode
+
 ### XilinxISE template
 # intermediate build files
 *.bgn
