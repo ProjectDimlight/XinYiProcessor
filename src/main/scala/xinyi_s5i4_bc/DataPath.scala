@@ -35,7 +35,7 @@ class DataPath extends Module with ALUConfig {
   val tlb_read_reg  = Module(new TLBReadReg)
 
   val icache = Module(new DummyICache)
-  val dcache = Module(new DummyDCache)
+  val dcache = Module(new DCache)
 
   val stall_frontend = Wire(Bool())
   val stall_backend  = Wire(Bool())
@@ -244,7 +244,7 @@ class DataPath extends Module with ALUConfig {
       var fu = Module(new LSU)
       fu.io.tlb       <> tlb.io.path(j - base)
       fu.io.cache     <> dcache.io.upper(j - base)
-      fu.io.stall_req <> dcache.io.stall_req(j - base)
+      // fu.io.stall_req <> dcache.io.stall_req(j - base)
 
       tlbr_path(j - base) := fu.io.tlbr
       tlbw_path(j - base) := fu.io.tlbw

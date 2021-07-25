@@ -61,4 +61,7 @@ object config {
   val L1_W                 = 64
   val L2_W                 = 64
   var DIV_IP_CORE: Boolean = true // indicating if the divider is from IP core
+
+  val hasDCache = false
+  val hasDCacheOp = false
 }

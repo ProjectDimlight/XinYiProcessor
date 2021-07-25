@@ -30,8 +30,8 @@ class LSUIO extends FUIO {
   val tlbp            = Output(Bool())
 
   // To DCache
-  val cache           = Flipped(new DCacheCPU)
-  val stall_req       = Input(Bool())
+  val cache           = Flipped(new DCacheCPUIO)
+  // val stall_req       = Input(Bool())
 
   // Exception
   val exception_in    = Input(Bool())
@@ -117,7 +117,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
       1.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_half(15),   0xffff.U(16.W) , 0.U(16.W)), o_half)
     )
   )
-  io.out.ready     := !io.stall_req
+  io.out.ready     := !io.cache.stall_req
 
   io.out.write_target := io.in.write_target
   io.out.rd           := io.in.rd
