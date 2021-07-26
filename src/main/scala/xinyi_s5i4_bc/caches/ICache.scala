@@ -17,13 +17,15 @@ trait ICacheConfig {
   val BLOCK_INST_NUM  = 8
 
   // width
-  val BLOCK_WIDTH  = BLOCK_INST_NUM * XLEN // each cache block has 8 instructions
-  val INDEX_WIDTH  = 12
-  val OFFSET_WIDTH = log2Ceil(BLOCK_WIDTH >> 3)
-  val TAG_WIDTH    = XLEN - INDEX_WIDTH - OFFSET_WIDTH
+  val BLOCK_WIDTH       = BLOCK_INST_NUM * XLEN // each cache block has 8 instructions
+  val INDEX_WIDTH       = 3
+  val SET_OFFSET_WIDTH  = log2Ceil(SET_ASSOCIATIVE)
+  val GROUP_WIDTH       = INDEX_WIDTH - SET_OFFSET_WIDTH
+  val INST_OFFSET_WIDTH = log2Ceil(BLOCK_WIDTH >> 3)
+  val TAG_WIDTH         = XLEN - INDEX_WIDTH - INST_OFFSET_WIDTH
 
   // derived number
-  val GROUP_NUM = 1 << (INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE))
+  val GROUP_NUM = 1 << GROUP_WIDTH
 }
 
 
@@ -39,10 +41,15 @@ class ICacheTagValid extends Bundle with ICacheConfig {
   val valid = Bool()
 }
 
+// ICache address
+// +----------+---------+----------------+----------------+
+// |   tag    |  group  |   set_offset   |  inst_offset   |
+// +----------+---------+----------------+----------------+
 class ICacheAddr extends Bundle with ICacheConfig {
-  val tag    = UInt(TAG_WIDTH.W)
-  val index  = UInt(INDEX_WIDTH.W)
-  val offset = UInt(OFFSET_WIDTH.W)
+  val tag         = UInt(TAG_WIDTH.W)
+  val group       = UInt(GROUP_WIDTH.W)
+  val set_offset  = UInt(SET_OFFSET_WIDTH.W)
+  val inst_offset = UInt(INST_OFFSET_WIDTH.W)
 }
 
 
@@ -76,7 +83,7 @@ class ICache extends Module with ICacheConfig {
   val ram_we = Wire(Vec(SET_ASSOCIATIVE, Bool())) // replace and fetch the replaced data from AXI
 
   // write-read addr
-  var tmp_index = RegInit(0.U(INDEX_WIDTH.W)) // tmp reg for address
+  var tmp_group = RegInit(0.U(INDEX_WIDTH.W)) // tmp reg for address
   val wr_index  = Wire(UInt(INDEX_WIDTH.W)) // store write index if cache miss
   val rd_index  = Wire(UInt(INDEX_WIDTH.W)) // store read index if cache miss
 
@@ -115,19 +122,19 @@ class ICache extends Module with ICacheConfig {
   val state = RegInit(s_idle)
 
   // stash index
-  rd_index := Mux(state === s_idle, io.cpu_io.addr.index, tmp_index)
-  wr_index := tmp_index
+  rd_index := Mux(state === s_idle, io.cpu_io.addr.group, tmp_group)
+  wr_index := tmp_group
 
 
   // select replace from selection vector
-  replace := replace_vec(io.cpu_io.addr.index).asBools()
+  replace := replace_vec(io.cpu_io.addr.group).asBools()
   for (i <- 0 until SET_ASSOCIATIVE) {
     ram_we(i) := replace(i) && state === s_axi_wait && io.axi_io.rvalid && io.axi_io.rlast
   }
 
 
   // burst_count: calculate how many bytes has been burst from the AXI
-  val burst_count = RegInit(0.U(OFFSET_WIDTH.W))
+  val burst_count = RegInit(0.U(INST_OFFSET_WIDTH.W))
 
   // buffer for received data from AXI
   val receive_buffer = RegInit(VecInit(Seq.fill(BLOCK_INST_NUM)(0.U(XLEN.W))))
@@ -160,7 +167,7 @@ class ICache extends Module with ICacheConfig {
   // get data from the hit set and from the offset
   rd_block := rd_block_vec(hit_access)
 
-  val inst_offset_index = io.cpu_io.addr.offset(4, 2)
+  val inst_offset_index = io.cpu_io.addr.inst_offset(4, 2)
 
   // select data
   io.cpu_io.data := Mux(inst_offset_index(0),
@@ -174,36 +181,36 @@ class ICache extends Module with ICacheConfig {
   // STATE TRANSFER
   //<<<<<<<<<<<<<<<<<
 
-  // when FSM is idle
-  when(state === s_idle) {
-    when(io.cpu_io.rd && miss) { // read request and cache miss
-      state := s_axi_pending // wait for the AXI ready
-      tmp_index := io.cpu_io.addr.index // stash the access index
+  switch(state) {
+    // when FSM is idle
+    is(s_idle) {
+      when(io.cpu_io.rd && miss) { // read request and cache miss
+        state := s_axi_pending // wait for the AXI ready
+        tmp_group := io.cpu_io.addr.group // stash the access index
+      }
     }
-  }
 
-  // when FSM is pending, waiting for AXI ready
-  when(state === s_axi_pending) {
-    when(io.axi_io.arready) {
-      state := s_axi_wait
-
-      burst_count := 0.U
+    // when FSM is pending, waiting for AXI ready
+    is(s_axi_pending) {
+      when(io.axi_io.arready) {
+        state := s_axi_wait
+        burst_count := 0.U
+      }
     }
-  }
 
-  // AXI working, wait
-  when(state === s_axi_wait) {
+    // AXI working, wait
+    is(s_axi_wait) {
+      // still receiving
+      when(io.axi_io.rvalid) {
+        receive_buffer(burst_count) := io.axi_io.rdata
 
-    // still receiving
-    when(io.axi_io.rvalid) {
-      receive_buffer(burst_count) := io.axi_io.rdata
+        burst_count := burst_count + 1.U // increment burst count by 1
 
-      burst_count := burst_count + 1.U // increment burst count by 1
-
-      // the last received data
-      when(io.axi_io.rlast) {
-        // no further data transfer, back to IDLE
-        state := s_idle
+        // the last received data
+        when(io.axi_io.rlast) {
+          // no further data transfer, back to IDLE
+          state := s_idle
+        }
       }
     }
   }
@@ -220,7 +227,7 @@ class ICache extends Module with ICacheConfig {
   io.axi_io.arsize := 4.U // 4 bytes per burst
   io.axi_io.arburst := 1.U // INCR mode
   io.axi_io.rready := state === s_axi_wait
-  io.axi_io.araddr := Cat(io.cpu_io.addr.tag, io.cpu_io.addr.index, 0.U(OFFSET_WIDTH.W))
+  io.axi_io.araddr := Cat(io.cpu_io.addr.tag, io.cpu_io.addr.group, io.cpu_io.addr.set_offset, 0.U(INST_OFFSET_WIDTH.W))
 
   // zeros
   io.axi_io.arid := 0.U
@@ -256,8 +263,8 @@ class ICache extends Module with ICacheConfig {
     var plru = Module(new PLRU())
 
     plru.io.flush := io.cpu_io.flush
-    plru.io.update := hit && i === io.cpu_io.addr.index // hit and match index
-    plru.io.update_index := hit_access // update when hit
+    plru.io.update := hit && i === io.cpu_io.addr.group // hit and match index, update when hit
+    plru.io.update_index := hit_access
     replace_vec(i) := plru.io.replace_vec.asUInt()
 
     plru
