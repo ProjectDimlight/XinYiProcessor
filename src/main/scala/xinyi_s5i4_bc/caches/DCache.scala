@@ -22,6 +22,11 @@ trait DCacheConfig {
   val INDEX_WIDTH = log2Ceil(SET_NUM)
   val TAG_WIDTH = PHY_ADDR_W - OFFSET_WIDTH - INDEX_WIDTH
   val META_WIDTH = TAG_WIDTH + 1
+
+  // flags
+  val hasDCache = true
+  val hasDCacheOp = false
+  val useBRAM = true
 }
 
 class DCacheAddr extends Bundle with DCacheConfig {
@@ -33,29 +38,6 @@ class DCacheAddr extends Bundle with DCacheConfig {
 class DCacheMeta extends Bundle with ICacheConfig {
   val valid = Bool()
   val tag = UInt(TAG_WIDTH.W)
-}
-
-class DCacheCPUIO extends Bundle with DCacheConfig {
-  val rd = Input(Bool())
-  val wr = Input(Bool())
-  val size = Input(UInt(2.W))
-  val strb = Input(UInt((XLEN / 8).W))
-  val addr = Input(UInt(PHY_ADDR_W.W))
-  val din = Input(UInt(XLEN.W))
-  val dout = Output(UInt(XLEN.W))
-  val stall_req = Output(Bool())
-  val invalidate = if (hasDCacheOp) { Input(Bool()) }
-  else { null } // TODO support ops
-}
-
-class DCacheIO extends Bundle with DCacheConfig {
-  val upper = Vec(LSU_PATH_NUM, new DCacheCPUIO)
-  val lower = Vec(LSU_PATH_NUM, new AXIIO)
-
-  val last_stall = Input(Bool())
-  val stall = Input(Bool())
-  val flush = Input(Bool())
-  // val stall_req = Output(Vec(LSU_PATH_NUM, Bool()))
 }
 
 class PathBRAMIO extends Bundle with DCacheConfig {
@@ -74,9 +56,9 @@ class DCachePathIO extends Bundle with DCacheConfig {
   val lower = new AXIIO
   val bram = Flipped(Vec(WAY_NUM, new PathBRAMIO))
 
-  val last_stall = Input(Bool())
-  val stall = Input(Bool())
-  val flush = Input(Bool())
+  val last_stall = Input(Bool()) // 上一拍stall，意味着这一拍没有新的请求，以免重复发送读写请求
+  val stall = Input(Bool()) // 用来同步ytz的状态机，当前版本无效
+  val flush = Input(Bool()) // 流水线要求刷洗；dummy cache无效
 }
 
 // define a base class to suppress deprecation warning
@@ -92,7 +74,7 @@ class DCachePath extends DCachePathBase {
 class DCachePathFake extends DCachePathBase {
   val s_idle :: s_pending :: s_busy :: s_valid :: Nil = Enum(4)
   val state_reg = RegInit(s_idle)
-  val state = Wire(UInt(3.W))  
+  val state = Wire(UInt(3.W))
 
   state := MuxLookupBi(
     state_reg,
@@ -169,22 +151,35 @@ class DCachePathFake extends DCachePathBase {
   io.upper.stall_req := (state =/= s_valid) & (state =/= s_idle)
 }
 
+class DCacheCPUIO extends Bundle with DCacheConfig {
+  val rd = Input(Bool())
+  val wr = Input(Bool())
+  val size = Input(UInt(2.W))
+  val strb = Input(UInt((XLEN / 8).W))
+  val addr = Input(UInt(PHY_ADDR_W.W))
+  val din = Input(UInt(XLEN.W))
+  val dout = Output(UInt(XLEN.W))
+  val stall_req = Output(Bool())
+  val invalidate = if (hasDCacheOp) { Input(Bool()) }
+  else { null } // TODO support ops
+}
+
+class DCacheIO extends Bundle with DCacheConfig {
+  val upper = Vec(LSU_PATH_NUM, new DCacheCPUIO)
+  val lower = Vec(LSU_PATH_NUM, new AXIIO)
+
+  val last_stall = Input(Bool())
+  val stall = Input(Bool())
+  val flush = Input(Bool())
+  // val stall_req = Output(Vec(LSU_PATH_NUM, Bool()))
+}
+
 class DCache extends Module with DCacheConfig {
   val io = IO(new DCacheIO)
 
+  // connect to path
   val path = List.fill(LSU_PATH_NUM)(if (hasDCache) { Module(new DCachePath) }
   else { Module(new DCachePathFake) })
-  val data = if (hasDCache) {
-    List.fill(WAY_NUM)(
-      Module(new DualPortRAM(DATA_WIDTH = LINE_WIDTH, DEPTH = SET_NUM))
-    )
-  } else { null }
-  val meta = if (hasDCache) {
-    List.fill(WAY_NUM)(
-      Module(new DualPortLUTRAM(DATA_WIDTH = LINE_WIDTH, DEPTH = SET_NUM))
-    )
-  } else { null }
-
   for (i <- 0 until LSU_PATH_NUM) {
     path(i).io.upper <> io.upper(i)
     path(i).io.lower <> io.lower(i)
@@ -193,33 +188,68 @@ class DCache extends Module with DCacheConfig {
     path(i).io.flush <> io.flush
   }
 
-  for (j <- 0 until WAY_NUM) {
-    if (hasDCache) {
-      meta(j).io.wea := path(0).io.bram(j).meta_we
-      meta(j).io.addra := path(0).io.bram(j).meta_addr
-      meta(j).io.dina := path(0).io.bram(j).meta_din
-      path(0).io.bram(j).meta_dout := meta(j).io.douta
-      data(j).io.wea := path(0).io.bram(j).data_we
-      data(j).io.addra := path(0).io.bram(j).data_addr
-      data(j).io.dina := path(0).io.bram(j).data_din
-      path(0).io.bram(j).data_dout := data(j).io.douta
-      if (LSU_PATH_NUM == 2) {
-        // TODO avoid write conflict
-        // meta(j).io.web := path(1).io.bram(j).meta_we
-        meta(j).io.addrb := path(1).io.bram(j).meta_addr
-        // meta(j).io.dinb := path(1).io.bram(j).meta_din
-        path(1).io.bram(j).meta_dout := meta(j).io.doutb
-        data(j).io.web := path(1).io.bram(j).data_we
-        data(j).io.addrb := path(1).io.bram(j).data_addr
-        data(j).io.dinb := path(1).io.bram(j).data_din
-        path(1).io.bram(j).data_dout := data(j).io.doutb
+  // connect to RAM
+  for (i <- 0 until WAY_NUM) {
+    path(0).io.bram(i) <> DontCare
+    if (LSU_PATH_NUM == 2) {
+      path(1).io.bram(i) <> DontCare
+    }
+  }
+  if (hasDCache) {
+    if (useBRAM) {
+      val meta = List.fill(WAY_NUM)(
+        Module(new DualPortLUTRAM(DATA_WIDTH = META_WIDTH, DEPTH = SET_NUM))
+      )
+      val data = List.fill(WAY_NUM)(
+        Module(new DualPortRAM(DATA_WIDTH = LINE_WIDTH, DEPTH = SET_NUM))
+      )
+      for (i <- 0 until WAY_NUM) {
+        meta(i).io.wea := path(0).io.bram(i).meta_we
+        meta(i).io.addra := path(0).io.bram(i).meta_addr
+        meta(i).io.dina := path(0).io.bram(i).meta_din
+        path(0).io.bram(i).meta_dout := meta(i).io.douta
+        data(i).io.wea := path(0).io.bram(i).data_we
+        data(i).io.addra := path(0).io.bram(i).data_addr
+        data(i).io.dina := path(0).io.bram(i).data_din
+        path(0).io.bram(i).data_dout := data(i).io.douta
+        if (LSU_PATH_NUM == 2) {
+          // TODO avoid write conflict
+          // meta(i).io.web := path(1).io.bram(i).meta_we
+          meta(i).io.addrb := path(1).io.bram(i).meta_addr
+          // meta(i).io.dinb := path(1).io.bram(i).meta_din
+          path(1).io.bram(i).meta_dout := meta(i).io.doutb
+          data(i).io.web := path(1).io.bram(i).data_we
+          data(i).io.addrb := path(1).io.bram(i).data_addr
+          data(i).io.dinb := path(1).io.bram(i).data_din
+          path(1).io.bram(i).data_dout := data(i).io.doutb
+        }
       }
     } else {
-      path(0).io.bram(j) <> DontCare
-      if (LSU_PATH_NUM == 2) {
-        path(1).io.bram(j) <> DontCare
+      val meta = List.fill(WAY_NUM)(Mem(SET_NUM, UInt(META_WIDTH.W)))
+      val data = List.fill(WAY_NUM)(SyncReadMem(SET_NUM, UInt(LINE_WIDTH.W)))
+      for (i <- 0 until WAY_NUM) {
+        for (j <- 0 until LSU_PATH_NUM) {
+          path(j).io.bram(i).meta_dout := meta(i).read(
+            path(j).io.bram(i).meta_addr
+          )
+          when(path(j).io.bram(i).meta_we) {
+            meta(i).write(
+              path(j).io.bram(i).meta_addr,
+              path(j).io.bram(i).meta_din
+            )
+          }
+          path(j).io.bram(i).data_dout := data(i).read(
+            path(j).io.bram(i).data_addr,
+            !path(j).io.bram(i).data_we
+          )
+          when(path(j).io.bram(i).data_we) {
+            data(i).write(
+              path(j).io.bram(i).data_addr,
+              path(j).io.bram(i).data_din
+            )
+          }
+        }
       }
     }
   }
-
 }
