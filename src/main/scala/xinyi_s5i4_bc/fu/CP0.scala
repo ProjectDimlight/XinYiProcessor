@@ -136,6 +136,7 @@ class CP0 extends Module with CP0Config with TLBConfig {
     val soft_int_pending_vec = Output(Vec(2, Bool())) // software interrupt
     val time_int             = Output(Bool()) // time interruption
     val int_mask_vec         = Output(Vec(8, Bool())) // interrupt mask
+    val exl                  = Output(Bool())
 
     // TLB support
     val tlb_probe_en = Input(Bool())
@@ -202,7 +203,8 @@ class CP0 extends Module with CP0Config with TLBConfig {
   //<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
-  val has_exception_vec = !cp0_reg_status.EXL && io.exc_info.exc_code =/= NO_EXCEPTION
+  val has_exception_vec = io.exc_info.exc_code =/= NO_EXCEPTION
+  io.exl := cp0_reg_status.EXL
 
 
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

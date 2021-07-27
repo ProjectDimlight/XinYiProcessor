@@ -314,7 +314,6 @@ class FUWBReg extends Module {
   reg_exception_target  := io.fu_exception_target
   reg_exc_info          := io.fu_exc_info
 
-
   io.wb_in := reg_out
   io.wb_exception_order   := reg_exception_order
   io.wb_exception_handled := reg_exception_handled
@@ -357,6 +356,8 @@ class InterruptReg extends Module {
     val fu_pc               = Input(UInt(LGC_ADDR_W.W))
     val fu_is_delay_slot    = Input(Bool())
     val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
+    val eret                = Input(Bool())
+    val fu_epc              = Input(UInt(LGC_ADDR_W.W))
 
     val wb_epc       = Output(UInt(LGC_ADDR_W.W))
   })
@@ -364,6 +365,9 @@ class InterruptReg extends Module {
   val pc_reg = RegInit(0.U(LGC_ADDR_W.W))
   when (io.fu_actual_issue_cnt =/= 0.U) {
     pc_reg := Mux(io.fu_is_delay_slot, io.fu_pc - 4.U, io.fu_pc)
+  }
+  when (io.eret) {
+    pc_reg := io.fu_epc
   }
   io.wb_epc := pc_reg
 }

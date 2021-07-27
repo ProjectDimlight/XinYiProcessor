@@ -38,7 +38,7 @@ class PCStage extends Module {
   br.target := Mux(br_reg.enable, br_reg.target, io.branch.target)
 
   when (io.stall) {
-    when (!ex_reg.enable) {
+    when (io.exception.enable) {
       ex_reg := io.exception
     }
     when (!br_reg.enable) {
