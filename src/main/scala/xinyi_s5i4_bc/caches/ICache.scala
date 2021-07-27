@@ -87,11 +87,8 @@ class ICache extends Module with ICacheConfig {
 
 
   // write-read data
-  val rd_block_vec = Wire(Vec(SET_ASSOCIATIVE, UInt(BLOCK_WIDTH.W))) // read data blocks
-  val rd_block     = Wire(UInt(BLOCK_WIDTH.W)) // single read block
-
+  val rd_block_vec      = Wire(Vec(SET_ASSOCIATIVE, UInt(BLOCK_WIDTH.W))) // read data blocks
   val tag_valid_rd_data = Wire(Vec(SET_ASSOCIATIVE, new ICacheTagValid))
-
 
   // hit_vec: indicate the vector of hit in 4-way ICache
   val hit_vec = Wire(Vec(SET_ASSOCIATIVE, Bool()))
@@ -106,9 +103,10 @@ class ICache extends Module with ICacheConfig {
   miss := ~hit
 
   // hit access index
-  val hit_access = Wire(UInt(log2Ceil(SET_ASSOCIATIVE).W))
-  hit_access := hit_vec.indexWhere((x: Bool) => x === true.B)
+  val hit_access = hit_vec.indexWhere((x: Bool) => x === true.B)
 
+  // get data from the hit set and from the offset
+  val rd_block = rd_block_vec(hit_access) // single read block
 
   //>>>>>>>>>>>>>>>
   //  INNER LOGIC
@@ -160,8 +158,6 @@ class ICache extends Module with ICacheConfig {
     val tag_width_bram = CreateTagValidBRAM(i)
   }
 
-  // get data from the hit set and from the offset
-  rd_block := rd_block_vec(hit_access)
 
   val inst_offset_index = io.cpu_io.addr.inst_offset(4, 2)
 
