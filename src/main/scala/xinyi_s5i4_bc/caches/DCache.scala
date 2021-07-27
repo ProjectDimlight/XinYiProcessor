@@ -166,6 +166,9 @@ class DCachePath extends DCachePathBase {
   val read_counter = Counter(LINE_NUM)
   val write_counter = Counter(LINE_NUM)
 
+  val read_satisfy = state === s_read_resp && lower.rvalid && lower.rlast
+  val write_satisfy = state === s_write_resp && lower.bvalid
+
   // state machine
   switch(state) {
     is(s_idle) {
@@ -222,32 +225,59 @@ class DCachePath extends DCachePathBase {
 
   val target_data = Mux(hit, cacheline_data, fetched_vec)
   when(new_request || state =/= s_idle) {
-    when(state === s_read_resp && lower.rvalid && lower.rlast) {
-      result := Mux(current_request.uncached, lower.rdata, target_data.data(current_request.addr.line_offset))
-      when(!current_request.uncached && !hit) {
-        need_bram_write := true.B
-        for(i<- 0 until WAY_NUM) {
+    when(hit || read_satisfy) {
+      when(current_request.rd) {
+        result := Mux(
+          current_request.uncached,
+          lower.rdata,
+          target_data.data(current_request.addr.line_offset)
+        )
+        when(!current_request.uncached && !hit) {
+          need_bram_write := true.B
           val new_meta = cacheline_meta
           new_meta.valid := true.B
           new_meta.tag := current_request.addr.tag
+          for (i <- 0 until WAY_NUM) {
+            write_meta(i) := Mux(access_vec(i), new_meta, read_meta(i))
+            write_data(i) := Mux(access_vec(i), target_data, read_data(i))
+          }
+        }
+      }.elsewhen(current_request.wr && !current_request.uncached) {
+        val new_data = Wire(new DCacheData)
+        val offset = current_request.addr.word_offset << 3
+        val mask = WireDefault(UInt(DATA_WIDTH.W), 0.U(DATA_WIDTH.W))
+        switch(current_request.size) {
+          is(0.U) {
+            mask := Fill(8, 1.U(1.W)) << offset
+          }
+          is(1.U) {
+            mask := Fill(16, 1.U(1.W)) << offset
+          }
+          is(2.U) {
+            mask := Fill(32, 1.U(1.W))
+          }
+        }
+        new_data := target_data
+        new_data.data(
+          current_request.addr.line_offset
+        ) := (current_request.din & mask) | (target_data.data(
+          current_request.addr.line_offset
+        ) & ~mask)
+        need_bram_write := true.B
+        val new_meta = cacheline_meta
+        new_meta.valid := true.B
+        new_meta.dirty := true.B
+        new_meta.tag := current_request.addr.tag
+        for (i <- 0 until WAY_NUM) {
           write_meta(i) := Mux(access_vec(i), new_meta, read_meta(i))
-          write_data(i) := Mux(access_vec(i), target_data, read_data(i))
+          write_data(i) := Mux(access_vec(i), new_data, read_data(i))
         }
       }
-    }.elsewhen(state === s_write_resp && lower.bvalid) {
-
-    }
-    when(current_request.rd) {
-
-    }.elsewhen(current_request.wr) {
-
-    }.otherwise{
-
     }
   }
 
   // upper IO
-  upper.stall_req := (new_request && !hit) || state =/= s_idle
+  upper.stall_req := (new_request && !hit) || (state =/= s_idle && !(read_satisfy || write_satisfy))
   upper.dout := result
 
   // lower IO
