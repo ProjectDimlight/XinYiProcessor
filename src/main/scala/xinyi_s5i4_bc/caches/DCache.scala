@@ -5,6 +5,7 @@ import chisel3.util._
 import config.config._
 import xinyi_s5i4_bc.AXIIO
 import utils._
+import chisel3.util.random.LFSR
 
 trait DCacheConfig {
   // predefined parameters
@@ -16,10 +17,12 @@ trait DCacheConfig {
 
   // derived parameters
   val LINE_WIDTH = LINE_NUM * DATA_WIDTH
-  val OFFSET_WIDTH = log2Ceil(LINE_NUM)
+  val OFFSET_WIDTH = log2Ceil(LINE_WIDTH / 8)
 
-  val SET_NUM = CACHE_SIZE / (WAY_NUM * OFFSET_WIDTH)
+  val SET_NUM = CACHE_SIZE / (WAY_NUM * LINE_WIDTH)
   val INDEX_WIDTH = log2Ceil(SET_NUM)
+  val LINEOFFSET_WIDTH = log2Ceil(LINE_NUM)
+  val WORDOFFSET_WIDTH = log2Ceil(DATA_WIDTH / 8)
   val TAG_WIDTH = PHY_ADDR_W - OFFSET_WIDTH - INDEX_WIDTH
   val META_WIDTH = TAG_WIDTH + 1
 
@@ -32,12 +35,44 @@ trait DCacheConfig {
 class DCacheAddr extends Bundle with DCacheConfig {
   val tag = UInt(TAG_WIDTH.W)
   val index = UInt(INDEX_WIDTH.W)
-  val offset = UInt(OFFSET_WIDTH.W)
+  val line_offset = UInt(LINEOFFSET_WIDTH.W)
+  val word_offset = UInt(WORDOFFSET_WIDTH.W)
 }
 
-class DCacheMeta extends Bundle with ICacheConfig {
+class DCacheMeta extends Bundle with DCacheConfig {
   val valid = Bool()
   val tag = UInt(TAG_WIDTH.W)
+  override def toPrintable: Printable =
+    p"DCacheMeta(valid = ${valid}, tag = 0x${Hexadecimal(tag)})"
+}
+
+class DCacheData extends Bundle with DCacheConfig {
+  val data = Vec(LINE_NUM, UInt(DATA_WIDTH.W))
+  override def toPrintable: Printable = p"DCacheData(data = ${data})"
+}
+
+class DCacheCPUIO extends Bundle with DCacheConfig {
+  val rd = Input(Bool())
+  val wr = Input(Bool())
+  val uncache = Input(Bool())
+  val size = Input(UInt(2.W))
+  val strb = Input(UInt((DATA_WIDTH / 8).W))
+  val addr = Input(UInt(PHY_ADDR_W.W))
+  val din = Input(UInt(DATA_WIDTH.W))
+  val dout = Output(UInt(DATA_WIDTH.W))
+  val stall_req = Output(Bool())
+  val invalidate = if (hasDCacheOp) { Input(Bool()) }
+  else { null } // TODO support ops
+}
+
+class DCacheIO extends Bundle with DCacheConfig {
+  val upper = Vec(LSU_PATH_NUM, new DCacheCPUIO)
+  val lower = Vec(LSU_PATH_NUM, new AXIIO)
+
+  val last_stall = Input(Bool())
+  val stall = Input(Bool())
+  val flush = Input(Bool())
+  // val stall_req = Output(Vec(LSU_PATH_NUM, Bool()))
 }
 
 class PathBRAMIO extends Bundle with DCacheConfig {
@@ -68,13 +103,108 @@ class DCachePathBase extends Module with DCacheConfig {
 }
 
 class DCachePath extends DCachePathBase {
-  io <> DontCare
+  val s_idle :: s_read_req :: s_read_resp :: s_write_req :: s_write_resp :: s_uncache_req :: s_uncache_resp :: s_invalidate :: Nil =
+    Enum(8)
+  val state = RegInit(s_idle)
+
+  val upper = io.upper
+  val uncached = upper.uncache
+
+  class DCacheReq extends Bundle with DCacheConfig {
+    val rd = Bool()
+    val wr = Bool()
+    val uncache = Bool()
+    val size = UInt(2.W)
+    val strb = UInt((DATA_WIDTH / 8).W)
+    val addr = new DCacheAddr
+    val din = UInt(DATA_WIDTH.W)
+  }
+
+  val new_request = !io.last_stall & (upper.rd | upper.wr)
+  val upper_request = Wire(new DCacheReq)
+  val current_request = RegEnable(upper_request, new_request)
+  upper_request.rd := upper.rd
+  upper_request.wr := upper.wr
+  upper_request.uncache := upper.uncache
+  upper_request.size := upper.size
+  upper_request.strb := upper.strb
+  upper_request.addr := upper.addr.asTypeOf(new DCacheAddr)
+  upper_request.din := upper.din
+
+  val read_index = Wire(UInt(INDEX_WIDTH.W))
+  val read_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
+  val read_data = Wire(Vec(WAY_NUM, new DCacheData))
+
+  read_index := upper_request.addr.index
+
+  val invalid_vec = VecInit(read_meta.map(m => !m.valid)).asUInt
+  val tag_vec = VecInit(
+    read_meta.map(m => m.tag === upper_request.addr.tag)
+  ).asUInt
+  val hit_vec = invalid_vec & tag_vec
+  // val hit_index = PriorityEncoder(hit_vec)
+  val hit = hit_vec.orR && !uncached
+
+  // random replacement
+  // val victim_index = Mux(
+  //   invalid_vec.orR,
+  //   PriorityEncoder(invalid_vec),
+  //   LFSR(XLEN)(log2Ceil(WAY_NUM) - 1, 0)
+  // )
+  val victim_vec = Mux(
+    invalid_vec.orR,
+    invalid_vec,
+    UIntToOH(LFSR(XLEN)(log2Ceil(WAY_NUM) - 1, 0))
+  )
+
+  val access_vec = Mux(hit, hit_vec, victim_vec)
+
+  val stall = Wire(Bool())
+  val write_index = Wire(UInt(INDEX_WIDTH.W))
+  val write_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
+  val write_data = Reg(Vec(WAY_NUM, new DCacheData))
+
+  val need_meta_write = Wire(Bool())
+  val need_data_write = Wire(Bool())
+  val access_index = Wire(UInt(INDEX_WIDTH.W))
+
+  stall := DontCare
+  write_index := DontCare
+  write_meta := DontCare
+  write_data := DontCare
+
+  need_meta_write := false.B
+  need_data_write := false.B
+  access_index := DontCare
+
+  // state machine
+  switch(state) {
+    is(s_idle) {
+      when(!hit) {}
+    }
+  }
+
+  // BRAM IO
+  for (i <- 0 until WAY_NUM) {
+    io.bram(i).meta_we := need_meta_write
+    io.bram(i).meta_addr := access_index(i)
+    io.bram(i).meta_din := write_meta(i).asTypeOf(UInt(META_WIDTH.W))
+    read_meta(i) := io.bram(i).meta_dout.asTypeOf(new DCacheMeta)
+    io.bram(i).data_we := need_data_write
+    io.bram(i).data_addr := access_index(i)
+    io.bram(i).data_din := write_data(i).asTypeOf(UInt(LINE_WIDTH.W))
+    read_data(i) := io.bram(i).data_dout.asTypeOf(new DCacheData)
+  }
+
+  // AXI IO
+  io.lower <> DontCare
+
 }
 
 class DCachePathFake extends DCachePathBase {
   val s_idle :: s_pending :: s_busy :: s_valid :: Nil = Enum(4)
   val state_reg = RegInit(s_idle)
-  val state = Wire(UInt(3.W))
+  val state = Wire(chiselTypeOf(s_idle))
 
   state := MuxLookupBi(
     state_reg,
@@ -105,7 +235,6 @@ class DCachePathFake extends DCachePathBase {
   state_reg := state
 
   val size = io.upper.size
-  //val strb     = MuxLookupBi(size, 15.U, Array(0.U -> 1.U, 1.U -> 3.U))
   val strb = io.upper.strb
   val addr_in = io.upper.addr
   val data_in = io.upper.din
@@ -142,38 +271,15 @@ class DCachePathFake extends DCachePathBase {
   io.lower.bready <> 1.U
 
   val valid = (state === s_valid) & (state_reg =/= s_valid)
-  val data_reg = RegInit(0.U(XLEN.W))
+  val data_reg = RegInit(0.U(DATA_WIDTH.W))
   val data = io.lower.rdata
   when(valid) {
     data_reg := data
   }
   io.upper.dout := Mux(valid, data, data_reg)
   io.upper.stall_req := (state =/= s_valid) & (state =/= s_idle)
+
 }
-
-class DCacheCPUIO extends Bundle with DCacheConfig {
-  val rd = Input(Bool())
-  val wr = Input(Bool())
-  val size = Input(UInt(2.W))
-  val strb = Input(UInt((XLEN / 8).W))
-  val addr = Input(UInt(PHY_ADDR_W.W))
-  val din = Input(UInt(XLEN.W))
-  val dout = Output(UInt(XLEN.W))
-  val stall_req = Output(Bool())
-  val invalidate = if (hasDCacheOp) { Input(Bool()) }
-  else { null } // TODO support ops
-}
-
-class DCacheIO extends Bundle with DCacheConfig {
-  val upper = Vec(LSU_PATH_NUM, new DCacheCPUIO)
-  val lower = Vec(LSU_PATH_NUM, new AXIIO)
-
-  val last_stall = Input(Bool())
-  val stall = Input(Bool())
-  val flush = Input(Bool())
-  // val stall_req = Output(Vec(LSU_PATH_NUM, Bool()))
-}
-
 class DCache extends Module with DCacheConfig {
   val io = IO(new DCacheIO)
 
@@ -198,16 +304,27 @@ class DCache extends Module with DCacheConfig {
   if (hasDCache) {
     if (useBRAM) {
       val meta = List.fill(WAY_NUM)(
-        Module(new DualPortLUTRAM(DATA_WIDTH = META_WIDTH, DEPTH = SET_NUM))
+        Module(
+          new DualPortLUTRAM(
+            DATA_WIDTH = META_WIDTH,
+            DEPTH = SET_NUM,
+            LATENCY = 0
+          )
+        )
       )
       val data = List.fill(WAY_NUM)(
         Module(new DualPortRAM(DATA_WIDTH = LINE_WIDTH, DEPTH = SET_NUM))
       )
       for (i <- 0 until WAY_NUM) {
+        meta(i).io.clk := clock
+        meta(i).io.rst := reset
         meta(i).io.wea := path(0).io.bram(i).meta_we
         meta(i).io.addra := path(0).io.bram(i).meta_addr
         meta(i).io.dina := path(0).io.bram(i).meta_din
         path(0).io.bram(i).meta_dout := meta(i).io.douta
+
+        data(i).io.clk := clock
+        data(i).io.rst := reset
         data(i).io.wea := path(0).io.bram(i).data_we
         data(i).io.addra := path(0).io.bram(i).data_addr
         data(i).io.dina := path(0).io.bram(i).data_din
@@ -229,24 +346,14 @@ class DCache extends Module with DCacheConfig {
       val data = List.fill(WAY_NUM)(SyncReadMem(SET_NUM, UInt(LINE_WIDTH.W)))
       for (i <- 0 until WAY_NUM) {
         for (j <- 0 until LSU_PATH_NUM) {
-          path(j).io.bram(i).meta_dout := meta(i).read(
-            path(j).io.bram(i).meta_addr
-          )
-          when(path(j).io.bram(i).meta_we) {
-            meta(i).write(
-              path(j).io.bram(i).meta_addr,
-              path(j).io.bram(i).meta_din
-            )
+          val bram = path(j).io.bram(i)
+          bram.meta_dout := meta(i).read(bram.meta_addr)
+          when(bram.meta_we) {
+            meta(i).write(bram.meta_addr, bram.meta_din)
           }
-          path(j).io.bram(i).data_dout := data(i).read(
-            path(j).io.bram(i).data_addr,
-            !path(j).io.bram(i).data_we
-          )
-          when(path(j).io.bram(i).data_we) {
-            data(i).write(
-              path(j).io.bram(i).data_addr,
-              path(j).io.bram(i).data_din
-            )
+          bram.data_dout := data(i).read(bram.data_addr, !bram.data_we)
+          when(bram.data_we) {
+            data(i).write(bram.data_addr, bram.data_din)
           }
         }
       }
