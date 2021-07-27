@@ -13,19 +13,17 @@ import config.config._
 
 trait ICacheConfig {
   // basic attributes
-  val SET_ASSOCIATIVE = 4
+  val SET_ASSOCIATIVE = 2
   val BLOCK_INST_NUM  = 8
 
   // width
-  val BLOCK_WIDTH       = BLOCK_INST_NUM * XLEN // each cache block has 8 instructions
-  val INDEX_WIDTH       = 3
-  val SET_OFFSET_WIDTH  = log2Ceil(SET_ASSOCIATIVE)
-  val GROUP_WIDTH       = INDEX_WIDTH - SET_OFFSET_WIDTH
-  val INST_OFFSET_WIDTH = log2Ceil(BLOCK_WIDTH >> 3)
-  val TAG_WIDTH         = XLEN - INDEX_WIDTH - INST_OFFSET_WIDTH
+  val BLOCK_WIDTH  = BLOCK_INST_NUM * XLEN // each cache block has 8 instructions
+  val INDEX_WIDTH  = 3
+  val OFFSET_WIDTH = log2Ceil(BLOCK_WIDTH >> 3)
+  val TAG_WIDTH    = XLEN - INDEX_WIDTH - OFFSET_WIDTH
 
   // derived number
-  val GROUP_NUM = 1 << GROUP_WIDTH
+  val GROUP_NUM = 1 << (INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE))
 }
 
 
@@ -47,9 +45,8 @@ class ICacheTagValid extends Bundle with ICacheConfig {
 // +----------+---------+----------------+----------------+
 class ICacheAddr extends Bundle with ICacheConfig {
   val tag         = UInt(TAG_WIDTH.W)
-  val group       = UInt(GROUP_WIDTH.W)
-  val set_offset  = UInt(SET_OFFSET_WIDTH.W)
-  val inst_offset = UInt(INST_OFFSET_WIDTH.W)
+  val index       = UInt(INDEX_WIDTH.W)
+  val inst_offset = UInt(OFFSET_WIDTH.W)
 }
 
 
@@ -73,6 +70,7 @@ class ICache extends Module with ICacheConfig {
   //>>>>>>>>>>>>>>>>>>>
   //  ICache Metadata
   //<<<<<<<<<<<<<<<<<<<
+  val io_group_index = io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0)
 
 
   // write-enable
@@ -83,9 +81,9 @@ class ICache extends Module with ICacheConfig {
   val ram_we = Wire(Vec(SET_ASSOCIATIVE, Bool())) // replace and fetch the replaced data from AXI
 
   // write-read addr
-  var tmp_group = RegInit(0.U(INDEX_WIDTH.W)) // tmp reg for address
-  val wr_index  = Wire(UInt(INDEX_WIDTH.W)) // store write index if cache miss
-  val rd_index  = Wire(UInt(INDEX_WIDTH.W)) // store read index if cache miss
+  var tmp_group = RegInit(0.U((INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE)).W)) // tmp reg for address
+  val wr_group  = Wire(UInt((INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE)).W)) // store write group if cache miss
+  val rd_group  = Wire(UInt((INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE)).W)) // store read group if cache miss
 
 
   // write-read data
@@ -104,7 +102,7 @@ class ICache extends Module with ICacheConfig {
   // miss
   val hit  = Wire(Bool())
   val miss = Wire(Bool())
-  hit := hit_vec.exists((x: Bool) => x === true.B)
+  hit := hit_vec.exists((x: Bool) => x === true.B) && io_group_index === tmp_group
   miss := ~hit
 
   // hit access index
@@ -117,31 +115,33 @@ class ICache extends Module with ICacheConfig {
   //<<<<<<<<<<<<<<<
 
   // ICache FSM state
-  val s_idle :: s_axi_pending :: s_axi_wait :: Nil = Enum(3)
+  val s_idle :: s_axi_pending :: s_axi_wait :: s_fill :: s_finish :: Nil = Enum(5)
 
   val state = RegInit(s_idle)
 
   // stash index
-  rd_index := Mux(state === s_idle, io.cpu_io.addr.group, tmp_group)
-  wr_index := tmp_group
+  rd_group := Mux(state === s_idle,
+    io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0),
+    tmp_group)
+  wr_group := tmp_group
 
 
   // select replace from selection vector
-  replace := replace_vec(io.cpu_io.addr.group).asBools()
+  replace := replace_vec(io_group_index).asBools()
   for (i <- 0 until SET_ASSOCIATIVE) {
-    ram_we(i) := replace(i) && state === s_axi_wait && io.axi_io.rvalid && io.axi_io.rlast
+    ram_we(i) := replace(i) && state === s_fill
   }
 
 
   // burst_count: calculate how many bytes has been burst from the AXI
-  val burst_count = RegInit(0.U(INST_OFFSET_WIDTH.W))
+  val burst_count = RegInit(0.U(OFFSET_WIDTH.W))
 
   // buffer for received data from AXI
   val receive_buffer = RegInit(VecInit(Seq.fill(BLOCK_INST_NUM)(0.U(XLEN.W))))
 
 
   // not valid
-  io.cpu_io.stall_req := state =/= s_idle
+  io.cpu_io.stall_req := state =/= s_idle || (state === s_idle && miss)
 
 
   //>>>>>>>>>>>>
@@ -154,15 +154,11 @@ class ICache extends Module with ICacheConfig {
   }
 
 
-
-
   // data and tag-valid brams
   for (i <- 0 until SET_ASSOCIATIVE) {
     val data_bram      = CreateDataBRAM(i)
     val tag_width_bram = CreateTagValidBRAM(i)
   }
-
-
 
   // get data from the hit set and from the offset
   rd_block := rd_block_vec(hit_access)
@@ -172,9 +168,7 @@ class ICache extends Module with ICacheConfig {
   // select data
   io.cpu_io.data := Mux(inst_offset_index(0),
     Cat((rd_block >> (inst_offset_index << 2)) (31, 0), 0.U(XLEN.W)), // read single instruction
-    (rd_block >> (inst_offset_index(2, 1) << 3)) (63, 0)) // read two instructions
-
-
+    (rd_block >> (inst_offset_index(2, 1) << 6)) (63, 0)) // read two instructions
 
 
   //>>>>>>>>>>>>>>>>>
@@ -186,7 +180,7 @@ class ICache extends Module with ICacheConfig {
     is(s_idle) {
       when(io.cpu_io.rd && miss) { // read request and cache miss
         state := s_axi_pending // wait for the AXI ready
-        tmp_group := io.cpu_io.addr.group // stash the access index
+        tmp_group := io_group_index // stash the access index
       }
     }
 
@@ -209,9 +203,17 @@ class ICache extends Module with ICacheConfig {
         // the last received data
         when(io.axi_io.rlast) {
           // no further data transfer, back to IDLE
-          state := s_idle
+          state := s_fill
         }
       }
+    }
+
+    is(s_fill) {
+      state := s_finish
+    }
+
+    is(s_finish) {
+      state := s_idle
     }
   }
 
@@ -221,13 +223,12 @@ class ICache extends Module with ICacheConfig {
   //<<<<<<<<<<<<<
   io.axi_io.arvalid := state === s_axi_pending
 
-
   // calculated
   io.axi_io.arlen := (BLOCK_INST_NUM - 1).U
-  io.axi_io.arsize := 4.U // 4 bytes per burst
+  io.axi_io.arsize := 2.U // 4 bytes per burst
   io.axi_io.arburst := 1.U // INCR mode
   io.axi_io.rready := state === s_axi_wait
-  io.axi_io.araddr := Cat(io.cpu_io.addr.tag, io.cpu_io.addr.group, io.cpu_io.addr.set_offset, 0.U(INST_OFFSET_WIDTH.W))
+  io.axi_io.araddr := Cat(io.cpu_io.addr.tag, io.cpu_io.addr.index, 0.U(OFFSET_WIDTH.W))
 
   // zeros
   io.axi_io.arid := 0.U
@@ -260,10 +261,10 @@ class ICache extends Module with ICacheConfig {
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
   def CreatePLRU(i: UInt) = {
-    var plru = Module(new PLRU())
+    var plru = Module(new PLRU(SET_ASSOCIATIVE))
 
     plru.io.flush := io.cpu_io.flush
-    plru.io.update := hit && i === io.cpu_io.addr.group // hit and match index, update when hit
+    plru.io.update := hit && i === io.cpu_io.addr.index // hit and match index, update when hit
     plru.io.update_index := hit_access
     replace_vec(i) := plru.io.replace_vec.asUInt()
 
@@ -280,12 +281,12 @@ class ICache extends Module with ICacheConfig {
 
     // port 1: write
     data_bram.io.wea := ram_we(i)
-    data_bram.io.addra := wr_index
+    data_bram.io.addra := wr_group
     data_bram.io.dina := receive_buffer.asUInt()
 
     // port 2: read
     data_bram.io.web := false.B
-    data_bram.io.addra := rd_index
+    data_bram.io.addra := rd_group
     rd_block_vec(i) := data_bram.io.doutb
 
     data_bram
@@ -301,11 +302,11 @@ class ICache extends Module with ICacheConfig {
 
     // port 1: write
     tag_valid_bram.io.wea := ram_we(i)
-    tag_valid_bram.io.addra := wr_index
+    tag_valid_bram.io.addra := wr_group
     tag_valid_bram.io.dina := Cat(io.cpu_io.addr.tag, true.B)
 
     // port 2: read
-    tag_valid_bram.io.addrb := rd_index
+    tag_valid_bram.io.addrb := rd_group
     tag_valid_rd_data(i) := tag_valid_bram.io.doutb.asTypeOf(new ICacheTagValid)
 
     tag_valid_bram
