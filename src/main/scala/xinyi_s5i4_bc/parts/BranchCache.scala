@@ -93,7 +93,7 @@ class BranchCache extends Module {
   index := index_reg
   hit   := hit_reg
   state := state_reg
-  when (io.in.branch & !io.exception) {
+  when (io.in.branch) {
     index     := id
     index_reg := id
     hit       := ht
