@@ -85,7 +85,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
   )
   io.cache.addr := addr
   // kseg1 0xA0000000-0xBFFFFFFF VA[31-29]==0b101 uncached
-  io.cache.uncache := addr(31, 29) === "b101".U
+  io.cache.uncached := addr(31, 29) === "b101".U
   io.cache.din  := MuxLookupBi(
     io.in.fu_ctrl(2, 1),
     io.in.a,

@@ -12,7 +12,7 @@ trait DCacheConfig {
   val CACHE_SIZE = 8 * 1024 * 8 // 8KB
   val LINE_NUM = 8
   val DATA_WIDTH = XLEN
-  val WAY_NUM = 4
+  val WAY_NUM = 2
   val NAME = "DCache"
 
   // derived parameters
@@ -24,7 +24,7 @@ trait DCacheConfig {
   val LINEOFFSET_WIDTH = log2Ceil(LINE_NUM)
   val WORDOFFSET_WIDTH = log2Ceil(DATA_WIDTH / 8)
   val TAG_WIDTH = PHY_ADDR_W - OFFSET_WIDTH - INDEX_WIDTH
-  val META_WIDTH = TAG_WIDTH + 1
+  val META_WIDTH = TAG_WIDTH + 2
 
   // flags
   val hasDCache = true
@@ -41,6 +41,7 @@ class DCacheAddr extends Bundle with DCacheConfig {
 
 class DCacheMeta extends Bundle with DCacheConfig {
   val valid = Bool()
+  val dirty = Bool()
   val tag = UInt(TAG_WIDTH.W)
   override def toPrintable: Printable =
     p"DCacheMeta(valid = ${valid}, tag = 0x${Hexadecimal(tag)})"
@@ -54,7 +55,7 @@ class DCacheData extends Bundle with DCacheConfig {
 class DCacheCPUIO extends Bundle with DCacheConfig {
   val rd = Input(Bool())
   val wr = Input(Bool())
-  val uncache = Input(Bool())
+  val uncached = Input(Bool())
   val size = Input(UInt(2.W))
   val strb = Input(UInt((DATA_WIDTH / 8).W))
   val addr = Input(UInt(PHY_ADDR_W.W))
@@ -103,47 +104,48 @@ class DCachePathBase extends Module with DCacheConfig {
 }
 
 class DCachePath extends DCachePathBase {
-  val s_idle :: s_read_req :: s_read_resp :: s_write_req :: s_write_resp :: s_uncache_req :: s_uncache_resp :: s_invalidate :: Nil =
-    Enum(8)
-  val state = RegInit(s_idle)
-
-  val upper = io.upper
-  val uncached = upper.uncache
 
   class DCacheReq extends Bundle with DCacheConfig {
     val rd = Bool()
     val wr = Bool()
-    val uncache = Bool()
+    val uncached = Bool()
     val size = UInt(2.W)
     val strb = UInt((DATA_WIDTH / 8).W)
     val addr = new DCacheAddr
     val din = UInt(DATA_WIDTH.W)
   }
 
+  val upper = io.upper
+  val lower = io.lower
+  val bram = io.bram
+
+  val s_idle :: s_read_req :: s_read_resp :: s_write_req :: s_write_resp :: s_uncache_req :: s_uncache_resp :: s_invalidate :: Nil =
+    Enum(8)
+  val state = RegInit(s_idle)
+
   val new_request = !io.last_stall & (upper.rd | upper.wr)
   val upper_request = Wire(new DCacheReq)
   val current_request = RegEnable(upper_request, new_request)
+  val inflight_request = Mux(state === s_idle, upper_request, current_request)
   upper_request.rd := upper.rd
   upper_request.wr := upper.wr
-  upper_request.uncache := upper.uncache
+  upper_request.uncached := upper.uncached
   upper_request.size := upper.size
   upper_request.strb := upper.strb
   upper_request.addr := upper.addr.asTypeOf(new DCacheAddr)
   upper_request.din := upper.din
 
-  val read_index = Wire(UInt(INDEX_WIDTH.W))
+  val read_index = inflight_request.addr.index
   val read_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
   val read_data = Wire(Vec(WAY_NUM, new DCacheData))
 
-  read_index := upper_request.addr.index
-
   val invalid_vec = VecInit(read_meta.map(m => !m.valid)).asUInt
   val tag_vec = VecInit(
-    read_meta.map(m => m.tag === upper_request.addr.tag)
+    read_meta.map(m => m.tag === inflight_request.addr.tag)
   ).asUInt
   val hit_vec = invalid_vec & tag_vec
   // val hit_index = PriorityEncoder(hit_vec)
-  val hit = hit_vec.orR && !uncached
+  val hit = hit_vec.orR && !inflight_request.uncached
 
   // random replacement
   // val victim_index = Mux(
@@ -154,51 +156,146 @@ class DCachePath extends DCachePathBase {
   val victim_vec = Mux(
     invalid_vec.orR,
     invalid_vec,
-    UIntToOH(LFSR(XLEN)(log2Ceil(WAY_NUM) - 1, 0))
+    UIntToOH(LFSR(WAY_NUM)(log2Ceil(WAY_NUM) - 1, 0))
   )
-
   val access_vec = Mux(hit, hit_vec, victim_vec)
+  val access_index = PriorityEncoder(access_vec)
+  val cacheline_meta = read_meta(access_index)
+  val cacheline_data = read_data(access_index)
 
-  val stall = Wire(Bool())
-  val write_index = Wire(UInt(INDEX_WIDTH.W))
-  val write_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
-  val write_data = Reg(Vec(WAY_NUM, new DCacheData))
-
-  val need_meta_write = Wire(Bool())
-  val need_data_write = Wire(Bool())
-  val access_index = Wire(UInt(INDEX_WIDTH.W))
-
-  stall := DontCare
-  write_index := DontCare
-  write_meta := DontCare
-  write_data := DontCare
-
-  need_meta_write := false.B
-  need_data_write := false.B
-  access_index := DontCare
+  val read_counter = Counter(LINE_NUM)
+  val write_counter = Counter(LINE_NUM)
 
   // state machine
   switch(state) {
     is(s_idle) {
-      when(!hit) {}
+      when(new_request && !hit) {
+        state := Mux(
+          cacheline_meta.valid && cacheline_meta.dirty,
+          s_write_req,
+          s_read_req
+        )
+      }
+    }
+    is(s_read_req) {
+      when(lower.arready && lower.arvalid) {
+        read_counter.value := 0.U
+        state := s_read_resp
+      }
+    }
+    is(s_read_resp) {
+      when(lower.rvalid && lower.rlast) {
+        state := s_idle
+      }
+    }
+    is(s_write_req) {
+      when(lower.wready) {
+        write_counter.inc()
+        when(lower.wlast) {
+          state := s_write_resp
+        }
+      }
+    }
+    is(s_write_resp) {
+      when(lower.bvalid) {
+        state := Mux(inflight_request.uncached, s_idle, s_read_req)
+      }
+    }
+    is(s_invalidate) { // TODO
+      state := s_idle
     }
   }
 
-  // BRAM IO
-  for (i <- 0 until WAY_NUM) {
-    io.bram(i).meta_we := need_meta_write
-    io.bram(i).meta_addr := access_index(i)
-    io.bram(i).meta_din := write_meta(i).asTypeOf(UInt(META_WIDTH.W))
-    read_meta(i) := io.bram(i).meta_dout.asTypeOf(new DCacheMeta)
-    io.bram(i).data_we := need_data_write
-    io.bram(i).data_addr := access_index(i)
-    io.bram(i).data_din := write_data(i).asTypeOf(UInt(LINE_WIDTH.W))
-    read_data(i) := io.bram(i).data_dout.asTypeOf(new DCacheData)
+  val write_index = Wire(UInt(INDEX_WIDTH.W))
+  val write_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
+  val write_data = Reg(Vec(WAY_NUM, new DCacheData))
+  val need_bram_write = Wire(Bool())
+  write_index := DontCare
+  write_meta := DontCare
+  write_data := DontCare
+  need_bram_write := false.B
+
+  val result = Wire(UInt(DATA_WIDTH.W))
+  val fetched_vec = Wire(new DCacheData)
+  result := DontCare
+  fetched_vec := DontCare
+
+  val target_data = Mux(hit, cacheline_data, fetched_vec)
+  when(new_request || state =/= s_idle) {
+    when(state === s_read_resp && lower.rvalid && lower.rlast) {
+      result := Mux(current_request.uncached, lower.rdata, target_data.data(current_request.addr.line_offset))
+      when(!current_request.uncached && !hit) {
+        need_bram_write := true.B
+        for(i<- 0 until WAY_NUM) {
+          val new_meta = cacheline_meta
+          new_meta.valid := true.B
+          new_meta.tag := current_request.addr.tag
+          write_meta(i) := Mux(access_vec(i), new_meta, read_meta(i))
+          write_data(i) := Mux(access_vec(i), target_data, read_data(i))
+        }
+      }
+    }.elsewhen(state === s_write_resp && lower.bvalid) {
+
+    }
+    when(current_request.rd) {
+
+    }.elsewhen(current_request.wr) {
+
+    }.otherwise{
+
+    }
   }
 
-  // AXI IO
-  io.lower <> DontCare
+  // upper IO
+  upper.stall_req := (new_request && !hit) || state =/= s_idle
+  upper.dout := result
 
+  // lower IO
+  lower <> DontCare
+  lower.arvalid := (state === s_read_req)
+  lower.araddr := Mux(
+    inflight_request.uncached,
+    inflight_request.addr.asTypeOf(UInt(PHY_ADDR_W.W)),
+    Cat(
+      inflight_request.addr.tag,
+      inflight_request.addr.index,
+      0.U(OFFSET_WIDTH.W)
+    )
+  )
+  lower.arsize := current_request.size
+  lower.arburst := Mux(inflight_request.uncached, 0.U, 1.U)
+  lower.arlen := Mux(inflight_request.uncached, 0.U, (LINE_NUM - 1).U)
+  lower.rready := (state === s_read_resp)
+  when(lower.rvalid) {
+    fetched_vec.data(read_counter.value) := lower.rdata
+  }
+
+  lower.awvalid := (state === s_write_req)
+  lower.awaddr := Mux(
+    inflight_request.uncached,
+    inflight_request.addr.asTypeOf(UInt(PHY_ADDR_W.W)),
+    Cat(cacheline_meta.tag, inflight_request.addr.index, 0.U(OFFSET_WIDTH.W))
+  )
+  lower.awsize := current_request.size
+  lower.awburst := Mux(inflight_request.uncached, 0.U, 1.U)
+  lower.awlen := Mux(inflight_request.uncached, 0.U, (LINE_NUM - 1).U)
+  lower.wvalid := (state === s_write_req)
+  lower.wdata := write_data(access_index).data(write_counter.value)
+  lower.wstrb := current_request.strb
+  lower.wlast := current_request.uncached || (write_counter.value === (LINE_NUM - 1).U)
+  lower.bready := (state === s_write_resp)
+
+  // BRAM IO
+  for (i <- 0 until WAY_NUM) {
+    bram(i).meta_we := need_bram_write
+    bram(i).meta_addr := Mux(need_bram_write, access_index, read_index)
+    bram(i).meta_din := write_meta(i).asTypeOf(UInt(META_WIDTH.W))
+    read_meta(i) := bram(i).meta_dout.asTypeOf(new DCacheMeta)
+    bram(i).data_we := need_bram_write
+    bram(i).data_addr := Mux(need_bram_write, access_index, read_index)
+    bram(i).data_din := write_data(i).asTypeOf(UInt(LINE_WIDTH.W))
+    read_data(i) := bram(i).data_dout.asTypeOf(new DCacheData)
+  }
 }
 
 class DCachePathFake extends DCachePathBase {
