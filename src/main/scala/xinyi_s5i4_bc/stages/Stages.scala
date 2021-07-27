@@ -51,7 +51,7 @@ class PCStage extends Module {
   }
 
   io.next_pc := MuxCase(
-    (io.pc & 0xFFFFFFFCL.U) + (4 * FETCH_NUM).U(LGC_ADDR_W.W),
+    (io.pc & 0xFFFFFFFCL.U) + Mux(io.pc(2), 4.U, 8.U),
     Array(
       ex.enable -> ex.target,
       br.enable -> br.target

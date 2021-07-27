@@ -159,7 +159,7 @@ class ICache extends Module with ICacheConfig {
 
   // select data
   io.cpu_io.data := Mux(inst_offset_index(0),
-    Cat((rd_block >> (inst_offset_index << 2)) (31, 0), 0.U(XLEN.W)), // read single instruction
+    Cat((rd_block >> (inst_offset_index << 5)) (31, 0), 0.U(XLEN.W)), // read single instruction
     (rd_block >> (inst_offset_index(2, 1) << 6)) (63, 0)) // read two instructions
 
 
