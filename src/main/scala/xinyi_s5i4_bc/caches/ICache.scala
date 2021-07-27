@@ -70,7 +70,8 @@ class ICache extends Module with ICacheConfig {
   //>>>>>>>>>>>>>>>>>>>
   //  ICache Metadata
   //<<<<<<<<<<<<<<<<<<<
-  val io_group_index = io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0)
+  val io_group_index   = io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0) // get the res group index from cpu_io
+  val last_group_index = RegInit(0.U((INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE)).W)) // record the last req group index
 
 
   // write-enable
@@ -80,56 +81,51 @@ class ICache extends Module with ICacheConfig {
   // BRAM and LUTRAM write-enable
   val ram_we = Wire(Vec(SET_ASSOCIATIVE, Bool())) // replace and fetch the replaced data from AXI
 
-  // write-read addr
-  var tmp_group = RegInit(0.U((INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE)).W)) // tmp reg for address
-  val wr_group  = Wire(UInt((INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE)).W)) // store write group if cache miss
-  val rd_group  = Wire(UInt((INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE)).W)) // store read group if cache miss
-
-
   // write-read data
-  val rd_block_vec      = Wire(Vec(SET_ASSOCIATIVE, UInt(BLOCK_WIDTH.W))) // read data blocks
-  val tag_valid_rd_data = Wire(Vec(SET_ASSOCIATIVE, new ICacheTagValid))
+  val rd_block_vec     = Wire(Vec(SET_ASSOCIATIVE, UInt(BLOCK_WIDTH.W))) // read data blocks
+  val rd_tag_valid_vec = Wire(Vec(SET_ASSOCIATIVE, new ICacheTagValid))
+
 
   // hit_vec: indicate the vector of hit in 4-way ICache
   val hit_vec = Wire(Vec(SET_ASSOCIATIVE, Bool()))
   for (i <- 0 until SET_ASSOCIATIVE) {
-    hit_vec(i) := tag_valid_rd_data(i).valid && tag_valid_rd_data(i).tag === io.cpu_io.addr.tag
+    hit_vec(i) := rd_tag_valid_vec(i).valid && rd_tag_valid_vec(i).tag === io.cpu_io.addr.tag
   }
 
-  // miss
-  val hit  = Wire(Bool())
-  val miss = Wire(Bool())
-  hit := hit_vec.exists((x: Bool) => x === true.B) && io_group_index === tmp_group
-  miss := ~hit
 
   // hit access index
   val hit_access = hit_vec.indexWhere((x: Bool) => x === true.B)
 
+
   // get data from the hit set and from the offset
-  val rd_block = rd_block_vec(hit_access) // single read block
+  val rd_block     = RegInit(0.U(BLOCK_WIDTH.W)) // block data
+  val rd_tag_valid = rd_tag_valid_vec(hit_access)
+
+  val cached_miss = io_group_index =/= last_group_index ||
+    !rd_tag_valid.valid ||
+    io.cpu_io.addr.tag =/= rd_tag_valid.tag
+
+  // miss
+  val hit  = Wire(Bool())
+  val miss = Wire(Bool())
+  hit := hit_vec.exists((x: Bool) => x === true.B)
+  miss := !hit
 
   //>>>>>>>>>>>>>>>
   //  INNER LOGIC
   //<<<<<<<<<<<<<<<
 
   // ICache FSM state
-  val s_idle :: s_axi_pending :: s_axi_wait :: s_fill :: s_finish :: Nil = Enum(5)
+  val s_idle :: s_fetch :: s_axi_pending :: s_axi_wait :: s_fill :: Nil = Enum(5)
 
+  // state reg
   val state = RegInit(s_idle)
-
-  // stash index
-  rd_group := Mux(state === s_idle,
-    io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0),
-    tmp_group)
-  wr_group := tmp_group
-
 
   // select replace from selection vector
   replace := replace_vec(io_group_index).asBools()
   for (i <- 0 until SET_ASSOCIATIVE) {
     ram_we(i) := replace(i) && state === s_fill
   }
-
 
   // burst_count: calculate how many bytes has been burst from the AXI
   val burst_count = RegInit(0.U(OFFSET_WIDTH.W))
@@ -139,7 +135,7 @@ class ICache extends Module with ICacheConfig {
 
 
   // not valid
-  io.cpu_io.stall_req := state =/= s_idle || (state === s_idle && miss)
+  io.cpu_io.stall_req := state =/= s_idle || (state === s_idle && cached_miss)
 
 
   //>>>>>>>>>>>>
@@ -174,9 +170,20 @@ class ICache extends Module with ICacheConfig {
   switch(state) {
     // when FSM is idle
     is(s_idle) {
-      when(io.cpu_io.rd && miss) { // read request and cache miss
-        state := s_axi_pending // wait for the AXI ready
-        tmp_group := io_group_index // stash the access index
+      // new request arrives
+      when(io.cpu_io.rd && cached_miss) { // read request and cache miss
+        state := s_fetch
+        last_group_index := io_group_index
+      }
+    }
+
+    // when FSM fetches metadata from BRAM and LUTRAM
+    is(s_fetch) {
+      when(hit) { // when hit, back to idle
+        state := s_idle
+        rd_block := rd_block_vec(hit_access)
+      }.otherwise { // when miss, fetch data from AXI
+        state := s_axi_pending
       }
     }
 
@@ -193,22 +200,18 @@ class ICache extends Module with ICacheConfig {
       // still receiving
       when(io.axi_io.rvalid) {
         receive_buffer(burst_count) := io.axi_io.rdata
-
         burst_count := burst_count + 1.U // increment burst count by 1
 
         // the last received data
         when(io.axi_io.rlast) {
           // no further data transfer, back to IDLE
           state := s_fill
+          rd_block := Cat(io.axi_io.rdata, receive_buffer.asUInt()(BLOCK_WIDTH - XLEN - 1, 0))
         }
       }
     }
 
     is(s_fill) {
-      state := s_finish
-    }
-
-    is(s_finish) {
       state := s_idle
     }
   }
@@ -277,12 +280,12 @@ class ICache extends Module with ICacheConfig {
 
     // port 1: write
     data_bram.io.wea := ram_we(i)
-    data_bram.io.addra := wr_group
+    data_bram.io.addra := last_group_index
     data_bram.io.dina := receive_buffer.asUInt()
 
     // port 2: read
     data_bram.io.web := false.B
-    data_bram.io.addra := rd_group
+    data_bram.io.addra := last_group_index
     rd_block_vec(i) := data_bram.io.doutb
 
     data_bram
@@ -291,19 +294,19 @@ class ICache extends Module with ICacheConfig {
 
   // generate tag bram
   def CreateTagValidBRAM(i: Int) = {
-    var tag_valid_bram = Module(new DualPortLUTRAM(DATA_WIDTH = (new ICacheTagValid).getWidth))
+    var tag_valid_bram = Module(new DualPortLUTRAM(DATA_WIDTH = (new ICacheTagValid).getWidth, LATENCY = 0))
 
     tag_valid_bram.io.clk := clock
     tag_valid_bram.io.rst := reset
 
     // port 1: write
     tag_valid_bram.io.wea := ram_we(i)
-    tag_valid_bram.io.addra := wr_group
+    tag_valid_bram.io.addra := last_group_index
     tag_valid_bram.io.dina := Cat(io.cpu_io.addr.tag, true.B)
 
     // port 2: read
-    tag_valid_bram.io.addrb := rd_group
-    tag_valid_rd_data(i) := tag_valid_bram.io.doutb.asTypeOf(new ICacheTagValid)
+    tag_valid_bram.io.addrb := last_group_index
+    rd_tag_valid_vec(i) := tag_valid_bram.io.doutb.asTypeOf(new ICacheTagValid)
 
     tag_valid_bram
   }
