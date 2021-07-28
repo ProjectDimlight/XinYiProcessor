@@ -159,7 +159,9 @@ class DataPath extends Module with ALUConfig {
       inst_params(i)(0) := Mux(inst.dec.param_a === AHi, fwd.hi, fwd.data)
     }
 
-    when (is_stage.io.forwarding_path_id(i).rs2 =/= TOT_PATH_NUM.U) {
+    when (is_stage.io.forwarding_path_id(i).rs2 =/= TOT_PATH_NUM.U & 
+      !((inst.dec.param_b === BImm) & (inst.dec.path === PathALU))
+    ) {
       val j = is_stage.io.forwarding_path_id(i).rs2
       val fwd = MuxLookupBi(j(1, 0),
         forwarding(0),
