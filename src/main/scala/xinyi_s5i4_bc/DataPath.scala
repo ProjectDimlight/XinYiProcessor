@@ -153,7 +153,7 @@ class DataPath extends Module with ALUConfig {
         Array(
           1.U -> forwarding(1),
           2.U -> forwarding(2),
-          3.U -> forwarding(3)
+          // 3.U -> forwarding(3)
         )
       )
       inst_params(i)(0) := Mux(inst.dec.param_a === AHi, fwd.hi, fwd.data)
@@ -166,7 +166,7 @@ class DataPath extends Module with ALUConfig {
         Array(
           1.U -> forwarding(1),
           2.U -> forwarding(2),
-          3.U -> forwarding(3)
+          // 3.U -> forwarding(3)
         )
       )
       inst_params(i)(1) := fwd.data

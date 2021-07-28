@@ -46,7 +46,7 @@ object config {
   val BJU_PATH_NUM  = 0
   val BJU_PATH_TYPE = 2
 
-  val LSU_PATH_NUM  = 2
+  val LSU_PATH_NUM  = 1
   val LSU_PATH_TYPE = 3
 
   val TOT_PATH_NUM   = ALU_PATH_NUM + BJU_PATH_NUM + LSU_PATH_NUM
