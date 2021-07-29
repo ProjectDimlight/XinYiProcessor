@@ -38,7 +38,7 @@ class PCStage extends Module {
   br.target := Mux(br_reg.enable, br_reg.target, io.branch.target)
 
   when (io.stall) {
-    when (!ex_reg.enable) {
+    when (io.exception.enable) {
       ex_reg := io.exception
     }
     when (!br_reg.enable) {
@@ -240,7 +240,7 @@ class ISStage extends Module {
     }
     when (
       io.forwarding(j).write_target === io.inst(i).dec.param_a &                            // Same source (implicit not HiLo)
-      io.forwarding(j).write_target =/= DReg                                                // Not Regs 
+      io.forwarding(j).write_target =/= DReg                                                // Not Regs
     ) {
       raw(i) := true.B
     }
@@ -268,6 +268,15 @@ class ISStage extends Module {
       io.inst(k).dec.write_target === 0.U &       // rs2 ONLY relies on regs
       io.inst(k).dec.rd === io.inst(i).dec.rs2 &  // Same ID
       io.inst(i).dec.rs2 =/= 0.U                  // Not 0
+    ) {
+      raw(i) := true.B
+    }
+
+    // In fact this is WAR
+    when (
+      io.inst(k).dec.path === PathLSU & 
+      io.inst(i).dec.path === PathLSU &
+      io.inst(i).dec.write_target === DMem
     ) {
       raw(i) := true.B
     }

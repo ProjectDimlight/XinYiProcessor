@@ -62,7 +62,7 @@ wire [7 :0] switch;
 wire [3 :0] btn_key_col;
 wire [3 :0] btn_key_row;
 wire [1 :0] btn_step;
-assign switch      = 8'hf9;
+assign switch      = 8'hfc;
 assign btn_key_row = 4'd0;
 assign btn_step    = 2'd3;
 
@@ -225,6 +225,29 @@ begin
 		//judge(pipe_wb[1]);
 		//write(pipe_wb[0]);
 		//write(pipe_wb[1]);
+		if (soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr[31:8] == 24'h1fc26e && 
+		    (soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr[3:0] == 4'h0 ||
+		     soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr[3:0] == 4'h8) && 
+		    soc_lite.u_cpu.datapath.dcache.io_lower_0_wvalid && 
+		    soc_lite.u_cpu.datapath.dcache.io_lower_0_wready )
+		begin
+		  $display("write list head: pc = 0x%8h, 0x%8h->next = 0x%8h\n", 
+		  soc_lite.u_cpu.datapath.fu_wb_reg.io_sorted_fu_out_0_pc,
+		  soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr,
+		  soc_lite.u_cpu.datapath.dcache.io_lower_0_wdata);
+		end
+		
+		if (soc_lite.u_cpu.datapath.dcache.io_lower_1_awaddr[31:8] == 24'h1fc26e && 
+		    (soc_lite.u_cpu.datapath.dcache.io_lower_1_awaddr[3:0] == 4'h0 ||
+		     soc_lite.u_cpu.datapath.dcache.io_lower_1_awaddr[3:0] == 4'h8) && 
+		    soc_lite.u_cpu.datapath.dcache.io_lower_1_wvalid && 
+		    soc_lite.u_cpu.datapath.dcache.io_lower_1_wready)
+		begin
+		  $display("write list head: pc = 0x%8h, 0x%8h->next = 0x%8h\n",
+		  soc_lite.u_cpu.datapath.fu_wb_reg.io_sorted_fu_out_1_pc,
+		  soc_lite.u_cpu.datapath.dcache.io_lower_1_awaddr,
+		  soc_lite.u_cpu.datapath.dcache.io_lower_1_wdata);
+		end
 	end
 end
 

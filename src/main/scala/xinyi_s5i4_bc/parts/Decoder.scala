@@ -106,6 +106,8 @@ val control_signal = ListLookup(io.inst,
       DIVU       -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_DIVU  ,  PathALU   , IRS , IRT , IRD),
       MULT       -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_MUL   ,  PathALU   , IRS , IRT , IRD),
       MULTU      -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_MULU  ,  PathALU   , IRS , IRT , IRD),
+
+      MUL        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_MUL   ,  PathALU   , IRS,  IRT , IRD),
            
       AND        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_AND   ,  PathALU   , IRS , IRT , IRD),
       ANDI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_AND   ,  PathALU   , IRS , IXX , IRT),
