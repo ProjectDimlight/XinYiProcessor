@@ -7,7 +7,7 @@ src/main/verilog/*
 # nscscc projects
 nscscc2021_group_v0.01
 func_test_v0.01
-
+perf_test_v0.01
 
 verilog_modules/mycpu_top
 output/

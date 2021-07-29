@@ -143,16 +143,19 @@ class DCachePath extends DCachePathBase {
   val tag_vec = VecInit(
     read_meta.map(m => m.tag === inflight_request.addr.tag)
   ).asUInt
-  val hit_vec = invalid_vec & tag_vec
+  val hit_vec = (~invalid_vec) & tag_vec
   // val hit_index = PriorityEncoder(hit_vec)
   val hit = hit_vec.orR && !inflight_request.uncached
 
   // random replacement
-  val victim_index = Mux(
-    invalid_vec.orR,
-    PriorityEncoder(invalid_vec),
-    LFSR(XLEN)(log2Ceil(WAY_NUM) - 1, 0)
-  )
+  val victim_index = if (WAY_NUM == 1) { 0.U }
+  else {
+    Mux(
+      invalid_vec.orR,
+      PriorityEncoder(invalid_vec),
+      LFSR(XLEN)(log2Ceil(WAY_NUM) - 1, 0)
+    )
+  }
   val victim_vec = UIntToOH(victim_index)
   val access_vec = Mux(hit, hit_vec, victim_vec)
   val access_index = PriorityEncoder(access_vec)
@@ -183,10 +186,11 @@ class DCachePath extends DCachePathBase {
       }
       awvalid_enable := true.B
       wvalid_enable := true.B
+      read_counter.reset()
+      write_counter.reset()
     }
     is(s_read_req) {
       when(lower.arready && lower.arvalid) {
-        read_counter.value := 0.U
         state := s_read_resp
       }
     }
@@ -200,7 +204,9 @@ class DCachePath extends DCachePathBase {
         awvalid_enable := false.B
       }
       when(lower.wready) {
-        write_counter.inc()
+        when(!inflight_request.uncached) {
+          write_counter.inc()
+        }
         when(lower.wlast) {
           state := s_write_resp
           wvalid_enable := false.B
@@ -218,13 +224,20 @@ class DCachePath extends DCachePathBase {
   }
 
   val write_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
-  val write_data = Reg(Vec(WAY_NUM, new DCacheData))
+  val write_data = Wire(Vec(WAY_NUM, new DCacheData))
   val need_bram_write = Wire(Bool())
-  val last_index = RegEnable(inflight_request.addr.index, need_bram_write)
-  val last_tag = RegEnable(inflight_request.addr.tag, need_bram_write)
-  val last_access_index = RegEnable(access_index, need_bram_write)
-  val last_write_meta = RegEnable(write_meta(access_index), need_bram_write)
-  val last_write_data = RegEnable(write_data(access_index), need_bram_write)
+  val last_index = RegInit(0.U.asTypeOf(inflight_request.addr.index))
+  val last_tag = RegInit(0.U.asTypeOf(inflight_request.addr.tag))
+  val last_access_index = RegInit(0.U.asTypeOf(access_index))
+  val last_write_meta = RegInit(0.U.asTypeOf(write_meta(access_index)))
+  val last_write_data = RegInit(0.U.asTypeOf(write_data(access_index)))
+  when(need_bram_write) {
+    last_index := inflight_request.addr.index
+    last_tag := inflight_request.addr.tag
+    last_access_index := access_index
+    last_write_meta := write_meta(access_index)
+    last_write_data := write_data(access_index)
+  }
   write_meta := DontCare
   write_data := DontCare
   need_bram_write := false.B
@@ -290,7 +303,7 @@ class DCachePath extends DCachePathBase {
   }
 
   // upper IO
-  upper.stall_req := (new_request && !hit) || (state =/= s_idle && !(read_satisfy || write_satisfy))
+  upper.stall_req := (new_request && !hit) || (state =/= s_idle && !read_satisfy)
   upper.dout := result
 
   // lower IO
@@ -309,7 +322,7 @@ class DCachePath extends DCachePathBase {
   lower.arburst := Mux(inflight_request.uncached, 0.U, 1.U)
   lower.arlen := Mux(inflight_request.uncached, 0.U, (LINE_NUM - 1).U)
   lower.rready := (state === s_read_resp)
-  when(lower.rvalid) {
+  when(lower.rvalid && !inflight_request.uncached) {
     fetched_vec.data(read_counter.value) := lower.rdata
     read_counter.inc()
   }
@@ -327,7 +340,7 @@ class DCachePath extends DCachePathBase {
   lower.wdata := Mux(
     inflight_request.uncached,
     inflight_request.din,
-    write_data(access_index).data(write_counter.value)
+    cacheline_data.data(write_counter.value)
   )
   lower.wstrb := inflight_request.strb
   lower.wlast := inflight_request.uncached || (write_counter.value === (LINE_NUM - 1).U)
@@ -336,7 +349,11 @@ class DCachePath extends DCachePathBase {
   // BRAM IO
   for (i <- 0 until WAY_NUM) {
     bram(i).meta_we := need_bram_write && i.U === access_index
-    bram(i).meta_addr := Mux(need_bram_write, access_index, read_index)
+    bram(i).meta_addr := Mux(
+      need_bram_write,
+      inflight_request.addr.index,
+      read_index
+    )
     bram(i).meta_din := write_meta(i).asTypeOf(UInt(META_WIDTH.W))
     read_meta(i) := Mux(
       i.U === last_access_index && read_index === last_index && inflight_request.addr.tag === last_tag,
@@ -344,7 +361,11 @@ class DCachePath extends DCachePathBase {
       bram(i).meta_dout.asTypeOf(new DCacheMeta)
     )
     bram(i).data_we := need_bram_write && i.U === access_index
-    bram(i).data_addr := Mux(need_bram_write, access_index, read_index)
+    bram(i).data_addr := Mux(
+      need_bram_write,
+      inflight_request.addr.index,
+      read_index
+    )
     bram(i).data_din := write_data(i).asTypeOf(UInt(LINE_WIDTH.W))
     read_data(i) := Mux(
       i.U === last_access_index && read_index === last_index && inflight_request.addr.tag === last_tag,
@@ -496,7 +517,7 @@ class DCache extends Module with DCacheConfig {
           path(1).io.bram(i).data_dout := data(i).io.doutb
         }
       }
-    } else {
+    } else { // TODO fix CombLoop here
       val meta = List.fill(WAY_NUM)(Mem(SET_NUM, UInt(META_WIDTH.W)))
       val data = List.fill(WAY_NUM)(SyncReadMem(SET_NUM, UInt(LINE_WIDTH.W)))
       for (i <- 0 until WAY_NUM) {
