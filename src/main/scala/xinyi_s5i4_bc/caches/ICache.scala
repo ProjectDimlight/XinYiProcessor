@@ -13,12 +13,12 @@ import config.config._
 
 trait ICacheConfig {
   // basic attributes
-  val SET_ASSOCIATIVE = 2
+  val SET_ASSOCIATIVE = 4
   val BLOCK_INST_NUM  = 8
 
   // width
   val BLOCK_WIDTH  = BLOCK_INST_NUM * XLEN // each cache block has 8 instructions
-  val INDEX_WIDTH  = 3
+  val INDEX_WIDTH  = 4
   val OFFSET_WIDTH = log2Ceil(BLOCK_WIDTH >> 3)
   val TAG_WIDTH    = XLEN - INDEX_WIDTH - OFFSET_WIDTH
 
@@ -73,6 +73,7 @@ class ICache extends Module with ICacheConfig {
   //  val io_group_index = io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0) // get the res group index from cpu_io
   val io_addr    = io.cpu_io.addr.asTypeOf(new ICacheAddr)
   val last_index = RegInit(0.U(INDEX_WIDTH.W)) // record the last req group index
+  val last_hit   = RegInit(false.B)
 
   // write-enable
   val replace     = Wire(Vec(SET_ASSOCIATIVE, Bool())) // indicate replace
@@ -98,7 +99,9 @@ class ICache extends Module with ICacheConfig {
 
 
   // get data from the hit set and from the offset
-  val rd_block     = RegInit(0.U(BLOCK_WIDTH.W)) // block data
+  val l0_block = RegInit(0.U(BLOCK_WIDTH.W)) // block data
+  val rd_block = Wire(UInt(BLOCK_WIDTH.W))
+
   val rd_tag_valid = rd_tag_valid_vec(hit_access)
 
   val cached_miss = io_addr.index =/= last_index ||
@@ -150,8 +153,8 @@ class ICache extends Module with ICacheConfig {
 
   // data and tag-valid brams
   for (i <- 0 until SET_ASSOCIATIVE) {
-    val data_bram      = CreateDataBRAM(i)
-    val tag_valid_bram = CreateTagValidBRAM(i)
+    val data_bram        = CreateDataBRAM(i)
+    val tag_valid_lutram = CreateTagValidBRAM(i)
   }
 
 
@@ -161,6 +164,9 @@ class ICache extends Module with ICacheConfig {
   io.cpu_io.data := Mux(inst_offset_index(0),
     Cat(0.U(XLEN.W), (rd_block >> (inst_offset_index << 5)) (31, 0)), // read single instruction
     (rd_block >> (inst_offset_index(2, 1) << 6)) (63, 0)) // read two instructions
+
+  // forward bram block to reduce hit latency
+  rd_block := Mux(last_hit, rd_block_vec(hit_access), l0_block)
 
 
   //>>>>>>>>>>>>>>>>>
@@ -174,6 +180,7 @@ class ICache extends Module with ICacheConfig {
       when(io.cpu_io.rd && cached_miss) { // read request and cache miss
         state := s_fetch
         last_index := io_addr.index
+        last_hit := false.B
       }
     }
 
@@ -181,7 +188,8 @@ class ICache extends Module with ICacheConfig {
     is(s_fetch) {
       when(hit) { // when hit, back to idle
         state := s_idle
-        rd_block := rd_block_vec(hit_access)
+        l0_block := rd_block_vec(hit_access)
+        last_hit := true.B
       }.otherwise { // when miss, fetch data from AXI
         state := s_axi_pending
       }
@@ -206,7 +214,7 @@ class ICache extends Module with ICacheConfig {
         when(io.axi_io.rlast) {
           // no further data transfer, back to IDLE
           state := s_fill
-          rd_block := Cat(io.axi_io.rdata, receive_buffer.asUInt()(BLOCK_WIDTH - XLEN - 1, 0))
+          l0_block := Cat(io.axi_io.rdata, receive_buffer.asUInt()(BLOCK_WIDTH - XLEN - 1, 0))
         }
       }
     }
@@ -285,7 +293,7 @@ class ICache extends Module with ICacheConfig {
 
     // port 2: read
     data_bram.io.web := false.B
-    data_bram.io.addra := last_index
+    data_bram.io.addrb := last_index
     rd_block_vec(i) := data_bram.io.doutb
 
     data_bram
