@@ -355,11 +355,12 @@ class DCachePath extends DCachePathBase {
       read_index
     )
     bram(i).meta_din := write_meta(i).asTypeOf(UInt(META_WIDTH.W))
-    read_meta(i) := Mux(
-      i.U === last_access_index && read_index === last_index && inflight_request.addr.tag === last_tag,
-      last_write_meta,
-      bram(i).meta_dout.asTypeOf(new DCacheMeta)
-    )
+    read_meta(i) := bram(i).meta_dout.asTypeOf(new DCacheMeta)
+    // read_meta(i) := Mux(
+    //   i.U === last_access_index && read_index === last_index && inflight_request.addr.tag === last_tag,
+    //   last_write_meta,
+    //   bram(i).meta_dout.asTypeOf(new DCacheMeta)
+    // )
     bram(i).data_we := need_bram_write && i.U === access_index
     bram(i).data_addr := Mux(
       need_bram_write,
@@ -367,11 +368,12 @@ class DCachePath extends DCachePathBase {
       read_index
     )
     bram(i).data_din := write_data(i).asTypeOf(UInt(LINE_WIDTH.W))
-    read_data(i) := Mux(
-      i.U === last_access_index && read_index === last_index && inflight_request.addr.tag === last_tag,
-      last_write_data,
-      bram(i).data_dout.asTypeOf(new DCacheData)
-    )
+    read_data(i) := bram(i).data_dout.asTypeOf(new DCacheData)
+    // read_data(i) := Mux(
+    //   i.U === last_access_index && read_index === last_index && inflight_request.addr.tag === last_tag,
+    //   last_write_data,
+    //   bram(i).data_dout.asTypeOf(new DCacheData)
+    // )
   }
 }
 
@@ -477,44 +479,86 @@ class DCache extends Module with DCacheConfig {
   }
   if (hasDCache) {
     if (useBRAM) {
-      val meta = List.fill(WAY_NUM)(
-        Module(
-          new DualPortLUTRAM(
-            DATA_WIDTH = META_WIDTH,
-            DEPTH = SET_NUM,
-            LATENCY = 0
+      if (LSU_PATH_NUM == 1) {
+        val meta = List.fill(WAY_NUM)(
+          Module(
+            new DualPortLUTRAM(
+              DATA_WIDTH = META_WIDTH,
+              DEPTH = SET_NUM,
+              LATENCY = 0
+            )
           )
         )
-      )
-      val data = List.fill(WAY_NUM)(
-        Module(
-          new DualPortRAM(DATA_WIDTH = LINE_WIDTH, DEPTH = SET_NUM, LATENCY = 0)
+        val data = List.fill(WAY_NUM)(
+          Module(
+            new DualPortRAM(
+              DATA_WIDTH = LINE_WIDTH,
+              DEPTH = SET_NUM,
+              LATENCY = 0
+            )
+          )
         )
-      )
-      for (i <- 0 until WAY_NUM) {
-        meta(i).io.clk := clock
-        meta(i).io.rst := reset
-        meta(i).io.wea := path(0).io.bram(i).meta_we
-        meta(i).io.addra := path(0).io.bram(i).meta_addr
-        meta(i).io.dina := path(0).io.bram(i).meta_din
-        path(0).io.bram(i).meta_dout := meta(i).io.douta
+        for (i <- 0 until WAY_NUM) {
+          meta(i).io <> DontCare
+          meta(i).io.clk := clock
+          meta(i).io.rst := reset
+          meta(i).io.wea := path(0).io.bram(i).meta_we
+          meta(i).io.addra := path(0).io.bram(i).meta_addr
+          meta(i).io.dina := path(0).io.bram(i).meta_din
+          path(0).io.bram(i).meta_dout := meta(i).io.douta
 
-        data(i).io.clk := clock
-        data(i).io.rst := reset
-        data(i).io.wea := path(0).io.bram(i).data_we
-        data(i).io.addra := path(0).io.bram(i).data_addr
-        data(i).io.dina := path(0).io.bram(i).data_din
-        path(0).io.bram(i).data_dout := data(i).io.douta
-        if (LSU_PATH_NUM == 2) {
-          // TODO avoid write conflict
-          // meta(i).io.web := path(1).io.bram(i).meta_we
-          meta(i).io.addrb := path(1).io.bram(i).meta_addr
-          // meta(i).io.dinb := path(1).io.bram(i).meta_din
-          path(1).io.bram(i).meta_dout := meta(i).io.doutb
-          data(i).io.web := path(1).io.bram(i).data_we
-          data(i).io.addrb := path(1).io.bram(i).data_addr
-          data(i).io.dinb := path(1).io.bram(i).data_din
-          path(1).io.bram(i).data_dout := data(i).io.doutb
+          data(i).io <> DontCare
+          data(i).io.clk := clock
+          data(i).io.rst := reset
+          data(i).io.wea := path(0).io.bram(i).data_we
+          data(i).io.addra := path(0).io.bram(i).data_addr
+          data(i).io.dina := path(0).io.bram(i).data_din
+          path(0).io.bram(i).data_dout := data(i).io.douta
+        }
+      } else {
+        val meta = List.fill(WAY_NUM)(
+          Module(
+            new DualPortLUTRAM(
+              DATA_WIDTH = META_WIDTH,
+              DEPTH = SET_NUM,
+              LATENCY = 0
+            )
+          )
+        )
+        val data = List.fill(WAY_NUM)(
+          Module(
+            new DualPortRAM(
+              DATA_WIDTH = LINE_WIDTH,
+              DEPTH = SET_NUM,
+              LATENCY = 0
+            )
+          )
+        )
+        for (i <- 0 until WAY_NUM) {
+          meta(i).io.clk := clock
+          meta(i).io.rst := reset
+          meta(i).io.wea := path(0).io.bram(i).meta_we
+          meta(i).io.addra := path(0).io.bram(i).meta_addr
+          meta(i).io.dina := path(0).io.bram(i).meta_din
+          path(0).io.bram(i).meta_dout := meta(i).io.douta
+
+          data(i).io.clk := clock
+          data(i).io.rst := reset
+          data(i).io.wea := path(0).io.bram(i).data_we
+          data(i).io.addra := path(0).io.bram(i).data_addr
+          data(i).io.dina := path(0).io.bram(i).data_din
+          path(0).io.bram(i).data_dout := data(i).io.douta
+          if (LSU_PATH_NUM == 2) {
+            // TODO avoid write conflict
+            // meta(i).io.web := path(1).io.bram(i).meta_we
+            meta(i).io.addrb := path(1).io.bram(i).meta_addr
+            // meta(i).io.dinb := path(1).io.bram(i).meta_din
+            path(1).io.bram(i).meta_dout := meta(i).io.doutb
+            data(i).io.web := path(1).io.bram(i).data_we
+            data(i).io.addrb := path(1).io.bram(i).data_addr
+            data(i).io.dinb := path(1).io.bram(i).data_din
+            path(1).io.bram(i).data_dout := data(i).io.doutb
+          }
         }
       }
     } else { // TODO fix CombLoop here
