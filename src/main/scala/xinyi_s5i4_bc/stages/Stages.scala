@@ -51,7 +51,7 @@ class PCStage extends Module {
   }
 
   io.next_pc := MuxCase(
-    (io.pc & 0xFFFFFFFCL.U) + Mux(io.pc(2), 4.U, 8.U),
+    (io.pc & 0xFFFFFFF8L.U) + 8.U,
     Array(
       ex.enable -> ex.target,
       br.enable -> br.target

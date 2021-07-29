@@ -199,8 +199,8 @@ class ISBJUReg extends Module with ALUConfig with BJUConfig {
       val pc4 = io.is_path.pc + 4.U
       reg_path.pc             := pc4
       reg_xor                 := (io.is_path.a ^ io.is_path.b)
-      reg_b_bc                := io.is_path.b + (4 + BC_LINE_SIZE * FETCH_NUM * 4).U
-      reg_imm_bc              := io.is_path.imm + (BC_LINE_SIZE * FETCH_NUM * 4).U
+      reg_b_bc                := Cat((io.is_path.b + (BC_LINE_SIZE * FETCH_NUM * 4).U)(31, 3), 0.U(3.W))
+      reg_imm_bc              := Cat((io.is_path.imm + (BC_LINE_SIZE * FETCH_NUM * 4).U)(31, 3), 0.U(3.W))
       
       reg_branch_next_pc      := io.is_branch_next_pc
       reg_delay_slot_pending  := io.is_delay_slot_pending

@@ -1,0 +1,22 @@
+[
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~Test|Test>io_out",
+    "sources":[
+      "~Test|Test>io_in5",
+      "~Test|Test>io_in4",
+      "~Test|Test>io_path",
+      "~Test|Test>io_in3",
+      "~Test|Test>io_in1",
+      "~Test|Test>io_in2"
+    ]
+  },
+  {
+    "class":"firrtl.EmitCircuitAnnotation",
+    "emitter":"firrtl.VerilogEmitter"
+  },
+  {
+    "class":"firrtl.transforms.BlackBoxTargetDirAnno",
+    "targetDir":"verilog/test"
+  }
+]
