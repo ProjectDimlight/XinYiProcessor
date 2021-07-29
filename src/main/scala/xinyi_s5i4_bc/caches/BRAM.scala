@@ -6,12 +6,12 @@ import config.config._
 
 
 // wrapper class for dual_port_ram
-class DualPortRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1) extends BlackBox(Map(
+class DualPortBRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1) extends BlackBox(Map(
   "DATA_WIDTH" -> DATA_WIDTH,
   "DEPTH" -> DEPTH,
   "LATENCY" -> LATENCY)) with HasBlackBoxInline {
 
-  override val desiredName = "dual_port_ram"
+  override val desiredName = "dual_port_bram"
 
   val io = IO(new Bundle {
     val clk   = Input(Clock())
@@ -26,9 +26,9 @@ class DualPortRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1) e
     val doutb = Output(UInt(DATA_WIDTH.W))
   })
 
-  setInline("dual_port_ram.v",
+  setInline("dual_port_bram.v",
             s"""
-               |module dual_port_ram #(
+               |module dual_port_bram #(
                |	parameter DATA_WIDTH = 32,
                |	parameter DEPTH      = 1024,
                |	parameter LATENCY    = 1,

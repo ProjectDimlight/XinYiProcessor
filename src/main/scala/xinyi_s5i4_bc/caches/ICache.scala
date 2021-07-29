@@ -23,7 +23,7 @@ trait ICacheConfig {
   val TAG_WIDTH    = XLEN - INDEX_WIDTH - OFFSET_WIDTH
 
   // derived number
-  val GROUP_NUM = 1 << (INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE))
+  val GROUP_NUM = 1 << INDEX_WIDTH
 }
 
 
@@ -52,7 +52,7 @@ class ICacheAddr extends Bundle with ICacheConfig {
 
 class ICacheCPUIO extends Bundle {
   val data      = Output(UInt((2 * XLEN).W)) // double width
-  val addr      = Input(new ICacheAddr) // address
+  val addr      = Input(UInt(XLEN.W)) // address
   val flush     = Input(Bool())
   val rd        = Input(Bool()) // read request
   val stall_req = Output(Bool()) // stall
@@ -70,9 +70,9 @@ class ICache extends Module with ICacheConfig {
   //>>>>>>>>>>>>>>>>>>>
   //  ICache Metadata
   //<<<<<<<<<<<<<<<<<<<
-  val io_group_index   = io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0) // get the res group index from cpu_io
-  val last_group_index = RegInit(0.U((INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE)).W)) // record the last req group index
-
+  //  val io_group_index = io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0) // get the res group index from cpu_io
+  val io_addr    = io.cpu_io.addr.asTypeOf(new ICacheAddr)
+  val last_index = RegInit(0.U(INDEX_WIDTH.W)) // record the last req group index
 
   // write-enable
   val replace     = Wire(Vec(SET_ASSOCIATIVE, Bool())) // indicate replace
@@ -89,7 +89,7 @@ class ICache extends Module with ICacheConfig {
   // hit_vec: indicate the vector of hit in 4-way ICache
   val hit_vec = Wire(Vec(SET_ASSOCIATIVE, Bool()))
   for (i <- 0 until SET_ASSOCIATIVE) {
-    hit_vec(i) := rd_tag_valid_vec(i).valid && rd_tag_valid_vec(i).tag === io.cpu_io.addr.tag
+    hit_vec(i) := rd_tag_valid_vec(i).valid && rd_tag_valid_vec(i).tag === io_addr.tag
   }
 
 
@@ -101,9 +101,9 @@ class ICache extends Module with ICacheConfig {
   val rd_block     = RegInit(0.U(BLOCK_WIDTH.W)) // block data
   val rd_tag_valid = rd_tag_valid_vec(hit_access)
 
-  val cached_miss = io_group_index =/= last_group_index ||
+  val cached_miss = io_addr.index =/= last_index ||
     !rd_tag_valid.valid ||
-    io.cpu_io.addr.tag =/= rd_tag_valid.tag
+    io_addr.tag =/= rd_tag_valid.tag
 
   // miss
   val hit  = Wire(Bool())
@@ -122,7 +122,7 @@ class ICache extends Module with ICacheConfig {
   val state = RegInit(s_idle)
 
   // select replace from selection vector
-  replace := replace_vec(io_group_index).asBools()
+  replace := replace_vec(io_addr.index).asBools()
   for (i <- 0 until SET_ASSOCIATIVE) {
     ram_we(i) := replace(i) && state === s_fill
   }
@@ -151,15 +151,15 @@ class ICache extends Module with ICacheConfig {
   // data and tag-valid brams
   for (i <- 0 until SET_ASSOCIATIVE) {
     val data_bram      = CreateDataBRAM(i)
-    val tag_width_bram = CreateTagValidBRAM(i)
+    val tag_valid_bram = CreateTagValidBRAM(i)
   }
 
 
-  val inst_offset_index = io.cpu_io.addr.inst_offset(4, 2)
+  val inst_offset_index = io_addr.inst_offset(4, 2)
 
   // select data
   io.cpu_io.data := Mux(inst_offset_index(0),
-    Cat((rd_block >> (inst_offset_index << 5)) (31, 0), 0.U(XLEN.W)), // read single instruction
+    Cat(0.U(XLEN.W), (rd_block >> (inst_offset_index << 5)) (31, 0)), // read single instruction
     (rd_block >> (inst_offset_index(2, 1) << 6)) (63, 0)) // read two instructions
 
 
@@ -173,7 +173,7 @@ class ICache extends Module with ICacheConfig {
       // new request arrives
       when(io.cpu_io.rd && cached_miss) { // read request and cache miss
         state := s_fetch
-        last_group_index := io_group_index
+        last_index := io_addr.index
       }
     }
 
@@ -227,7 +227,7 @@ class ICache extends Module with ICacheConfig {
   io.axi_io.arsize := 2.U // 4 bytes per burst
   io.axi_io.arburst := 1.U // INCR mode
   io.axi_io.rready := state === s_axi_wait
-  io.axi_io.araddr := Cat(io.cpu_io.addr.tag, io.cpu_io.addr.index, 0.U(OFFSET_WIDTH.W))
+  io.axi_io.araddr := Cat(io_addr.tag, io_addr.index, 0.U(OFFSET_WIDTH.W))
 
   // zeros
   io.axi_io.arid := 0.U
@@ -263,7 +263,7 @@ class ICache extends Module with ICacheConfig {
     var plru = Module(new PLRU(SET_ASSOCIATIVE))
 
     plru.io.flush := io.cpu_io.flush
-    plru.io.update := hit && i === io.cpu_io.addr.index // hit and match index, update when hit
+    plru.io.update := hit && i === io_addr.index // hit and match index, update when hit
     plru.io.update_index := hit_access
     replace_vec(i) := plru.io.replace_vec.asUInt()
 
@@ -273,19 +273,19 @@ class ICache extends Module with ICacheConfig {
 
   // generate data bram
   def CreateDataBRAM(i: Int) = {
-    var data_bram = Module(new DualPortRAM(DATA_WIDTH = BLOCK_WIDTH))
+    var data_bram = Module(new DualPortBRAM(DATA_WIDTH = BLOCK_WIDTH, DEPTH = GROUP_NUM))
 
     data_bram.io.clk := clock
     data_bram.io.rst := reset
 
     // port 1: write
     data_bram.io.wea := ram_we(i)
-    data_bram.io.addra := last_group_index
+    data_bram.io.addra := last_index
     data_bram.io.dina := receive_buffer.asUInt()
 
     // port 2: read
     data_bram.io.web := false.B
-    data_bram.io.addra := last_group_index
+    data_bram.io.addra := last_index
     rd_block_vec(i) := data_bram.io.doutb
 
     data_bram
@@ -294,18 +294,19 @@ class ICache extends Module with ICacheConfig {
 
   // generate tag bram
   def CreateTagValidBRAM(i: Int) = {
-    var tag_valid_bram = Module(new DualPortLUTRAM(DATA_WIDTH = (new ICacheTagValid).getWidth, LATENCY = 0))
+    var tag_valid_bram = Module(new DualPortLUTRAM(DATA_WIDTH = (new ICacheTagValid).getWidth,
+      LATENCY = 0, DEPTH = GROUP_NUM))
 
     tag_valid_bram.io.clk := clock
     tag_valid_bram.io.rst := reset
 
     // port 1: write
     tag_valid_bram.io.wea := ram_we(i)
-    tag_valid_bram.io.addra := last_group_index
-    tag_valid_bram.io.dina := Cat(io.cpu_io.addr.tag, true.B)
+    tag_valid_bram.io.addra := last_index
+    tag_valid_bram.io.dina := Cat(io_addr.tag, true.B)
 
     // port 2: read
-    tag_valid_bram.io.addrb := last_group_index
+    tag_valid_bram.io.addrb := last_index
     rd_tag_valid_vec(i) := tag_valid_bram.io.doutb.asTypeOf(new ICacheTagValid)
 
     tag_valid_bram

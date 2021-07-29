@@ -101,7 +101,7 @@ class IFStage extends Module with TLBConfig {
 
   // ICache
   io.cache.rd := !io.full
-  io.cache.addr := addr.asTypeOf(new ICacheAddr)
+  io.cache.addr := addr
   // TODO connect to real flush signal
   io.cache.flush := false.B
 
