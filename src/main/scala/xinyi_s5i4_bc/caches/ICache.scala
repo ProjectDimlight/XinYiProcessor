@@ -154,7 +154,7 @@ class ICache extends Module with ICacheConfig {
   // data and tag-valid brams
   for (i <- 0 until SET_ASSOCIATIVE) {
     val data_bram        = CreateDataBRAM(i)
-    val tag_valid_lutram = CreateTagValidBRAM(i)
+    val tag_valid_lutram = CreateTagValidLUTRAM(i)
   }
 
 
@@ -301,7 +301,7 @@ class ICache extends Module with ICacheConfig {
 
 
   // generate tag bram
-  def CreateTagValidBRAM(i: Int) = {
+  def CreateTagValidLUTRAM(i: Int) = {
     var tag_valid_bram = Module(new DualPortLUTRAM(DATA_WIDTH = (new ICacheTagValid).getWidth,
       LATENCY = 0, DEPTH = GROUP_NUM))
 
