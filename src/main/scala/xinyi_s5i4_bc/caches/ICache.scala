@@ -73,6 +73,7 @@ class ICache extends Module with ICacheConfig {
   //  val io_group_index = io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0) // get the res group index from cpu_io
   val io_addr    = io.cpu_io.addr.asTypeOf(new ICacheAddr)
   val last_index = RegInit(0.U(INDEX_WIDTH.W)) // record the last req group index
+  val last_tag   = RegInit(0.U(TAG_WIDTH.W))  // record the last req tag
   val last_hit   = RegInit(false.B)
 
   // write-enable
@@ -104,9 +105,9 @@ class ICache extends Module with ICacheConfig {
 
   val rd_tag_valid = rd_tag_valid_vec(hit_access)
 
-  val cached_miss = io_addr.index =/= last_index ||
-    !rd_tag_valid.valid ||
-    io_addr.tag =/= rd_tag_valid.tag
+  val cached_miss = io_addr.index =/= last_index || io_addr.tag =/= last_tag
+  //    !rd_tag_valid.valid ||
+  //    io_addr.tag =/= rd_tag_valid.tag ||
 
   // miss
   val hit  = Wire(Bool())
@@ -180,6 +181,7 @@ class ICache extends Module with ICacheConfig {
       when(io.cpu_io.rd && cached_miss) { // read request and cache miss
         state := s_fetch
         last_index := io_addr.index
+        last_tag := io_addr.tag
         last_hit := false.B
       }
     }
