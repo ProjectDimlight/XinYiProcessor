@@ -2,6 +2,7 @@ package cache
 
 import chisel3._
 import chisel3.util._
+import config.config._
 
 object BoolStopWatch {
   def apply(start: Bool, stop: Bool, startHighPriority: Boolean = false) = {
@@ -47,7 +48,7 @@ abstract class AXI4Slave[B <: Data](
     (originData & ~fullMask) | (io.in.w.bits.data & fullMask)
 
   // read/read address channel
-  val raddr = Wire(UInt(xlen.W))
+  val raddr = Wire(UInt(XLEN.W))
   val ren = Wire(Bool())
   val c_r = Counter(256)
   val beatCnt = Counter(256)
@@ -95,7 +96,7 @@ abstract class AXI4Slave[B <: Data](
   )
 
   // write channel
-  val waddr = Wire(UInt(xlen.W))
+  val waddr = Wire(UInt(XLEN.W))
   val c_w = Counter(256)
   waddr := HoldUnless(io.in.aw.bits.addr, io.in.aw.fire())
   when(io.in.w.fire()) {

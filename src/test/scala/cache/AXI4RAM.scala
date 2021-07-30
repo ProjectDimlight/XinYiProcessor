@@ -2,13 +2,16 @@ package cache
 
 import chisel3._
 import chisel3.util._
+import config.config._
 
 class AXI4RAM(memByte: Int, name: String = "ram") extends AXI4Slave(name = name){
   // val offsetBits = log2Up(memByte)
   // val offsetMask = (1 << offsetBits) - 1
-  // def index(addr: UInt) = (addr & offsetMask.U) >> log2Ceil(xlen / 8)
+  // def index(addr: UInt) = (addr & offsetMask.U) >> log2Ceil(XLEN / 8)
   // def inRange(idx: UInt) = idx < (memByte / 8).U
 
+  val bitWidth      = log2Ceil(XLEN)
+  
   val offset = log2Ceil(bitWidth)
   val wIdx = waddr + (writeBeatCnt << offset)
   val rIdx = raddr + (readBeatCnt << offset)
