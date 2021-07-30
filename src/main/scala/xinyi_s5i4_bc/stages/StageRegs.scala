@@ -108,10 +108,11 @@ class IssueQueue extends Module {
   }
   .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
     when (!io.stall) {
+      val inst = Mux(io.bc.overwrite, io.bc.inst, io.in)
       for (i <- 0 until FETCH_NUM) {
-        queue(tail_b + i.U(QUEUE_LEN_W.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
+        queue(tail_b + i.U(QUEUE_LEN_W.W)) := inst(i)
       }
-      tail := Step(tail_b, FETCH_NUM.U(QUEUE_LEN_W.W))
+      tail := Step(tail_b, Mux(inst(0).pc(2), 1.U, 2.U))
     }
     .otherwise {
       tail := tail_b
