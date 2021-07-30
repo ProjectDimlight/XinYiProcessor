@@ -87,8 +87,7 @@ class S5I4 extends RawModule with PortConfig {
   withClockAndReset(aclk, ~aresetn) { 
     val datapath = Module(new DataPath)
     for (i <- 0 to 5) {
-      val last = RegNext(ext_int(i), init=false.B)
-      datapath.io.interrupt(i) := ext_int(i) & !last
+      datapath.io.interrupt(i) := ext_int(i)
     }
     debug_pc := datapath.io.debug_pc
 

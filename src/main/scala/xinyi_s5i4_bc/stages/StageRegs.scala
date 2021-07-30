@@ -15,14 +15,19 @@ class PCIFReg extends Module {
     val pc_out = Input(UInt(LGC_ADDR_W.W))
     val if_in  = Flipped(new IFIn)
 
+    val flush = Input(Bool())
     val stall = Input(Bool())
   })
 
-  val pc = RegInit((if (DEBUG) DEBUG_BOOT_ADDR else BOOT_ADDR).U(LGC_ADDR_W.W))
+  val pc_init = (if (DEBUG) DEBUG_BOOT_ADDR else BOOT_ADDR).U(LGC_ADDR_W.W)
+  val pc = RegInit(pc_init)
   val stall = RegInit(false.B)
 
   when(!io.stall) {
     pc := io.pc_out
+  }
+  .elsewhen(io.flush) {
+    pc := pc_init
   }
   stall := io.stall
 
@@ -46,9 +51,7 @@ class IFIDReg extends Module {
   val flush_reg = RegInit(false.B)
 
   when (io.flush) {
-    when (io.stall) {
-      flush_reg := true.B
-    }
+    flush_reg := io.stall
     reg := init
   }
   .elsewhen (!io.stall) {
@@ -311,8 +314,8 @@ class FUWBReg extends Module {
   reg_out               := io.sorted_fu_out
   reg_exception_order   := Mux(io.flush | io.stall, 0.U, io.fu_exception_order)
   reg_exception_handled := Mux(io.flush | io.stall, 0.U, io.fu_exception_handled)
+  reg_exc_info          := Mux(io.flush | io.stall, exc_info_init, io.fu_exc_info)
   reg_exception_target  := io.fu_exception_target
-  reg_exc_info          := io.fu_exc_info
 
   io.wb_in := reg_out
   io.wb_exception_order   := reg_exception_order

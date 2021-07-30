@@ -65,6 +65,7 @@ class DataPath extends Module with ALUConfig {
   val forwarding    = Wire(Vec(TOT_PATH_NUM, new Forwarding))
 
   // Flush
+  pc_if_reg.  io.flush := flush
   if_id_reg.  io.flush := flush
   issue_queue.io.flush := flush
   is_bju_reg. io.flush := flush
@@ -79,7 +80,6 @@ class DataPath extends Module with ALUConfig {
   pc_stage.io.branch.target    := bc.io.branch_cached_pc
   pc_stage.io.exception.target := fu_wb_reg.io.wb_exception_target
   pc_stage.io.exception.enable := fu_wb_reg.io.wb_exception_handled
-  
 
   // IF Stage
   if_stage.io.in      <> pc_if_reg.io.if_in
@@ -335,17 +335,7 @@ class DataPath extends Module with ALUConfig {
   has_interrupt := false.B
   val masked_interrupt = Wire(Vec(8, Bool()))
   for (i <- 0 until 8) {
-    val int_buffer = RegInit(false.B)
-    when (interrupt(i)) {
-      int_buffer := true.B
-    }
-    // TODO: only one interrupt can be responsed at a time
-    // The other requests should hold
-    when (masked_interrupt(i) & !cp0.io.exl) {
-      int_buffer := false.B
-    }
-    val int = interrupt(i) | int_buffer
-
+    val int = interrupt(i)
     masked_interrupt(i) := int & cp0.io.int_mask_vec(i) & !cp0.io.exl
     when (masked_interrupt(i)) {
       has_interrupt := true.B
