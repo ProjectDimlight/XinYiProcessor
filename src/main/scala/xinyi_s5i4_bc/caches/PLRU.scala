@@ -24,12 +24,11 @@ class PLRU(SET_ASSOCIATIVE: Int = 4) extends Module {
 
   // support limited PLRU associative
   if (SET_ASSOCIATIVE == 4) {
-
     // calculate which way should be replaced
     when(plru_nodes(0)) {
-      io.replace_vec := VecInit(~plru_nodes(1), plru_nodes(1), false.B, false.B)
-    }.otherwise {
       io.replace_vec := VecInit(false.B, false.B, ~plru_nodes(2), plru_nodes(2))
+    }.otherwise {
+      io.replace_vec := VecInit(~plru_nodes(1), plru_nodes(1), false.B, false.B)
     }
 
     // update PLRU records
@@ -49,7 +48,22 @@ class PLRU(SET_ASSOCIATIVE: Int = 4) extends Module {
         }
         is(3.U) {
           plru_nodes(0) := false.B
-          plru_nodes(1) := false.B
+          plru_nodes(2) := false.B
+        }
+      }
+    }
+  } else if (SET_ASSOCIATIVE == 2) {
+    // calculate which way should be replaced
+    io.replace_vec := VecInit(~plru_nodes(0), plru_nodes(0))
+
+    // update PLRU records
+    when(io.update) {
+      switch(io.update_index) {
+        is(0.U) {
+          plru_nodes(0) := true.B
+        }
+        is(1.U) {
+          plru_nodes(0) := false.B
         }
       }
     }

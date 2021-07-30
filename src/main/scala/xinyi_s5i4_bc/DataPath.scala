@@ -65,6 +65,7 @@ class DataPath extends Module with ALUConfig {
   val forwarding    = Wire(Vec(TOT_PATH_NUM, new Forwarding))
 
   // Flush
+  pc_if_reg.  io.flush := flush
   if_id_reg.  io.flush := flush
   issue_queue.io.flush := flush
   is_bju_reg. io.flush := flush
@@ -79,7 +80,6 @@ class DataPath extends Module with ALUConfig {
   pc_stage.io.branch.target    := bc.io.branch_cached_pc
   pc_stage.io.exception.target := fu_wb_reg.io.wb_exception_target
   pc_stage.io.exception.enable := fu_wb_reg.io.wb_exception_handled
-  
 
   // IF Stage
   if_stage.io.in      <> pc_if_reg.io.if_in
@@ -159,7 +159,9 @@ class DataPath extends Module with ALUConfig {
       inst_params(i)(0) := Mux(inst.dec.param_a === AHi, fwd.hi, fwd.data)
     }
 
-    when (is_stage.io.forwarding_path_id(i).rs2 =/= TOT_PATH_NUM.U) {
+    when (is_stage.io.forwarding_path_id(i).rs2 =/= TOT_PATH_NUM.U & 
+      !((inst.dec.param_b === BImm) & (inst.dec.path === PathALU))
+    ) {
       val j = is_stage.io.forwarding_path_id(i).rs2
       val fwd = MuxLookupBi(j(1, 0),
         forwarding(0),
@@ -218,6 +220,7 @@ class DataPath extends Module with ALUConfig {
   bc.io.in.delay_slot_pending := is_bju_reg.io.fu_delay_slot_pending
   bc.io.stall_frontend := stall_frontend
   bc.io.stall_backend  := stall_backend
+  bc.io.exception := fu_wb_reg.io.wb_exception_handled
 
   bc.io.wr.flush := flush
   bc.io.wr.stall := stall_frontend
@@ -332,23 +335,21 @@ class DataPath extends Module with ALUConfig {
   has_interrupt := false.B
   val masked_interrupt = Wire(Vec(8, Bool()))
   for (i <- 0 until 8) {
-    masked_interrupt(i) := interrupt(i) & cp0.io.int_mask_vec(i)
-    when (interrupt(i)) {
+    val int = interrupt(i)
+    masked_interrupt(i) := int & cp0.io.int_mask_vec(i) & !cp0.io.exl
+    when (masked_interrupt(i)) {
       has_interrupt := true.B
     }
   }
   fu_stage.io.incoming_interrupt := masked_interrupt
 
   // FU Interrupt Reg
-  interrupt_reg.io.fu_pc := BOOT_ADDR.U
-  interrupt_reg.io.fu_is_delay_slot := false.B
-  
-  when (is_fu_reg.io.fu_actual_issue_cnt =/= 0.U) {
-    interrupt_reg.io.fu_pc := fu_stage.io.sorted_fu_out(0).pc
-    interrupt_reg.io.fu_is_delay_slot :=  fu_stage.io.sorted_fu_out(0).is_delay_slot
-  }
+  interrupt_reg.io.fu_pc := fu_stage.io.sorted_fu_out(0).pc
+  interrupt_reg.io.fu_is_delay_slot :=  fu_stage.io.sorted_fu_out(0).is_delay_slot
   interrupt_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
-  fu_stage.io.incoming_epc             := interrupt_reg.io.wb_epc
+  interrupt_reg.io.eret := fu_stage.io.exc_info.eret
+  interrupt_reg.io.fu_epc := fu_stage.io.fu_exception_target
+  fu_stage.io.incoming_epc := interrupt_reg.io.wb_epc
 
   // FU TLBR Reg
   tlb_read_reg.io.fu_tlbp      := tlbp

@@ -11,7 +11,7 @@ class DualPortRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1)
     )
     with HasBlackBoxInline {
 
-  override val desiredName = "dual_port_ram"
+  override val desiredName = "dual_port_bram"
 
   val io = IO(new Bundle {
     val clk = Input(Clock())

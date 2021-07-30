@@ -41,17 +41,3 @@ object Main extends App {
   prompt("mycpu_top")
   Gen()
 }
-
-
-// object ICache extends App {
-//   def Gen(): Unit = {
-//     val default_args = Array("-X", "verilog", "-td", "verilog_modules/test")
-//     (new ChiselStage).execute(
-//       default_args,
-//       Seq(ChiselGeneratorAnnotation(() => new ICache))
-//     )
-//   }
-
-//   Main.prompt("ICache")
-//   Gen()
-// }
