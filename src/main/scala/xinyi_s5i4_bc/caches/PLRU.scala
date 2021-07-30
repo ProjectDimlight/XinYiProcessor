@@ -48,7 +48,7 @@ class PLRU(SET_ASSOCIATIVE: Int = 4) extends Module {
         }
         is(3.U) {
           plru_nodes(0) := false.B
-          plru_nodes(1) := false.B
+          plru_nodes(2) := false.B
         }
       }
     }
