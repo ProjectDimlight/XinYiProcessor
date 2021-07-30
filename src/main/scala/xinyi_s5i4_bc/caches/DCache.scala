@@ -595,7 +595,7 @@ class DCache extends Module with DCacheConfig {
         )
         val data = List.fill(WAY_NUM)(
           Module(
-            new DualPortRAM(
+            new DualPortBRAM(
               DATA_WIDTH = LINE_WIDTH,
               DEPTH = SET_NUM,
               LATENCY = 1

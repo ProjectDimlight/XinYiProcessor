@@ -5,7 +5,7 @@ import chisel3.util._
 import config.config._
 
 // wrapper class for dual_port_ram
-class DualPortRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1)
+class DualPortBRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1)
     extends BlackBox(
       Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH, "LATENCY" -> LATENCY)
     )
