@@ -46,7 +46,7 @@ object config {
   val BJU_PATH_NUM  = 0
   val BJU_PATH_TYPE = 2
 
-  val LSU_PATH_NUM  = 2
+  val LSU_PATH_NUM  = 1
   val LSU_PATH_TYPE = 3
 
   val TOT_PATH_NUM   = ALU_PATH_NUM + BJU_PATH_NUM + LSU_PATH_NUM
@@ -58,7 +58,5 @@ object config {
   val QUEUE_LEN_W = 3
   val PATH_W      = 2
 
-  val L1_W                 = 64
-  val L2_W                 = 64
   var DIV_IP_CORE: Boolean = true // indicating if the divider is from IP core
 }

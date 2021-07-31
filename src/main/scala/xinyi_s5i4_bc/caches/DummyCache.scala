@@ -103,18 +103,6 @@ class DCacheCPU extends Bundle {
   val dout = Output(UInt(XLEN.W))
 }
 
-class DCacheAXI extends Bundle {
-  val addr_in     = Output(UInt(PHY_ADDR_W.W))
-  val data_in     = Output(UInt(L1_W.W))
-  val wr          = Output(Bool())
-  val rd          = Output(Bool())
-  val size        = Output(UInt(2.W))
-  val addr_out    = Input(UInt(PHY_ADDR_W.W))
-  val data_out    = Input(UInt(L1_W.W))
-  val stall       = Input(Bool())
-  val valid       = Input(Bool())
-}
-
 class WriteBufferRecord extends Bundle {
   val addr = UInt(LGC_ADDR_W.W)
   val data = UInt(XLEN.W)

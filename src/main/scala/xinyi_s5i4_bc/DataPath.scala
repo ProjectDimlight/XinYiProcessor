@@ -149,11 +149,11 @@ class DataPath extends Module with ALUConfig {
     when (is_stage.io.forwarding_path_id(i).rs1 =/= TOT_PATH_NUM.U) {
       val j = is_stage.io.forwarding_path_id(i).rs1
       val fwd = MuxLookupBi(j(1, 0),
-        forwarding(0),
+        if (LSU_PATH_NUM == 1) forwarding(0) else forwarding(3),
         Array(
+          0.U -> forwarding(0),
           1.U -> forwarding(1),
-          2.U -> forwarding(2),
-          3.U -> forwarding(3)
+          2.U -> forwarding(2)
         )
       )
       inst_params(i)(0) := Mux(inst.dec.param_a === AHi, fwd.hi, fwd.data)
@@ -164,11 +164,11 @@ class DataPath extends Module with ALUConfig {
     ) {
       val j = is_stage.io.forwarding_path_id(i).rs2
       val fwd = MuxLookupBi(j(1, 0),
-        forwarding(0),
+        if (LSU_PATH_NUM == 1) forwarding(0) else forwarding(3),
         Array(
+          0.U -> forwarding(0),
           1.U -> forwarding(1),
-          2.U -> forwarding(2),
-          3.U -> forwarding(3)
+          2.U -> forwarding(2)
         )
       )
       inst_params(i)(1) := fwd.data
