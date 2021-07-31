@@ -1,4 +1,4 @@
-package cache
+package xinyi_s5i4_bc.caches
 
 import chisel3._
 import chisel3.util._
@@ -117,11 +117,11 @@ abstract class AXI4Slave[B <: Data](
   )
 
   io.in.b.bits.id := RegEnable(io.in.aw.bits.id, io.in.aw.fire())
-  io.in.b.bits.user := RegEnable(io.in.aw.bits.user, io.in.aw.fire())
+  // io.in.b.bits.user := RegEnable(io.in.aw.bits.user, io.in.aw.fire())
   io.in.r.bits.id := RegEnable(io.in.ar.bits.id, io.in.ar.fire())
-  io.in.r.bits.user := RegEnable(io.in.ar.bits.user, io.in.ar.fire())
+  // io.in.r.bits.user := RegEnable(io.in.ar.bits.user, io.in.ar.fire())
 
-  // printf(p"[${GTimer()}] ${name} Debug Start-----------\n")
+  // printf(p"----------${name} Debug Start-----------\n")
   // printf(
   //   p"ren=${ren}, wrapAddr=${Hexadecimal(wrapAddr)}, r_busy=${r_busy}, w_busy=${w_busy}\n"
   // )
@@ -130,5 +130,5 @@ abstract class AXI4Slave[B <: Data](
   //   p"readBeatCnt=${readBeatCnt}, writeBeatCnt=${writeBeatCnt}, rLast=${rLast}, wLast=${wLast}\n"
   // )
   // printf(p"io.in: \n${io.in}\n")
-  // printf("-----------AXI4Slave Debug Done-----------\n")
+  // printf(p"-----------${name} Slave Debug Done-----------\n")
 }

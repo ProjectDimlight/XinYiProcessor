@@ -1,4 +1,4 @@
-package cache
+package xinyi_s5i4_bc.caches
 
 import chisel3._
 import chisel3.util._
@@ -10,9 +10,7 @@ class AXI4RAM(memByte: Int, name: String = "ram") extends AXI4Slave(name = name)
   // def index(addr: UInt) = (addr & offsetMask.U) >> log2Ceil(XLEN / 8)
   // def inRange(idx: UInt) = idx < (memByte / 8).U
 
-  val bitWidth      = log2Ceil(XLEN)
-  
-  val offset = log2Ceil(bitWidth)
+  val offset = 2
   val wIdx = waddr + (writeBeatCnt << offset)
   val rIdx = raddr + (readBeatCnt << offset)
   val wen = io.in.w.fire() // && inRange(wIdx)
@@ -29,7 +27,7 @@ class AXI4RAM(memByte: Int, name: String = "ram") extends AXI4Slave(name = name)
     mem(wIdx) := (io.in.w.bits.data & fullMask) | (data & ~fullMask)
   }
 
-  // printf(p"[${GTimer()}]: AXI4RAM Debug Start----------\n")
+  // printf(p"----------AXI4RAM Debug Start----------\n")
   // printf(
   //   "waddr = %x, wIdx = %x, wdata = %x, wmask = %x, wen = %d, writeBeatCnt = %d\n",
   //   waddr,
@@ -40,10 +38,11 @@ class AXI4RAM(memByte: Int, name: String = "ram") extends AXI4Slave(name = name)
   //   writeBeatCnt
   // )
   // printf(
-  //   "raddr = %x, rIdx = %x, readBeatCnt = %d\n",
+  //   "raddr = %x, rIdx = %x, readBeatCnt = %d, rdata = %x\n",
   //   raddr,
   //   rIdx,
-  //   readBeatCnt
+  //   readBeatCnt,
+  //   rdata
   // )
   // printf("----------AXI4RAM Debug Done----------\n")
 }

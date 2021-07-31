@@ -37,6 +37,9 @@ class DCacheAddr extends Bundle with DCacheConfig {
   val index = UInt(INDEX_WIDTH.W)
   val line_offset = UInt(LINEOFFSET_WIDTH.W)
   val word_offset = UInt(WORDOFFSET_WIDTH.W)
+
+  override def toPrintable: Printable =
+    p"addr(tag = 0x${Hexadecimal(tag)}, index = 0x${Hexadecimal(index)}, line_offset = 0x${Hexadecimal(line_offset)}, word_offset = 0x${Hexadecimal(word_offset)})"
 }
 
 class DCacheMeta extends Bundle with DCacheConfig {
@@ -115,6 +118,11 @@ class DCacheCPUIO extends Bundle with DCacheConfig {
   val stall_req = Output(Bool())
   val invalidate = if (hasDCacheOp) { Input(Bool()) }
   else { null } // TODO support ops
+
+  override def toPrintable: Printable =
+    p"rd=${rd}, wr=${wr}, uncached=${uncached}, size=${size}, strb=${strb}, addr=0x${Hexadecimal(
+      addr
+    )}, din=0x${Hexadecimal(din)}\ndout=0x${Hexadecimal(dout)},stall_req=${stall_req}"
 }
 
 class DCacheIO extends Bundle with DCacheConfig {
@@ -136,6 +144,9 @@ class PathBRAMIO extends Bundle with DCacheConfig {
   val data_addr = Input(UInt(log2Ceil(SET_NUM).W))
   val data_din = Input(UInt(LINE_WIDTH.W))
   val data_dout = Output(UInt(LINE_WIDTH.W))
+
+  override def toPrintable: Printable =
+    p"meta_we=${meta_we}, meta_addr=0x${Hexadecimal(meta_addr)}, meta_din=0x${Hexadecimal(meta_din)}, meta_dout=0x${Hexadecimal(meta_dout)}\ndata_we=${data_we}, data_addr=0x${Hexadecimal(data_addr)}, data_din=0x${Hexadecimal(data_din)}, data_dout=0x${Hexadecimal(data_dout)}"
 }
 
 class DCachePathIO extends Bundle with DCacheConfig {
@@ -164,6 +175,8 @@ class DCachePath extends DCachePathBase {
     val strb = UInt((DATA_WIDTH / 8).W)
     val addr = new DCacheAddr
     val din = UInt(DATA_WIDTH.W)
+    override def toPrintable: Printable =
+    p"rd=${rd}, wr=${wr}, uncached=${uncached}, size=${size}, strb=${strb}, addr=${addr}, din=0x${Hexadecimal(din)}"
   }
 
   // PLRU
@@ -179,7 +192,7 @@ class DCachePath extends DCachePathBase {
     Enum(7)
   val state = RegInit(s_idle)
 
-  val new_request = !io.last_stall & (upper.rd | upper.wr)
+  val new_request = !io.last_stall && (upper.rd | upper.wr) && state === s_idle
   val upper_request = Wire(new DCacheReq)
   val current_request = RegEnable(upper_request, new_request)
   val inflight_request = Mux(state === s_idle, upper_request, current_request)
@@ -443,6 +456,25 @@ class DCachePath extends DCachePathBase {
     //   bram(i).data_dout.asTypeOf(new DCacheData)
     // )
   }
+
+  // printf(p"----------${NAME} Debug Info----------\n")
+  // printf(p"----------${NAME} inflight_request----------\n")
+  // printf(p"${inflight_request}\n")
+  // printf(p"state=${state}, new_request=${new_request}\n")
+  // printf(p"read_index=${read_index}, read_meta=${read_meta}, read_data=${read_data}\n")
+  // printf(p"invalid_vec=${invalid_vec}, tag_vec=${tag_vec}, hit_vec=${hit_vec}, hit=${hit}\n")
+  // printf(p"victim_vec=${victim_vec}, access_vec=${access_vec}, access_index=${access_index}\n")
+  // printf(p"cacheline_meta=${cacheline_meta}, cacheline_data=${cacheline_data}\n")
+  // printf(p"awvalid_enable=${awvalid_enable}, read_counter=${read_counter.value}, write_counter=${write_counter.value}\n")
+  // printf(p"read_satisfy=${read_satisfy}, write_satisfy=${write_satisfy}\n")
+  // printf(p"write_meta=${write_meta}, write_data=${write_data}\n")
+  // printf(p"fetched_vec=${fetched_vec}, target_data=${target_data}\n")
+  // printf(p"need_bram_write=${need_bram_write}\n")
+  // printf(p"----------${NAME} io.upper----------\n")
+  // printf(p"${io.upper}\n")
+  // printf(p"----------${NAME} io.bram----------\n")
+  // printf(p"${io.bram}\n")
+  // printf(p"------------------------------\n")
 }
 
 class DCachePathFake extends DCachePathBase {
@@ -647,7 +679,7 @@ class DCache extends Module with DCacheConfig {
       }
       when(reset.asBool()) {
         for (i <- 0 until WAY_NUM) {
-          for(j <- 0 until SET_NUM) {
+          for (j <- 0 until SET_NUM) {
             meta(i).write(j.U, 0.U)
             data(i).write(j.U, 0.U)
           }

@@ -27,9 +27,9 @@ class DualPortBRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1)
   })
 
   setInline(
-    "dual_port_ram.v",
+    "dual_port_bram.v",
     s"""
-               |module dual_port_ram #(
+               |module dual_port_bram #(
                |	parameter DATA_WIDTH = 32,
                |	parameter DEPTH      = 1024,
                |	parameter LATENCY    = 1,

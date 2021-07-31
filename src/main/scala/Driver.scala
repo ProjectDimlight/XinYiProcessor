@@ -41,3 +41,34 @@ object Main extends App {
   prompt("mycpu_top")
   Gen()
 }
+
+object CacheTB extends App {
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  //      some prettified prompt
+  //
+  //    basically it is out of
+  //  ziyue's personal taste.
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+  def prompt(module_name: String) = {
+    val XINYI = Console.BOLD + Console.YELLOW + "\n[XinYiProcessor] " + Console.RESET
+    println(XINYI + "generating verilog code for " + Console.CYAN + module_name + Console.RESET)
+  }
+
+
+  def Gen(): Unit = {
+
+    //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    //    start generating verilog code
+    //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+    val default_args = Array("-X", "verilog", "-td", "src/main/verilog/mycpu")
+
+    (new ChiselStage).execute(
+      default_args,
+      Seq(ChiselGeneratorAnnotation(() => new CacheTB))
+    )
+  }
+
+  prompt("CacheTB")
+  Gen()
+}
