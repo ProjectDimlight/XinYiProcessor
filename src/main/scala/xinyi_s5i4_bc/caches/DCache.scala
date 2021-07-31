@@ -12,7 +12,7 @@ trait DCacheConfig {
   val CACHE_SIZE = 8 * 1024 * 8 // 8KB
   val LINE_NUM = 8
   val DATA_WIDTH = XLEN
-  val WAY_NUM = 4
+  val WAY_NUM = 2
   val NAME = "DCache"
 
   // derived parameters
@@ -239,6 +239,8 @@ class DCachePath extends DCachePathBase {
 
   val read_satisfy = state === s_read_resp && lower.rvalid && lower.rlast
   val write_satisfy = state === s_write_resp && lower.bvalid
+  val cached_satisfy = (!inflight_request.uncached) && read_satisfy
+  val uncached_satisfy = inflight_request.uncached && (read_satisfy || write_satisfy)
 
   // state machine
   switch(state) {

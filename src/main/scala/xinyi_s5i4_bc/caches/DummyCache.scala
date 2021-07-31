@@ -16,82 +16,82 @@ trait CacheState {
   val s_busy2 = 6.U(3.W)
 }
 
-class DummyICache extends Module with CacheState {
-  val io = IO(new Bundle {
-    val cpu_io = new ICacheCPUIO
-    val axi_io = new AXIIO
+// class DummyICache extends Module with CacheState {
+//   val io = IO(new Bundle {
+//     val cpu_io = new ICacheCPUIO
+//     val axi_io = new AXIIO
 
-    // val stall_req = Output(Bool())
-  })
+//     // val stall_req = Output(Bool())
+//   })
 
-  val state_reg = RegInit(s_idle)
-  val state = Wire(UInt(2.W))
+//   val state_reg = RegInit(s_idle)
+//   val state = Wire(UInt(2.W))
 
-  val cnt = RegInit(0.U(2.W))
-  val data = RegInit(VecInit(Seq.fill(FETCH_NUM)(0.U(XLEN.W))))
+//   val cnt = RegInit(0.U(2.W))
+//   val data = RegInit(VecInit(Seq.fill(FETCH_NUM)(0.U(XLEN.W))))
 
-  state := MuxLookupBi(
-    state_reg,
-    s_idle,
-    Array(
-      s_idle -> Mux(io.cpu_io.rd, s_pending, s_idle),
-      s_pending -> Mux(io.axi_io.arready, s_busy, s_pending),
-      s_busy -> Mux(cnt === 2.U, s_valid, s_busy),
-      s_valid -> Mux(io.cpu_io.rd, s_pending, s_idle)
-    )
-  )
-  state_reg := state
+//   state := MuxLookupBi(
+//     state_reg,
+//     s_idle,
+//     Array(
+//       s_idle -> Mux(io.cpu_io.rd, s_pending, s_idle),
+//       s_pending -> Mux(io.axi_io.arready, s_busy, s_pending),
+//       s_busy -> Mux(cnt === 2.U, s_valid, s_busy),
+//       s_valid -> Mux(io.cpu_io.rd, s_pending, s_idle)
+//     )
+//   )
+//   state_reg := state
 
-  when(state === s_pending) {
-    cnt := 0.U
-  }
-    .elsewhen(io.axi_io.rvalid) {
-      data(cnt) := io.axi_io.rdata
-      cnt := cnt + 1.U
-    }
+//   when(state === s_pending) {
+//     cnt := 0.U
+//   }
+//     .elsewhen(io.axi_io.rvalid) {
+//       data(cnt) := io.axi_io.rdata
+//       cnt := cnt + 1.U
+//     }
 
-  val addr_in  = io.upper.addr
-  val rd       = state(1, 0) === s_pending
+//   val addr_in  = io.upper.addr
+//   val rd       = state(1, 0) === s_pending
   
-  io.lower.arid    <> 0.U
-  io.lower.araddr  <> addr_in
-  io.lower.arlen   <> 1.U
-  io.lower.arsize  <> 2.U
-  io.lower.arburst <> 1.U
-  io.lower.arlock  <> 0.U
-  io.lower.arcache <> 0.U
-  io.lower.arprot  <> 0.U
-  io.lower.arvalid <> rd
-  io.lower.rready  <> 1.U
-  io.lower.awid    <> 0.U
-  io.lower.awaddr  <> 0.U
-  io.lower.awlen   <> 0.U
-  io.lower.awsize  <> 0.U
-  io.lower.awburst <> 1.U
-  io.lower.awlock  <> 0.U
-  io.lower.awcache <> 0.U
-  io.lower.awprot  <> 0.U
-  io.lower.awvalid <> 0.U
-  io.lower.wid     <> 0.U
-  io.lower.wdata   <> 0.U
-  io.lower.wstrb   <> 0.U
-  io.lower.wlast   <> 0.U
-  io.lower.wvalid  <> 0.U
-  io.lower.bready  <> 1.U
+//   io.lower.arid    <> 0.U
+//   io.lower.araddr  <> addr_in
+//   io.lower.arlen   <> 1.U
+//   io.lower.arsize  <> 2.U
+//   io.lower.arburst <> 1.U
+//   io.lower.arlock  <> 0.U
+//   io.lower.arcache <> 0.U
+//   io.lower.arprot  <> 0.U
+//   io.lower.arvalid <> rd
+//   io.lower.rready  <> 1.U
+//   io.lower.awid    <> 0.U
+//   io.lower.awaddr  <> 0.U
+//   io.lower.awlen   <> 0.U
+//   io.lower.awsize  <> 0.U
+//   io.lower.awburst <> 1.U
+//   io.lower.awlock  <> 0.U
+//   io.lower.awcache <> 0.U
+//   io.lower.awprot  <> 0.U
+//   io.lower.awvalid <> 0.U
+//   io.lower.wid     <> 0.U
+//   io.lower.wdata   <> 0.U
+//   io.lower.wstrb   <> 0.U
+//   io.lower.wlast   <> 0.U
+//   io.lower.wvalid  <> 0.U
+//   io.lower.bready  <> 1.U
 
-  io.upper.data     := data.asUInt()
-  io.stall_req      := (state =/= s_valid) & (state =/= s_idle)
-}
+//   io.upper.data     := data.asUInt()
+//   io.stall_req      := (state =/= s_valid) & (state =/= s_idle)
+// }
 
-class DCacheCPU extends Bundle {
-  val rd   = Input (Bool())
-  val wr   = Input (Bool())
-  val size = Input (UInt(2.W))
-  val strb = Input (UInt(4.W))
-  val addr = Input (UInt(PHY_ADDR_W.W))
-  val din  = Input (UInt(XLEN.W))
-  val dout = Output(UInt(XLEN.W))
-}
+// class DCacheCPU extends Bundle {
+//   val rd   = Input (Bool())
+//   val wr   = Input (Bool())
+//   val size = Input (UInt(2.W))
+//   val strb = Input (UInt(4.W))
+//   val addr = Input (UInt(PHY_ADDR_W.W))
+//   val din  = Input (UInt(XLEN.W))
+//   val dout = Output(UInt(XLEN.W))
+// }
 
 class WriteBufferRecord extends Bundle {
   val addr = UInt(LGC_ADDR_W.W)
