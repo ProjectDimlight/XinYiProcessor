@@ -58,7 +58,5 @@ object config {
   val QUEUE_LEN_W = 3
   val PATH_W      = 2
 
-  val L1_W                 = 64
-  val L2_W                 = 64
   var DIV_IP_CORE: Boolean = true // indicating if the divider is from IP core
 }

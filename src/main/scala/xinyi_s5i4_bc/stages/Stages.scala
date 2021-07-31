@@ -65,7 +65,7 @@ class IFIn extends Bundle {
 
 class IFOut extends Bundle {
   val pc = Output(UInt(LGC_ADDR_W.W))
-  val inst = Output(UInt(L1_W.W))
+  val inst = Output(UInt((XLEN * FETCH_NUM).W))
 }
 
 // Load load_num instructions at a time
