@@ -7,12 +7,20 @@ import xinyi_s5i4_bc.AXIIO
 import utils._
 import chisel3.util.random.LFSR
 
+object GTimer {
+  def apply() = {
+    val c = RegInit(0.U(64.W))
+    c := c + 1.U
+    c
+  }
+}
+
 trait DCacheConfig {
   // predefined parameters
-  val CACHE_SIZE = 8 * 1024 * 8 // 8KB
-  val LINE_NUM = 8
+  val CACHE_SIZE = 1 * 1024 * 8 // 8KB
+  val LINE_NUM = 2
   val DATA_WIDTH = XLEN
-  val WAY_NUM = 4
+  val WAY_NUM = 1
   val NAME = "DCache"
 
   // derived parameters
@@ -146,7 +154,11 @@ class PathBRAMIO extends Bundle with DCacheConfig {
   val data_dout = Output(UInt(LINE_WIDTH.W))
 
   override def toPrintable: Printable =
-    p"meta_we=${meta_we}, meta_addr=0x${Hexadecimal(meta_addr)}, meta_din=0x${Hexadecimal(meta_din)}, meta_dout=0x${Hexadecimal(meta_dout)}\ndata_we=${data_we}, data_addr=0x${Hexadecimal(data_addr)}, data_din=0x${Hexadecimal(data_din)}, data_dout=0x${Hexadecimal(data_dout)}"
+    p"meta_we=${meta_we}, meta_addr=0x${Hexadecimal(meta_addr)}, meta_din=0x${Hexadecimal(
+      meta_din
+    )}, meta_dout=0x${Hexadecimal(meta_dout)}\ndata_we=${data_we}, data_addr=0x${Hexadecimal(
+      data_addr
+    )}, data_din=0x${Hexadecimal(data_din)}, data_dout=0x${Hexadecimal(data_dout)}"
 }
 
 class DCachePathIO extends Bundle with DCacheConfig {
@@ -176,11 +188,11 @@ class DCachePath extends DCachePathBase {
     val addr = new DCacheAddr
     val din = UInt(DATA_WIDTH.W)
     override def toPrintable: Printable =
-    p"rd=${rd}, wr=${wr}, uncached=${uncached}, size=${size}, strb=${strb}, addr=${addr}, din=0x${Hexadecimal(din)}"
+      p"rd=${rd}, wr=${wr}, uncached=${uncached}, size=${size}, strb=${strb}, addr=${addr}, din=0x${Hexadecimal(din)}"
   }
 
   // PLRU
-  val plru_records = RegInit(VecInit(Seq.fill(SET_NUM)(0.U((WAY_NUM - 1).W))))
+  val plru_records = RegInit(VecInit(Seq.fill(SET_NUM)(0.U(((WAY_NUM - 1).max(1)).W))))
 
   // set alias
   val upper = io.upper
@@ -194,7 +206,10 @@ class DCachePath extends DCachePathBase {
 
   val new_request = !io.last_stall && (upper.rd | upper.wr) && state === s_idle
   val upper_request = Wire(new DCacheReq)
-  val current_request = RegEnable(upper_request, new_request)
+  val current_request = RegInit(0.U.asTypeOf(new DCacheReq))
+  when(new_request) {
+    current_request := upper_request
+  }
   val inflight_request = Mux(state === s_idle, upper_request, current_request)
   upper_request.rd := upper.rd
   upper_request.wr := upper.wr
@@ -233,12 +248,15 @@ class DCachePath extends DCachePathBase {
   val cacheline_meta = read_meta(access_index)
   val cacheline_data = read_data(access_index)
 
-  val awvalid_enable = Reg(Bool())
+  val awvalid_enable = RegInit(true.B)
   val read_counter = Counter(LINE_NUM)
   val write_counter = Counter(LINE_NUM)
 
   val read_satisfy = state === s_read_resp && lower.rvalid && lower.rlast
   val write_satisfy = state === s_write_resp && lower.bvalid
+  val cached_satisfy = (!inflight_request.uncached) && read_satisfy
+  val uncached_satisfy =
+    inflight_request.uncached && (read_satisfy || write_satisfy)
 
   // state machine
   switch(state) {
@@ -318,7 +336,7 @@ class DCachePath extends DCachePathBase {
   need_bram_write := false.B
 
   val result = Wire(UInt(DATA_WIDTH.W))
-  val fetched_vec_reg = Reg(new DCacheData)
+  val fetched_vec_reg = RegInit(0.U.asTypeOf(new DCacheData))
   val fetched_vec = Wire(new DCacheData)
   val new_meta = Wire(new DCacheMeta)
   result := DontCare
@@ -457,21 +475,37 @@ class DCachePath extends DCachePathBase {
     // )
   }
 
-  // printf(p"----------${NAME} Debug Info----------\n")
+  // printf(p"[${GTimer()}]: ${NAME} Debug Info----------\n")
   // printf(p"----------${NAME} inflight_request----------\n")
   // printf(p"${inflight_request}\n")
   // printf(p"state=${state}, new_request=${new_request}\n")
-  // printf(p"read_index=${read_index}, read_meta=${read_meta}, read_data=${read_data}\n")
-  // printf(p"invalid_vec=${invalid_vec}, tag_vec=${tag_vec}, hit_vec=${hit_vec}, hit=${hit}\n")
-  // printf(p"victim_vec=${victim_vec}, access_vec=${access_vec}, access_index=${access_index}\n")
-  // printf(p"cacheline_meta=${cacheline_meta}, cacheline_data=${cacheline_data}\n")
-  // printf(p"awvalid_enable=${awvalid_enable}, read_counter=${read_counter.value}, write_counter=${write_counter.value}\n")
+  // printf(
+  //   p"read_index=${read_index}, read_meta=${read_meta}, read_data=${read_data}\n"
+  // )
+  // printf(
+  //   p"invalid_vec=${invalid_vec}, tag_vec=${tag_vec}, hit_vec=${hit_vec}, hit=${hit}\n"
+  // )
+  // printf(
+  //   p"victim_vec=${victim_vec}, access_vec=${access_vec}, access_index=${access_index}\n"
+  // )
+  // printf(
+  //   p"cacheline_meta=${cacheline_meta}, cacheline_data=${cacheline_data}\n"
+  // )
+  // printf(
+  //   p"awvalid_enable=${awvalid_enable}, read_counter=${read_counter.value}, write_counter=${write_counter.value}\n"
+  // )
   // printf(p"read_satisfy=${read_satisfy}, write_satisfy=${write_satisfy}\n")
   // printf(p"write_meta=${write_meta}, write_data=${write_data}\n")
   // printf(p"fetched_vec=${fetched_vec}, target_data=${target_data}\n")
   // printf(p"need_bram_write=${need_bram_write}\n")
   // printf(p"----------${NAME} io.upper----------\n")
   // printf(p"${io.upper}\n")
+  // printf(p"----------${NAME} io.lower----------\n")
+  // printf(p"aw: valid=${io.lower.awvalid}, ready=${io.lower.awready}, addr=0x${Hexadecimal(io.lower.awaddr)}, len=${io.lower.awlen}, size=${io.lower.awsize}, burst=${io.lower.awburst}\n")
+  // printf(p"w: valid=${io.lower.wvalid}, ready=${io.lower.wready}, data=0x${Hexadecimal(io.lower.wdata)}, strb=${io.lower.wstrb}, last=${io.lower.wlast}\n")
+  // printf(p"b: valid=${io.lower.bvalid}, ready=${io.lower.bready}, resp=${io.lower.bresp}\n")
+  // printf(p"ar: valid=${io.lower.arvalid}, ready=${io.lower.arready}, addr=0x${Hexadecimal(io.lower.araddr)}, len=${io.lower.arlen}, size=${io.lower.arsize}, burst=${io.lower.arburst}\n")
+  // printf(p"r: valid=${io.lower.rvalid}, ready=${io.lower.rready}, resp=${io.lower.rresp}, last=${io.lower.rlast}\n")
   // printf(p"----------${NAME} io.bram----------\n")
   // printf(p"${io.bram}\n")
   // printf(p"------------------------------\n")
