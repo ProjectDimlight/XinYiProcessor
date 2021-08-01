@@ -104,6 +104,7 @@ class IFStage extends Module with TLBConfig {
   io.cache.addr := addr
   // TODO connect to real flush signal
   io.cache.flush := false.B
+  io.cache.uncached := addr(31, 29) === "b101".U
 
   // Output to IF-ID Regs
   io.out.pc := io.in.pc
