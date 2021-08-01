@@ -30,8 +30,8 @@ class LSUIO extends FUIO {
   val tlbp            = Output(Bool())
 
   // To DCache
-  val cache           = Flipped(new DCacheCPU)
-  val stall_req       = Input(Bool())
+  val cache           = Flipped(new DCacheCPUIO)
+  // val stall_req       = Input(Bool())
 
   // Exception
   val exception_in    = Input(Bool())
@@ -84,6 +84,8 @@ class LSU extends Module with LSUConfig with TLBConfig {
     )
   )
   io.cache.addr := addr
+  // kseg1 0xA0000000-0xBFFFFFFF VA[31-29]==0b101 uncached
+  io.cache.uncached := lgc_addr(31, 29) === "b101".U
   io.cache.din  := MuxLookupBi(
     io.in.fu_ctrl(2, 1),
     io.in.a,
@@ -117,7 +119,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
       1.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_half(15),   0xffff.U(16.W) , 0.U(16.W)), o_half)
     )
   )
-  io.out.ready     := !io.stall_req
+  io.out.ready     := !io.cache.stall_req
 
   io.out.write_target := io.in.write_target
   io.out.rd           := io.in.rd

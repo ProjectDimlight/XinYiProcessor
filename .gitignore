@@ -1,10 +1,14 @@
-### Project Specific stuff
-verilog/
-
+# verilog sources
 src/main/verilog/*
-!src/main/verilog/AXICrossbar.xci
-!src/main/verilog/DIV.xci
-!src/main/verilog/DIVU.xci
+!src/main/verilog/AXICrossbar/AXICrossbar.xci
+!src/main/verilog/DIV/DIV.xci
+!src/main/verilog/DIVU/DIVU.xci
+
+# nscscc projects
+nscscc2021_group_v0.01
+func_test_v0.01
+perf_test_v0.01
+system_test_v0.01
 
 verilog_modules/mycpu_top
 output/
@@ -22,6 +26,7 @@ verilog_modules/IP/*
 .metals
 func_test_v0.01
 system_test_v0.01
+.vscode
 
 ### XilinxISE template
 # intermediate build files

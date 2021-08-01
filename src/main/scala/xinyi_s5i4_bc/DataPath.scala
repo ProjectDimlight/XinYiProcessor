@@ -34,8 +34,8 @@ class DataPath extends Module with ALUConfig {
   val interrupt_reg = Module(new InterruptReg)
   val tlb_read_reg  = Module(new TLBReadReg)
 
-  val icache = Module(new DummyICache)
-  val dcache = Module(new DummyDCache)
+  val icache = Module(new ICache)
+  val dcache = Module(new DCache)
 
   val stall_frontend = Wire(Bool())
   val stall_backend  = Wire(Bool())
@@ -65,6 +65,7 @@ class DataPath extends Module with ALUConfig {
   val forwarding    = Wire(Vec(TOT_PATH_NUM, new Forwarding))
 
   // Flush
+  pc_if_reg.  io.flush := flush
   if_id_reg.  io.flush := flush
   issue_queue.io.flush := flush
   is_bju_reg. io.flush := flush
@@ -79,18 +80,17 @@ class DataPath extends Module with ALUConfig {
   pc_stage.io.branch.target    := bc.io.branch_cached_pc
   pc_stage.io.exception.target := fu_wb_reg.io.wb_exception_target
   pc_stage.io.exception.enable := fu_wb_reg.io.wb_exception_handled
-  
 
   // IF Stage
   if_stage.io.in      <> pc_if_reg.io.if_in
   if_stage.io.tlb     <> tlb.io.path(LSU_PATH_NUM)
-  if_stage.io.cache   <> icache.io.upper
+  if_stage.io.cache   <> icache.io.cpu_io
   if_stage.io.full    <> issue_queue.io.full
   if_stage.io.out     <> if_id_reg.io.if_out
 
-  icache.io.lower      <> io.icache_axi
+  icache.io.axi_io      <> io.icache_axi
   
-  stall_frontend := icache.io.stall_req | issue_queue.io.full
+  stall_frontend := icache.io.cpu_io.stall_req | issue_queue.io.full
   
   pc_stage.io.stall    := stall_frontend
   pc_if_reg.io.stall   := stall_frontend
@@ -149,24 +149,26 @@ class DataPath extends Module with ALUConfig {
     when (is_stage.io.forwarding_path_id(i).rs1 =/= TOT_PATH_NUM.U) {
       val j = is_stage.io.forwarding_path_id(i).rs1
       val fwd = MuxLookupBi(j(1, 0),
-        forwarding(0),
+        if (LSU_PATH_NUM == 1) forwarding(0) else forwarding(3),
         Array(
+          0.U -> forwarding(0),
           1.U -> forwarding(1),
-          2.U -> forwarding(2),
-          3.U -> forwarding(3)
+          2.U -> forwarding(2)
         )
       )
       inst_params(i)(0) := Mux(inst.dec.param_a === AHi, fwd.hi, fwd.data)
     }
 
-    when (is_stage.io.forwarding_path_id(i).rs2 =/= TOT_PATH_NUM.U) {
+    when (is_stage.io.forwarding_path_id(i).rs2 =/= TOT_PATH_NUM.U & 
+      !((inst.dec.param_b === BImm) & (inst.dec.path === PathALU))
+    ) {
       val j = is_stage.io.forwarding_path_id(i).rs2
       val fwd = MuxLookupBi(j(1, 0),
-        forwarding(0),
+        if (LSU_PATH_NUM == 1) forwarding(0) else forwarding(3),
         Array(
+          0.U -> forwarding(0),
           1.U -> forwarding(1),
-          2.U -> forwarding(2),
-          3.U -> forwarding(3)
+          2.U -> forwarding(2)
         )
       )
       inst_params(i)(1) := fwd.data
@@ -218,6 +220,7 @@ class DataPath extends Module with ALUConfig {
   bc.io.in.delay_slot_pending := is_bju_reg.io.fu_delay_slot_pending
   bc.io.stall_frontend := stall_frontend
   bc.io.stall_backend  := stall_backend
+  bc.io.exception := fu_wb_reg.io.wb_exception_handled
 
   bc.io.wr.flush := flush
   bc.io.wr.stall := stall_frontend
@@ -244,7 +247,7 @@ class DataPath extends Module with ALUConfig {
       var fu = Module(new LSU)
       fu.io.tlb       <> tlb.io.path(j - base)
       fu.io.cache     <> dcache.io.upper(j - base)
-      fu.io.stall_req <> dcache.io.stall_req(j - base)
+      // fu.io.stall_req <> dcache.io.stall_req(j - base)
 
       tlbr_path(j - base) := fu.io.tlbr
       tlbw_path(j - base) := fu.io.tlbw
@@ -332,23 +335,21 @@ class DataPath extends Module with ALUConfig {
   has_interrupt := false.B
   val masked_interrupt = Wire(Vec(8, Bool()))
   for (i <- 0 until 8) {
-    masked_interrupt(i) := interrupt(i) & cp0.io.int_mask_vec(i)
-    when (interrupt(i)) {
+    val int = interrupt(i)
+    masked_interrupt(i) := int & cp0.io.int_mask_vec(i) & !cp0.io.exl
+    when (masked_interrupt(i)) {
       has_interrupt := true.B
     }
   }
   fu_stage.io.incoming_interrupt := masked_interrupt
 
   // FU Interrupt Reg
-  interrupt_reg.io.fu_pc := BOOT_ADDR.U
-  interrupt_reg.io.fu_is_delay_slot := false.B
-  
-  when (is_fu_reg.io.fu_actual_issue_cnt =/= 0.U) {
-    interrupt_reg.io.fu_pc := fu_stage.io.sorted_fu_out(0).pc
-    interrupt_reg.io.fu_is_delay_slot :=  fu_stage.io.sorted_fu_out(0).is_delay_slot
-  }
+  interrupt_reg.io.fu_pc := fu_stage.io.sorted_fu_out(0).pc
+  interrupt_reg.io.fu_is_delay_slot :=  fu_stage.io.sorted_fu_out(0).is_delay_slot
   interrupt_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
-  fu_stage.io.incoming_epc             := interrupt_reg.io.wb_epc
+  interrupt_reg.io.eret := fu_stage.io.exc_info.eret
+  interrupt_reg.io.fu_epc := fu_stage.io.fu_exception_target
+  fu_stage.io.incoming_epc := interrupt_reg.io.wb_epc
 
   // FU TLBR Reg
   tlb_read_reg.io.fu_tlbp      := tlbp

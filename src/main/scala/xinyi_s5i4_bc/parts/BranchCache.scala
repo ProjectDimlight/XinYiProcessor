@@ -36,11 +36,23 @@ class BranchCache extends Module {
     val wr  = new BranchCacheWriteIn
     val stall_frontend = Input(Bool())
     val stall_backend = Input(Bool())
+    val exception = Input(Bool())
     val branch_cached_en = Output(Bool())
     val branch_cached_pc = Output(UInt(LGC_ADDR_W.W))
   })
 
-  val record    = RegInit(VecInit(Seq.fill(BC_INDEX)(0.U.asTypeOf(new BranchCacheRecord))))
+  def InitBranchCacheRecord() = {
+    val res = Wire(new BranchCacheRecord)
+    res.valid := false.B
+    for (i <- 0 until BC_LINE_SIZE) {
+      for (j <- 0 until FETCH_NUM) {
+        res.inst(i)(j) := NOPBubble()
+      }
+    }
+    res
+  }
+
+  val record    = RegInit(VecInit(Seq.fill(BC_INDEX)(InitBranchCacheRecord())))
 
   val state_reg = RegInit(BC_LINE_SIZE.U(BC_LINE_SIZE_W.W))
   val state     = Wire(UInt(BC_LINE_SIZE_W.W))
@@ -115,7 +127,7 @@ class BranchCache extends Module {
 
   // In
   when (io.wr.flush) {
-    record := VecInit(Seq.fill(BC_INDEX)(0.U.asTypeOf(new BranchCacheRecord)))
+    record := VecInit(Seq.fill(BC_INDEX)(InitBranchCacheRecord()))
   }
   .elsewhen (!io.out.overwrite & !io.wr.stall) {
     val index = write_pc(1 + BC_INDEX_W, 2)

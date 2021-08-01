@@ -38,7 +38,7 @@ class PCStage extends Module {
   br.target := Mux(br_reg.enable, br_reg.target, io.branch.target)
 
   when (io.stall) {
-    when (!ex_reg.enable) {
+    when (io.exception.enable) {
       ex_reg := io.exception
     }
     when (!br_reg.enable) {
@@ -51,7 +51,7 @@ class PCStage extends Module {
   }
 
   io.next_pc := MuxCase(
-    (io.pc & 0xFFFFFFFCL.U) + (4 * FETCH_NUM).U(LGC_ADDR_W.W),
+    (io.pc & 0xFFFFFFF8L.U) + 8.U,
     Array(
       ex.enable -> ex.target,
       br.enable -> br.target
@@ -65,7 +65,7 @@ class IFIn extends Bundle {
 
 class IFOut extends Bundle {
   val pc = Output(UInt(LGC_ADDR_W.W))
-  val inst = Output(UInt(L1_W.W))
+  val inst = Output(UInt((XLEN * FETCH_NUM).W))
 }
 
 // Load load_num instructions at a time
@@ -76,7 +76,7 @@ class IFStage extends Module with TLBConfig {
     val out      = new IFOut
 
     val tlb      = Flipped(new TLBLookupInterface)
-    val cache    = Flipped(new ICacheCPU)
+    val cache    = Flipped(new ICacheCPUIO)
     
     val full     = Input(Bool())
 
@@ -102,10 +102,12 @@ class IFStage extends Module with TLBConfig {
   // ICache
   io.cache.rd := !io.full
   io.cache.addr := addr
+  // TODO connect to real flush signal
+  io.cache.flush := false.B
 
   // Output to IF-ID Regs
   io.out.pc := io.in.pc
-  io.out.inst := io.cache.dout
+  io.out.inst := io.cache.data
 }
 
 class IDIn extends Bundle {
@@ -238,7 +240,7 @@ class ISStage extends Module {
     }
     when (
       io.forwarding(j).write_target === io.inst(i).dec.param_a &                            // Same source (implicit not HiLo)
-      io.forwarding(j).write_target =/= DReg                                                // Not Regs 
+      io.forwarding(j).write_target =/= DReg                                                // Not Regs
     ) {
       raw(i) := true.B
     }
@@ -266,6 +268,15 @@ class ISStage extends Module {
       io.inst(k).dec.write_target === 0.U &       // rs2 ONLY relies on regs
       io.inst(k).dec.rd === io.inst(i).dec.rs2 &  // Same ID
       io.inst(i).dec.rs2 =/= 0.U                  // Not 0
+    ) {
+      raw(i) := true.B
+    }
+
+    // In fact this is WAR
+    when (
+      io.inst(k).dec.path === PathLSU & 
+      io.inst(i).dec.path === PathLSU &
+      io.inst(i).dec.write_target === DMem
     ) {
       raw(i) := true.B
     }
@@ -435,6 +446,7 @@ class FUStage extends Module with CP0Config {
   io.exc_info.exc_code := NO_EXCEPTION
   io.exc_info.data := 0.U
   io.exc_info.in_branch_delay_slot := false.B
+  io.exc_info.eret := false.B
 
   // IF stage tlb miss exception
   when (io.if_tlb_miss) {
@@ -469,6 +481,7 @@ class FUStage extends Module with CP0Config {
 
         io.fu_exception_handled := true.B
         io.fu_exception_target  := issue_vec(i).exc_meta
+        io.exc_info.eret := true.B
       }
     }
     .elsewhen ((issue_vec(i).write_target === DCP0) &

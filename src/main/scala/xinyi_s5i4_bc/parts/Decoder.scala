@@ -106,6 +106,8 @@ val control_signal = ListLookup(io.inst,
       DIVU       -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_DIVU  ,  PathALU   , IRS , IRT , IRD),
       MULT       -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_MUL   ,  PathALU   , IRS , IRT , IRD),
       MULTU      -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_MULU  ,  PathALU   , IRS , IRT , IRD),
+
+      MUL        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_MUL   ,  PathALU   , IRS,  IRT , IRD),
            
       AND        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_AND   ,  PathALU   , IRS , IRT , IRD),
       ANDI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_AND   ,  PathALU   , IRS , IXX , IRT),
@@ -154,7 +156,7 @@ val control_signal = ListLookup(io.inst,
       SH         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemHalf   ,  PathLSU   , IRT , IRS , IXX),
       SW         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemWord   ,  PathLSU   , IRT , IRS , IXX),
            
-      ERET       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , ALU_ERET  ,  PathALU   , CP0_EPC_INDEX , IXX , CP0_STATUS_INDEX),
+      ERET       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DXXX   , ALU_ERET  ,  PathALU   , CP0_EPC_INDEX , IXX , IXX),
       MFC0       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IRD , IXX , IRT),
       MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_OR    ,  PathALU   , IRT , IXX , IRD),
 

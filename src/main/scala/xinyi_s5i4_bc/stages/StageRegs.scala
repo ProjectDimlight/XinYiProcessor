@@ -15,14 +15,19 @@ class PCIFReg extends Module {
     val pc_out = Input(UInt(LGC_ADDR_W.W))
     val if_in  = Flipped(new IFIn)
 
+    val flush = Input(Bool())
     val stall = Input(Bool())
   })
 
-  val pc = RegInit((if (DEBUG) DEBUG_BOOT_ADDR else BOOT_ADDR).U(LGC_ADDR_W.W))
+  val pc_init = (if (DEBUG) DEBUG_BOOT_ADDR else BOOT_ADDR).U(LGC_ADDR_W.W)
+  val pc = RegInit(pc_init)
   val stall = RegInit(false.B)
 
   when(!io.stall) {
     pc := io.pc_out
+  }
+  .elsewhen(io.flush) {
+    pc := pc_init
   }
   stall := io.stall
 
@@ -46,9 +51,7 @@ class IFIDReg extends Module {
   val flush_reg = RegInit(false.B)
 
   when (io.flush) {
-    when (io.stall) {
-      flush_reg := true.B
-    }
+    flush_reg := io.stall
     reg := init
   }
   .elsewhen (!io.stall) {
@@ -105,10 +108,11 @@ class IssueQueue extends Module {
   }
   .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
     when (!io.stall) {
+      val inst = Mux(io.bc.overwrite, io.bc.inst, io.in)
       for (i <- 0 until FETCH_NUM) {
-        queue(tail_b + i.U(QUEUE_LEN_W.W)) := Mux(io.bc.overwrite, io.bc.inst(i), io.in(i))
+        queue(tail_b + i.U(QUEUE_LEN_W.W)) := inst(i)
       }
-      tail := Step(tail_b, FETCH_NUM.U(QUEUE_LEN_W.W))
+      tail := Step(tail_b, Mux(inst(0).pc(2), 1.U, 2.U))
     }
     .otherwise {
       tail := tail_b
@@ -199,8 +203,8 @@ class ISBJUReg extends Module with ALUConfig with BJUConfig {
       val pc4 = io.is_path.pc + 4.U
       reg_path.pc             := pc4
       reg_xor                 := (io.is_path.a ^ io.is_path.b)
-      reg_b_bc                := io.is_path.b + (4 + BC_LINE_SIZE * FETCH_NUM * 4).U
-      reg_imm_bc              := io.is_path.imm + (BC_LINE_SIZE * FETCH_NUM * 4).U
+      reg_b_bc                := Cat((io.is_path.b + (BC_LINE_SIZE * FETCH_NUM * 4).U)(31, 3), 0.U(3.W))
+      reg_imm_bc              := Cat((io.is_path.imm + (BC_LINE_SIZE * FETCH_NUM * 4).U)(31, 3), 0.U(3.W))
       
       reg_branch_next_pc      := io.is_branch_next_pc
       reg_delay_slot_pending  := io.is_delay_slot_pending
@@ -300,6 +304,7 @@ class FUWBReg extends Module {
   exc_info_init.exc_code := NO_EXCEPTION
   exc_info_init.data := 0.U
   exc_info_init.in_branch_delay_slot := false.B
+  exc_info_init.eret := false.B
 
   val reg_out                = RegInit(VecInit(Seq.fill(ISSUE_NUM)(FUOutBubble())))
   val reg_exception_order    = RegInit(0.U(ISSUE_NUM_W.W))
@@ -310,9 +315,8 @@ class FUWBReg extends Module {
   reg_out               := io.sorted_fu_out
   reg_exception_order   := Mux(io.flush | io.stall, 0.U, io.fu_exception_order)
   reg_exception_handled := Mux(io.flush | io.stall, 0.U, io.fu_exception_handled)
+  reg_exc_info          := Mux(io.flush | io.stall, exc_info_init, io.fu_exc_info)
   reg_exception_target  := io.fu_exception_target
-  reg_exc_info          := io.fu_exc_info
-
 
   io.wb_in := reg_out
   io.wb_exception_order   := reg_exception_order
@@ -356,6 +360,8 @@ class InterruptReg extends Module {
     val fu_pc               = Input(UInt(LGC_ADDR_W.W))
     val fu_is_delay_slot    = Input(Bool())
     val fu_actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
+    val eret                = Input(Bool())
+    val fu_epc              = Input(UInt(LGC_ADDR_W.W))
 
     val wb_epc       = Output(UInt(LGC_ADDR_W.W))
   })
@@ -363,6 +369,9 @@ class InterruptReg extends Module {
   val pc_reg = RegInit(0.U(LGC_ADDR_W.W))
   when (io.fu_actual_issue_cnt =/= 0.U) {
     pc_reg := Mux(io.fu_is_delay_slot, io.fu_pc - 4.U, io.fu_pc)
+  }
+  when (io.eret) {
+    pc_reg := io.fu_epc
   }
   io.wb_epc := pc_reg
 }

@@ -1,9 +1,8 @@
 import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
 import xinyi_s5i4_bc._
 import config.config._
-import experiments._
 import xinyi_s5i4_bc.fu._
-import xinyi_s5i4_bc.caches.L0DCache
+import xinyi_s5i4_bc.caches._
 
 object Verilator extends App {
   def Gen(): Unit = {
@@ -12,7 +11,7 @@ object Verilator extends App {
     //    start generating verilog code
     //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-    val default_args = Array("-X", "verilog", "-td", "verilog_modules/mycpu_top")
+    val default_args = Array("-X", "verilog", "-td", "src/main/verilog/mycpu")
 
     (new ChiselStage).execute(
       default_args,
@@ -26,22 +25,7 @@ object Verilator extends App {
 }
 
 
-object CP0 extends App {
-  def Gen(): Unit = {
-    val default_args = Array("-X", "verilog", "-td", "verilog_modules/test")
-    (new ChiselStage).execute(
-      default_args,
-      Seq(ChiselGeneratorAnnotation(() => new CP0))
-    )
-  }
-
-  Main.prompt("CP0")
-  Gen()
-}
-
 object Main extends App {
-
-
   //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
   //      some prettified prompt
   //
@@ -60,7 +44,7 @@ object Main extends App {
     //    start generating verilog code
     //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-    val default_args = Array("-X", "verilog", "-td", "verilog_modules/mycpu_top")
+    val default_args = Array("-X", "verilog", "-td", "src/main/verilog/mycpu")
 
     (new ChiselStage).execute(
       default_args,
@@ -72,17 +56,33 @@ object Main extends App {
   Gen()
 }
 
+object CacheTB extends App {
+  //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  //      some prettified prompt
+  //
+  //    basically it is out of
+  //  ziyue's personal taste.
+  //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+  def prompt(module_name: String) = {
+    val XINYI = Console.BOLD + Console.YELLOW + "\n[XinYiProcessor] " + Console.RESET
+    println(XINYI + "generating verilog code for " + Console.CYAN + module_name + Console.RESET)
+  }
 
 
-object GEN_L0DCache extends App {
   def Gen(): Unit = {
-    val default_args = Array("-X", "verilog", "-td", "verilog_modules/test")
+
+    //>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    //    start generating verilog code
+    //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+    val default_args = Array("-X", "verilog", "-td", "src/main/verilog/mycpu")
+
     (new ChiselStage).execute(
       default_args,
-      Seq(ChiselGeneratorAnnotation(() => new L0DCache))
+      Seq(ChiselGeneratorAnnotation(() => new CacheTB))
     )
   }
 
-  Main.prompt("L0DCache")
+  prompt("CacheTB")
   Gen()
 }
