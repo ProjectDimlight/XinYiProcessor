@@ -56,6 +56,7 @@ class ICacheCPUIO extends Bundle {
   val flush     = Input(Bool())
   val rd        = Input(Bool()) // read request
   val stall_req = Output(Bool()) // stall
+  val uncached  = Input(Bool()) // uncacheable
 }
 
 
@@ -69,8 +70,7 @@ class ICache extends Module with ICacheConfig {
   //>>>>>>>>>>>>>>>>>>>>>>>
   //  ICache Cacheability
   //<<<<<<<<<<<<<<<<<<<<<<<
-  val io_uncached = io.cpu_io.addr(31, 29) === "b000".U // kseg0 and kseg1 is uncacheable
-  val uncached    = RegInit(false.B)
+  val uncached = RegInit(false.B)
 
 
   //>>>>>>>>>>>>>>>>>>>
@@ -191,7 +191,7 @@ class ICache extends Module with ICacheConfig {
         last_index := io_addr.index
         last_tag := io_addr.tag
         last_hit := false.B
-      }.elsewhen(io_uncached) {
+      }.elsewhen(io.cpu_io.uncached) {
         uncached := true.B
         state := s_axi_pending
       }
