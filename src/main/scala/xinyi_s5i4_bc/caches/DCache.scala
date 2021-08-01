@@ -409,7 +409,7 @@ class DCachePath extends DCachePathBase {
       0.U(OFFSET_WIDTH.W)
     )
   )
-  lower.arsize := inflight_request.size
+  lower.arsize := Mux(inflight_request.uncached,inflight_request.size, 2.U)
   lower.arburst := Mux(inflight_request.uncached, 0.U, 1.U)
   lower.arlen := Mux(inflight_request.uncached, 0.U, (LINE_NUM - 1).U)
   lower.rready := (state === s_read_resp)
