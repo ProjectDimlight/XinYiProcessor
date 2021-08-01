@@ -66,6 +66,12 @@ class ICache extends Module with ICacheConfig {
     val axi_io = new AXIIO
   })
 
+  //>>>>>>>>>>>>>>>>>>>>>>>
+  //  ICache Cacheability
+  //<<<<<<<<<<<<<<<<<<<<<<<
+  val io_uncached = io.cpu_io.addr(31, 29) === "b000".U // kseg0 and kseg1 is uncacheable
+  val uncached    = RegInit(false.B)
+
 
   //>>>>>>>>>>>>>>>>>>>
   //  ICache Metadata
@@ -73,7 +79,7 @@ class ICache extends Module with ICacheConfig {
   //  val io_group_index = io.cpu_io.addr.index(INDEX_WIDTH - log2Ceil(SET_ASSOCIATIVE) - 1, 0) // get the res group index from cpu_io
   val io_addr    = io.cpu_io.addr.asTypeOf(new ICacheAddr)
   val last_index = RegInit(0.U(INDEX_WIDTH.W)) // record the last req group index
-  val last_tag   = RegInit(0.U(TAG_WIDTH.W))  // record the last req tag
+  val last_tag   = RegInit(0.U(TAG_WIDTH.W)) // record the last req tag
   val last_hit   = RegInit(false.B)
 
   // write-enable
@@ -106,8 +112,6 @@ class ICache extends Module with ICacheConfig {
   val rd_tag_valid = rd_tag_valid_vec(hit_access)
 
   val cached_miss = io_addr.index =/= last_index || io_addr.tag =/= last_tag
-  //    !rd_tag_valid.valid ||
-  //    io_addr.tag =/= rd_tag_valid.tag ||
 
   // miss
   val hit  = Wire(Bool())
@@ -162,9 +166,13 @@ class ICache extends Module with ICacheConfig {
   val inst_offset_index = io_addr.inst_offset(4, 2)
 
   // select data
-  io.cpu_io.data := Mux(inst_offset_index(0),
+  val uncached_data = Cat(0.U(XLEN.W), io.axi_io.rdata)
+
+  val cached_data = Mux(inst_offset_index(0),
     Cat(0.U(XLEN.W), (rd_block >> (inst_offset_index << 5)) (31, 0)), // read single instruction
     (rd_block >> (inst_offset_index(2, 1) << 6)) (63, 0)) // read two instructions
+
+  io.cpu_io.data := Mux(uncached, uncached_data, cached_data)
 
   // forward bram block to reduce hit latency
   rd_block := Mux(last_hit, rd_block_vec(hit_access), l0_block)
@@ -183,6 +191,9 @@ class ICache extends Module with ICacheConfig {
         last_index := io_addr.index
         last_tag := io_addr.tag
         last_hit := false.B
+      }.elsewhen(io_uncached) {
+        uncached := true.B
+        state := s_axi_pending
       }
     }
 
@@ -209,14 +220,19 @@ class ICache extends Module with ICacheConfig {
     is(s_axi_wait) {
       // still receiving
       when(io.axi_io.rvalid) {
-        receive_buffer(burst_count) := io.axi_io.rdata
-        burst_count := burst_count + 1.U // increment burst count by 1
+        when(uncached) {
+          state := s_idle
+          uncached := false.B
+        }.otherwise {
+          receive_buffer(burst_count) := io.axi_io.rdata
+          burst_count := burst_count + 1.U // increment burst count by 1
 
-        // the last received data
-        when(io.axi_io.rlast) {
-          // no further data transfer, back to IDLE
-          state := s_fill
-          l0_block := Cat(io.axi_io.rdata, receive_buffer.asUInt()(BLOCK_WIDTH - XLEN - 1, 0))
+          // the last received data
+          when(io.axi_io.rlast) {
+            // no further data transfer, back to IDLE
+            state := s_fill
+            l0_block := Cat(io.axi_io.rdata, receive_buffer.asUInt()(BLOCK_WIDTH - XLEN - 1, 0))
+          }
         }
       }
     }
