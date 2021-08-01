@@ -9,7 +9,7 @@ import chisel3.util.random.LFSR
 
 trait DCacheConfig {
   // predefined parameters
-  val CACHE_SIZE = 8 * 1024 * 8 // 8KB
+  val CACHE_SIZE = 2 * 1024 * 8 // 8KB
   val LINE_NUM = 8
   val DATA_WIDTH = XLEN
   val WAY_NUM = 2
