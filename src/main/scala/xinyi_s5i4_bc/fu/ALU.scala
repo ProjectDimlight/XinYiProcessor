@@ -78,11 +78,7 @@ class ALU extends Module with ALUConfig with BALConfig {
   val mul_ab_reg  = RegNext(mul_ab)
   val mul_valid_reg = RegInit(false.B)
   
-  mul_valid_reg := Mux(
-    mul_valid_reg,
-    false.B,
-    is_mul
-  )
+  mul_valid_reg := Mux(mul_valid_reg, false.B, is_mul)
 
   val div_res  = Wire(UInt((2 * XLEN).W))
   val divu_res = Wire(UInt((2 * XLEN).W))
@@ -91,10 +87,18 @@ class ALU extends Module with ALUConfig with BALConfig {
     // instantiate div
     val div    = Module(new DIV)
     val is_div = io.in.fu_ctrl === ALU_DIV
+    val is_div_last = RegInit(false.B)
+
+    when (is_div & div.io.s_axis_dividend_tready) {
+      is_div_last := true.B
+    }
+    when (div.io.m_axis_dout_tvalid) {
+      is_div_last := false.B
+    }
 
     div.io.aclk := clock
-    div.io.s_axis_dividend_tvalid := is_div
-    div.io.s_axis_divisor_tvalid := is_div
+    div.io.s_axis_dividend_tvalid := is_div & !is_div_last
+    div.io.s_axis_divisor_tvalid := is_div & !is_div_last
     div.io.s_axis_dividend_tdata := io.in.a
     div.io.s_axis_divisor_tdata := io.in.b
     div_res := div.io.m_axis_dout_tdata
@@ -102,17 +106,26 @@ class ALU extends Module with ALUConfig with BALConfig {
     // instantiate divu
     val divu    = Module(new DIVU)
     val is_divu = io.in.fu_ctrl === ALU_DIVU
+    val is_divu_last = RegInit(false.B)
+    
+    when (is_divu & divu.io.s_axis_dividend_tready) {
+      is_divu_last := true.B
+    }
+    when (divu.io.m_axis_dout_tvalid) {
+      is_divu_last := false.B
+    }
+    
 
     divu.io.aclk := clock
-    divu.io.s_axis_dividend_tvalid := is_divu
-    divu.io.s_axis_divisor_tvalid := is_divu
+    divu.io.s_axis_dividend_tvalid := is_divu & !is_divu_last
+    divu.io.s_axis_divisor_tvalid := is_divu & !is_divu_last
     divu.io.s_axis_dividend_tdata := io.in.a
     divu.io.s_axis_divisor_tdata := io.in.b
     divu_res := divu.io.m_axis_dout_tdata
 
     // ready
     io.out.ready := 
-      (!(is_divu || is_div) || (is_divu && divu.io.m_axis_dout_tvalid) || (is_div && div.io.m_axis_dout_tvalid)) &&
+      (!(is_divu || is_div) || (divu.io.m_axis_dout_tvalid) || (div.io.m_axis_dout_tvalid)) &&
       (!is_mul || mul_valid_reg)
   } else {
     val sign_a = Wire(SInt(XLEN.W))
@@ -217,8 +230,10 @@ class DIV extends BlackBox {
   val io = IO(new Bundle {
     val aclk                   = Input(Clock())
     val s_axis_divisor_tvalid  = Input(Bool())
+    val s_axis_divisor_tready  = Output(Bool())
     val s_axis_divisor_tdata   = Input(UInt(XLEN.W))
     val s_axis_dividend_tvalid = Input(Bool())
+    val s_axis_dividend_tready = Output(Bool())
     val s_axis_dividend_tdata  = Input(UInt(XLEN.W))
     val m_axis_dout_tvalid     = Output(Bool())
     val m_axis_dout_tdata      = Output(UInt((2 * XLEN).W))
@@ -244,8 +259,10 @@ class DIVU extends BlackBox {
   val io = IO(new Bundle {
     val aclk                   = Input(Clock())
     val s_axis_divisor_tvalid  = Input(Bool())
+    val s_axis_divisor_tready  = Output(Bool())
     val s_axis_divisor_tdata   = Input(UInt(XLEN.W))
     val s_axis_dividend_tvalid = Input(Bool())
+    val s_axis_dividend_tready = Output(Bool())
     val s_axis_dividend_tdata  = Input(UInt(XLEN.W))
     val m_axis_dout_tvalid     = Output(Bool())
     val m_axis_dout_tdata      = Output(UInt((2 * XLEN).W))
