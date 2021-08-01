@@ -225,6 +225,7 @@ begin
 		//judge(pipe_wb[1]);
 		//write(pipe_wb[0]);
 		//write(pipe_wb[1]);
+		/*
 		if (soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr[31:8] == 24'h1fc26e && 
 		    (soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr[3:0] == 4'h0 ||
 		     soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr[3:0] == 4'h8) && 
@@ -248,6 +249,7 @@ begin
 		  soc_lite.u_cpu.datapath.dcache.io_lower_1_awaddr,
 		  soc_lite.u_cpu.datapath.dcache.io_lower_1_wdata);
 		end
+		*/
 	end
 end
 
