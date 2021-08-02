@@ -67,7 +67,7 @@ class AXICrossbar extends BlackBox {
     // s
     val s_axi_awid    = Input(UInt(((LSU_PATH_NUM + 1) * 4).W))
     val s_axi_awaddr  = Input(UInt(((LSU_PATH_NUM + 1) * XLEN).W))
-    val s_axi_awlen   = Input(UInt(((LSU_PATH_NUM + 1) * 8).W))
+    val s_axi_awlen   = Input(UInt(((LSU_PATH_NUM + 1) * 4).W))
     val s_axi_awsize  = Input(UInt(((LSU_PATH_NUM + 1) * 3).W))
     val s_axi_awburst = Input(UInt(((LSU_PATH_NUM + 1) * 2).W))
     val s_axi_awlock  = Input(UInt(((LSU_PATH_NUM + 1) * 1).W))
@@ -108,7 +108,7 @@ class AXICrossbar extends BlackBox {
     // m
     val m_axi_awid    = Output(UInt(4.W))
     val m_axi_awaddr  = Output(UInt(XLEN.W))
-    val m_axi_awlen   = Output(UInt(8.W))
+    val m_axi_awlen   = Output(UInt(4.W))
     val m_axi_awsize  = Output(UInt(3.W))
     val m_axi_awburst = Output(UInt(2.W))
     val m_axi_awlock  = Output(Bool())

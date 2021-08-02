@@ -146,7 +146,11 @@ class PathBRAMIO extends Bundle with DCacheConfig {
   val data_dout = Output(UInt(LINE_WIDTH.W))
 
   override def toPrintable: Printable =
-    p"meta_we=${meta_we}, meta_addr=0x${Hexadecimal(meta_addr)}, meta_din=0x${Hexadecimal(meta_din)}, meta_dout=0x${Hexadecimal(meta_dout)}\ndata_we=${data_we}, data_addr=0x${Hexadecimal(data_addr)}, data_din=0x${Hexadecimal(data_din)}, data_dout=0x${Hexadecimal(data_dout)}"
+    p"meta_we=${meta_we}, meta_addr=0x${Hexadecimal(meta_addr)}, meta_din=0x${Hexadecimal(
+      meta_din
+    )}, meta_dout=0x${Hexadecimal(meta_dout)}\ndata_we=${data_we}, data_addr=0x${Hexadecimal(
+      data_addr
+    )}, data_din=0x${Hexadecimal(data_din)}, data_dout=0x${Hexadecimal(data_dout)}"
 }
 
 class DCachePathIO extends Bundle with DCacheConfig {
@@ -176,7 +180,7 @@ class DCachePath extends DCachePathBase {
     val addr = new DCacheAddr
     val din = UInt(DATA_WIDTH.W)
     override def toPrintable: Printable =
-    p"rd=${rd}, wr=${wr}, uncached=${uncached}, size=${size}, strb=${strb}, addr=${addr}, din=0x${Hexadecimal(din)}"
+      p"rd=${rd}, wr=${wr}, uncached=${uncached}, size=${size}, strb=${strb}, addr=${addr}, din=0x${Hexadecimal(din)}"
   }
 
   // PLRU
@@ -240,7 +244,8 @@ class DCachePath extends DCachePathBase {
   val read_satisfy = state === s_read_resp && lower.rvalid && lower.rlast
   val write_satisfy = state === s_write_resp && lower.bvalid
   val cached_satisfy = (!inflight_request.uncached) && read_satisfy
-  val uncached_satisfy = inflight_request.uncached && (read_satisfy || write_satisfy)
+  val uncached_satisfy =
+    inflight_request.uncached && (read_satisfy || write_satisfy)
 
   // state machine
   switch(state) {
@@ -409,7 +414,7 @@ class DCachePath extends DCachePathBase {
       0.U(OFFSET_WIDTH.W)
     )
   )
-  lower.arsize := Mux(inflight_request.uncached,inflight_request.size, 2.U)
+  lower.arsize := Mux(inflight_request.uncached, inflight_request.size, 2.U)
   lower.arburst := Mux(inflight_request.uncached, 0.U, 1.U)
   lower.arlen := Mux(inflight_request.uncached, 0.U, (LINE_NUM - 1).U)
   lower.rready := (state === s_read_resp)
@@ -424,7 +429,7 @@ class DCachePath extends DCachePathBase {
     inflight_request.addr.asTypeOf(UInt(PHY_ADDR_W.W)),
     Cat(cacheline_meta.tag, inflight_request.addr.index, 0.U(OFFSET_WIDTH.W))
   )
-  lower.awsize := inflight_request.size
+  lower.awsize := Mux(inflight_request.uncached, inflight_request.size, 2.U)
   lower.awburst := Mux(inflight_request.uncached, 0.U, 1.U)
   lower.awlen := Mux(inflight_request.uncached, 0.U, (LINE_NUM - 1).U)
   lower.wvalid := (state === s_write_req)
