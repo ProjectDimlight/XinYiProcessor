@@ -438,7 +438,7 @@ class DCachePath extends DCachePathBase {
     inflight_request.din,
     cacheline_data.data(write_counter.value)
   )
-  lower.wstrb := inflight_request.strb
+  lower.wstrb := Mux(inflight_request.uncached, inflight_request.strb, 0xf.U)
   lower.wlast := inflight_request.uncached || (write_counter.value === (LINE_NUM - 1).U)
   lower.bready := (state === s_write_resp)
 

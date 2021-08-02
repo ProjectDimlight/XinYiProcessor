@@ -93,10 +93,12 @@ class IFStage extends Module with TLBConfig {
   val addr = Mux(
     lgc_addr(31, 30) === 2.U,
     lgc_addr & 0x1FFFFFFF.U,
-    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
+    //Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
+    lgc_addr
   )
 
-  io.tlb_miss := (lgc_addr(31, 30) =/= 2.U) & io.tlb.miss
+  //io.tlb_miss := (lgc_addr(31, 30) =/= 2.U) & io.tlb.miss
+  io.tlb_miss := false.B
   io.tlb_addr := lgc_addr
 
   // ICache

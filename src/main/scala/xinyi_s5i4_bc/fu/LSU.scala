@@ -51,9 +51,11 @@ class LSU extends Module with LSUConfig with TLBConfig {
   val addr = Mux(
     lgc_addr(31, 30) === 2.U,
     lgc_addr & 0x1FFFFFFF.U,
-    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
+    //Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
+    lgc_addr
   )
-  val tlb_miss = (lgc_addr(31, 30) =/= 2.U) & (io.tlb.miss | !item.v)
+  //val tlb_miss = (lgc_addr(31, 30) =/= 2.U) & (io.tlb.miss | !item.v)
+  val tlb_miss = false.B
 
   io.tlbw := io.in.fu_ctrl === TLBWrite
   io.tlbr := io.in.fu_ctrl === TLBRead
