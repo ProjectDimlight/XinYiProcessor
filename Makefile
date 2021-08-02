@@ -35,3 +35,6 @@ checkstyle:
 
 clean:
 	-@rm -rf $(MYCPU_DIR)
+	-@find $(VERILOG_DIR)/AXICrossbar/. ! -name 'AXICrossbar.xci' -exec rm -r {} \;
+	-@find $(VERILOG_DIR)/DIVU/. ! -name 'DIVU.xci' -exec rm -r {} \;
+	-@find $(VERILOG_DIR)/DIV/. ! -name 'DIV.xci' -exec rm -r {} \;
