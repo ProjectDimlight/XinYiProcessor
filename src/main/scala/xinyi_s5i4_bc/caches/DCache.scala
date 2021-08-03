@@ -21,7 +21,7 @@ trait DCacheConfig {
   val CACHE_SIZE = 8 * 1024 * 8 // 8KB
   val LINE_NUM = 8
   val DATA_WIDTH = XLEN
-  val WAY_NUM = 4
+  val WAY_NUM = 2
   val NAME = "DCache"
 
   // derived parameters
