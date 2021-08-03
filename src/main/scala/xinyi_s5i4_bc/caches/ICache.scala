@@ -124,7 +124,7 @@ class ICache extends Module with ICacheConfig {
   //<<<<<<<<<<<<<<<
 
   // ICache FSM state
-  val s_idle :: s_fetch :: s_axi_pending :: s_axi_wait :: s_fill :: Nil = Enum(5)
+  val s_idle :: s_fetch :: s_axi_pending :: s_axi_wait :: s_fill :: s_valid :: Nil = Enum(6)
 
   // state reg
   val state = RegInit(s_idle)
@@ -142,8 +142,11 @@ class ICache extends Module with ICacheConfig {
   val receive_buffer = RegInit(VecInit(Seq.fill(BLOCK_INST_NUM)(0.U(XLEN.W))))
 
 
+  val uncache_valid = Wire(Bool())
+  uncache_valid := false.B
+
   // not valid
-  io.cpu_io.stall_req := state =/= s_idle || (state === s_idle && cached_miss)
+  io.cpu_io.stall_req := !uncache_valid && (state =/= s_idle || io.cpu_io.uncached || cached_miss)
 
 
   //>>>>>>>>>>>>
@@ -186,14 +189,15 @@ class ICache extends Module with ICacheConfig {
     // when FSM is idle
     is(s_idle) {
       // new request arrives
-      when(io.cpu_io.rd && cached_miss) { // read request and cache miss
+      when(io.cpu_io.rd && io.cpu_io.uncached) {
+        uncached := true.B
+        state := s_axi_pending
+      }
+      .elsewhen(io.cpu_io.rd && cached_miss) { // read request and cache miss
         state := s_fetch
         last_index := io_addr.index
         last_tag := io_addr.tag
         last_hit := false.B
-      }.elsewhen(io.cpu_io.uncached) {
-        uncached := true.B
-        state := s_axi_pending
       }
     }
 
@@ -222,6 +226,7 @@ class ICache extends Module with ICacheConfig {
       when(io.axi_io.rvalid) {
         when(uncached) {
           state := s_idle
+          uncache_valid := true.B
           uncached := false.B
         }.otherwise {
           receive_buffer(burst_count) := io.axi_io.rdata
@@ -238,6 +243,10 @@ class ICache extends Module with ICacheConfig {
     }
 
     is(s_fill) {
+      state := s_idle
+    }
+
+    is (s_valid) {
       state := s_idle
     }
   }

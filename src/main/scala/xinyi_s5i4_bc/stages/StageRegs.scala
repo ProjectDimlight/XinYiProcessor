@@ -23,11 +23,8 @@ class PCIFReg extends Module {
   val pc = RegInit(pc_init)
   val stall = RegInit(false.B)
 
-  when(!io.stall) {
+  when((!io.stall)) {
     pc := io.pc_out
-  }
-  .elsewhen(io.flush) {
-    pc := pc_init
   }
   stall := io.stall
 
@@ -363,14 +360,18 @@ class InterruptReg extends Module {
     val eret                = Input(Bool())
     val fu_epc              = Input(UInt(LGC_ADDR_W.W))
 
+    
+    val stall                = Input(Bool())
+    val flush                = Input(Bool())
+
     val wb_epc       = Output(UInt(LGC_ADDR_W.W))
   })
 
   val pc_reg = RegInit(0.U(LGC_ADDR_W.W))
-  when (io.fu_actual_issue_cnt =/= 0.U) {
+  when (io.fu_actual_issue_cnt =/= 0.U & !io.stall & !io.flush) {
     pc_reg := Mux(io.fu_is_delay_slot, io.fu_pc - 4.U, io.fu_pc)
   }
-  when (io.eret) {
+  when (io.eret & !io.stall & !io.flush) {
     pc_reg := io.fu_epc
   }
   io.wb_epc := pc_reg

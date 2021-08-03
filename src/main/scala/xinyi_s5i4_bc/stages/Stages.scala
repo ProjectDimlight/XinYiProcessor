@@ -106,7 +106,9 @@ class IFStage extends Module with TLBConfig {
   io.cache.addr := addr
   // TODO connect to real flush signal
   io.cache.flush := false.B
-  io.cache.uncached := addr(31, 29) === "b101".U
+  //io.cache.uncached := lgc_addr(31, 29) === "b101".U
+
+  io.cache.uncached := false.B
 
   // Output to IF-ID Regs
   io.out.pc := io.in.pc
@@ -441,6 +443,7 @@ class FUStage extends Module with CP0Config {
   io.sorted_fu_out := issue_vec
 
   val exception_pc = Mux(io.fu_actual_issue_cnt === 0.U, io.incoming_epc, issue_vec(0).pc)
+  val exception_ds = (io.fu_actual_issue_cnt =/= 0.U) & issue_vec(0).is_delay_slot
   
   // generate exception order
   io.fu_exception_order := io.fu_actual_issue_cnt
@@ -456,7 +459,7 @@ class FUStage extends Module with CP0Config {
     io.exc_info.pc := exception_pc
     io.exc_info.exc_code := EXC_CODE_TLBL
     io.exc_info.data := io.if_tlb_addr
-    io.exc_info.in_branch_delay_slot := false.B
+    io.exc_info.in_branch_delay_slot := exception_ds
     
     io.fu_exception_order := 0.U
     io.fu_exception_handled := true.B
@@ -507,7 +510,7 @@ class FUStage extends Module with CP0Config {
     io.exc_info.pc := exception_pc
     io.exc_info.exc_code := EXC_CODE_INT
     io.exc_info.data := Cat(Seq(0.U(16.W), io.incoming_interrupt.asUInt, 0.U(8.W)))
-    io.exc_info.in_branch_delay_slot := 0.U
+    io.exc_info.in_branch_delay_slot := exception_ds
     
     io.fu_exception_order := 0.U
     io.fu_exception_handled := true.B

@@ -65,12 +65,13 @@ class DataPath extends Module with ALUConfig {
   val forwarding    = Wire(Vec(TOT_PATH_NUM, new Forwarding))
 
   // Flush
-  pc_if_reg.  io.flush := flush
-  if_id_reg.  io.flush := flush
-  issue_queue.io.flush := flush
-  is_bju_reg. io.flush := flush
-  is_fu_reg.  io.flush := flush
-  fu_wb_reg.  io.flush := flush
+  pc_if_reg.    io.flush := flush
+  if_id_reg.    io.flush := flush
+  issue_queue.  io.flush := flush
+  is_bju_reg.   io.flush := flush
+  is_fu_reg.    io.flush := flush
+  fu_wb_reg.    io.flush := flush
+  interrupt_reg.io.flush := flush
 
   // PC Stage
   pc_stage.io.pc      <> pc_if_reg.io.if_in.pc
@@ -349,6 +350,7 @@ class DataPath extends Module with ALUConfig {
   interrupt_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
   interrupt_reg.io.eret := fu_stage.io.exc_info.eret
   interrupt_reg.io.fu_epc := fu_stage.io.fu_exception_target
+  interrupt_reg.io.stall := stall_backend
   fu_stage.io.incoming_epc := interrupt_reg.io.wb_epc
 
   // FU TLBR Reg
