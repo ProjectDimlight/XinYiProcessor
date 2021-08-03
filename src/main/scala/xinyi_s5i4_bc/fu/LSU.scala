@@ -11,32 +11,36 @@ import ControlConst._
 import EXCCodeConfig._
 
 trait LSUConfig {
-  val MemByte       = 0.U(FU_CTRL_W.W)
-  val MemByteU      = 1.U(FU_CTRL_W.W)
-  val MemHalf       = 2.U(FU_CTRL_W.W)
-  val MemHalfU      = 3.U(FU_CTRL_W.W)
-  val MemWord       = 4.U(FU_CTRL_W.W)
+  val MemByte = 0.U(FU_CTRL_W.W)
+  val MemByteU = 1.U(FU_CTRL_W.W)
+  val MemHalf = 2.U(FU_CTRL_W.W)
+  val MemHalfU = 3.U(FU_CTRL_W.W)
+  val MemWord = 4.U(FU_CTRL_W.W)
 
-  val TLBProbe      = 8.U(FU_CTRL_W.W)
-  val TLBRead       = 9.U(FU_CTRL_W.W)
-  val TLBWrite      = 10.U(FU_CTRL_W.W)
+  val TLBProbe = 8.U(FU_CTRL_W.W)
+  val TLBRead = 9.U(FU_CTRL_W.W)
+  val TLBWrite = 10.U(FU_CTRL_W.W)
 }
 
 class LSUIO extends FUIO {
   // To TLB
-  val tlb             = Flipped(new TLBLookupInterface)
-  val tlbw            = Output(Bool())
-  val tlbr            = Output(Bool())
-  val tlbp            = Output(Bool())
+  val tlb = if (HAS_TLB) { Flipped(new TLBLookupInterface) }
+  else { null }
+  val tlbw = if (HAS_TLB) { Output(Bool()) }
+  else { null }
+  val tlbr = if (HAS_TLB) { Output(Bool()) }
+  else { null }
+  val tlbp = if (HAS_TLB) { Output(Bool()) }
+  else { null }
 
   // To DCache
-  val cache           = Flipped(new DCacheCPUIO)
+  val cache = Flipped(new DCacheCPUIO)
   // val stall_req       = Input(Bool())
 
   // Exception
-  val exception_in    = Input(Bool())
-  val interrupt       = Input(Bool())
-  val flush           = Input(Bool())
+  val exception_in = Input(Bool())
+  val interrupt = Input(Bool())
+  val flush = Input(Bool())
 }
 
 class LSU extends Module with LSUConfig with TLBConfig {
@@ -45,25 +49,29 @@ class LSU extends Module with LSUConfig with TLBConfig {
   io.out.is_delay_slot := io.in.is_delay_slot
 
   val lgc_addr = io.in.imm
-  io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W)
+  if (HAS_TLB) {
+    // io.tlb.vpn2 := lgc_addr(LGC_ADDR_W - 1, PAGE_SIZE_W)
+  }
 
-  val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
+  // val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
   val addr = Mux(
     lgc_addr(31, 30) === 2.U,
-    lgc_addr & 0x1FFFFFFF.U,
+    lgc_addr & 0x1fffffff.U,
     //Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
     lgc_addr
   )
   //val tlb_miss = (lgc_addr(31, 30) =/= 2.U) & (io.tlb.miss | !item.v)
   val tlb_miss = false.B
 
-  io.tlbw := io.in.fu_ctrl === TLBWrite
-  io.tlbr := io.in.fu_ctrl === TLBRead
-  io.tlbp := io.in.fu_ctrl === TLBProbe
+  if (HAS_TLB) {
+    io.tlbw := io.in.fu_ctrl === TLBWrite
+    io.tlbr := io.in.fu_ctrl === TLBRead
+    io.tlbp := io.in.fu_ctrl === TLBProbe
+  }
 
   val exception =
-    io.in.fu_ctrl(1) & addr(0) | 
-    io.in.fu_ctrl(2) & (addr(1) | addr(0))
+    io.in.fu_ctrl(1) & addr(0) |
+      io.in.fu_ctrl(2) & (addr(1) | addr(0))
 
   val rd_normal = !exception & !io.flush
   val wr_normal = !io.exception_in & !exception & !io.interrupt & !io.flush
@@ -74,8 +82,8 @@ class LSU extends Module with LSUConfig with TLBConfig {
   val i_byte = io.in.a(7, 0)
   val i_half = io.in.a(15, 0)
 
-  io.cache.wr   := wr_normal & wr
-  io.cache.rd   := rd_normal & rd
+  io.cache.wr := wr_normal & wr
+  io.cache.rd := rd_normal & rd
   io.cache.size := io.in.fu_ctrl(2, 1)
   io.cache.strb := MuxLookupBi(
     io.in.fu_ctrl(2, 1),
@@ -88,7 +96,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
   io.cache.addr := addr
   // kseg1 0xA0000000-0xBFFFFFFF VA[31-29]==0b101 uncached
   io.cache.uncached := lgc_addr(31, 29) === "b101".U
-  io.cache.din  := MuxLookupBi(
+  io.cache.din := MuxLookupBi(
     io.in.fu_ctrl(2, 1),
     io.in.a,
     Array(
@@ -101,7 +109,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
     addr(1, 0),
     io.cache.dout(7, 0),
     Array(
-      1.U -> io.cache.dout(15,  8),
+      1.U -> io.cache.dout(15, 8),
       2.U -> io.cache.dout(23, 16),
       3.U -> io.cache.dout(31, 24)
     )
@@ -109,40 +117,45 @@ class LSU extends Module with LSUConfig with TLBConfig {
   val o_half = Mux(
     addr(1),
     io.cache.dout(31, 16),
-    io.cache.dout(15,  0)
+    io.cache.dout(15, 0)
   )
 
-  io.out.hi        := 0.U
-  io.out.data      := MuxLookupBi(
+  io.out.hi := 0.U
+  io.out.data := MuxLookupBi(
     io.in.fu_ctrl(2, 1),
     io.cache.dout,
     Array(
-      0.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_byte( 7), 0xffffff.U(24.W) , 0.U(24.W)), o_byte),
-      1.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_half(15),   0xffff.U(16.W) , 0.U(16.W)), o_half)
+      0.U -> Cat(
+        Mux(!io.in.fu_ctrl(0) & o_byte(7), 0xffffff.U(24.W), 0.U(24.W)),
+        o_byte
+      ),
+      1.U -> Cat(
+        Mux(!io.in.fu_ctrl(0) & o_half(15), 0xffff.U(16.W), 0.U(16.W)),
+        o_half
+      )
     )
   )
-  io.out.ready     := !io.cache.stall_req
+  io.out.ready := !io.cache.stall_req
 
   io.out.write_target := io.in.write_target
-  io.out.rd           := io.in.rd
-  io.out.order        := io.in.order
-  io.out.pc           := io.in.pc
-  io.out.exc_code     := MuxCase(
+  io.out.rd := io.in.rd
+  io.out.order := io.in.order
+  io.out.pc := io.in.pc
+  io.out.exc_code := MuxCase(
     NO_EXCEPTION,
     Array(
       (io.in.pc(1, 0) =/= 0.U) -> EXC_CODE_ADEL,
       (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
-      (rd & tlb_miss) -> EXC_CODE_TLBL,
-      (wr & tlb_miss) -> EXC_CODE_TLBS,
+      // (rd & tlb_miss) -> EXC_CODE_TLBL,
+      // (wr & tlb_miss) -> EXC_CODE_TLBS,
       (rd & exception) -> EXC_CODE_ADEL,
       (wr & exception) -> EXC_CODE_ADES
     )
   )
-  io.out.exception := 
+  io.out.exception :=
     (io.in.pc(1, 0) =/= 0.U) |
-    (io.in.fu_ctrl === FU_XXX) |
-    (rd & exception) |
-    (wr & exception)
-  io.out.exc_meta  := lgc_addr
+      (io.in.fu_ctrl === FU_XXX) |
+      (rd & exception) |
+      (wr & exception)
+  io.out.exc_meta := lgc_addr
 }
-

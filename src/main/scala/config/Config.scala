@@ -59,4 +59,5 @@ object config {
   val PATH_W      = 2
 
   var DIV_IP_CORE: Boolean = true // indicating if the divider is from IP core
+  val HAS_TLB = false
 }
