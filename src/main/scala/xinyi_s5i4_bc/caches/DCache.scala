@@ -15,7 +15,6 @@ object GTimer {
   }
 }
 
-
 trait DCacheConfig {
   // predefined parameters
   val CACHE_SIZE = 8 * 1024 * 8 // 8KB
@@ -193,7 +192,9 @@ class DCachePath extends DCachePathBase {
   }
 
   // PLRU
-  val plru_records = RegInit(VecInit(Seq.fill(SET_NUM)(0.U(((WAY_NUM - 1).max(1)).W))))
+  val plru_records = RegInit(
+    VecInit(Seq.fill(SET_NUM)(0.U(((WAY_NUM - 1).max(1)).W)))
+  )
 
   // set alias
   val upper = io.upper
@@ -242,12 +243,14 @@ class DCachePath extends DCachePathBase {
   //   )
   // }
   // val victim_vec = UIntToOH(victim_index)
-  val victim_vec =
-    DCachePLRUPolicy.choose_victim(plru_records(current_request.addr.index))
+  val this_plru =
+    VecIndex(current_request.addr.index, plru_records(0), SET_NUM, plru_records)
+  val victim_vec = DCachePLRUPolicy.choose_victim(this_plru)
   val access_vec = Mux(hit, hit_vec, victim_vec)
   val access_index = PriorityEncoder(access_vec)
-  val cacheline_meta = read_meta(access_index)
-  val cacheline_data = read_data(access_index)
+  val cacheline_meta = VecIndex(access_index, read_meta(0), WAY_NUM, read_meta)
+  val cacheline_data =
+    VecIndex(access_index, read_data(0), WAY_NUM, read_data)
 
   val awvalid_enable = RegInit(true.B)
   val read_counter = Counter(LINE_NUM)
@@ -259,19 +262,20 @@ class DCachePath extends DCachePathBase {
   val uncached_satisfy =
     current_request.uncached && (read_satisfy || write_satisfy)
 
+  when(new_request) {
+    awvalid_enable := true.B
+    read_counter.reset()
+    write_counter.reset()
+  }
+
   // state machine
   switch(state) {
     is(s_idle) {
-      when(new_request) {
-        state := Mux(
-          upper_request.uncached,
-          Mux(upper_request.wr, s_write_req, s_read_req),
-          s_fetch
-        )
-      }
-      awvalid_enable := true.B
-      read_counter.reset()
-      write_counter.reset()
+      state := Mux(
+        upper_request.uncached,
+        Mux(upper_request.wr, s_write_req, s_read_req),
+        s_fetch
+      )
     }
     is(s_fetch) {
       state := Mux(
@@ -320,94 +324,79 @@ class DCachePath extends DCachePathBase {
   val write_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
   val write_data = Wire(Vec(WAY_NUM, new DCacheData))
   val need_bram_write = Wire(Bool())
-  val last_index = RegInit(0.U.asTypeOf(current_request.addr.index))
-  val last_tag = RegInit(0.U.asTypeOf(current_request.addr.tag))
-  val last_access_index = RegInit(0.U.asTypeOf(access_index))
-  val last_write_meta = RegInit(0.U.asTypeOf(write_meta(access_index)))
-  val last_write_data = RegInit(0.U.asTypeOf(write_data(access_index)))
-  when(need_bram_write) {
-    last_index := current_request.addr.index
-    last_tag := current_request.addr.tag
-    last_access_index := access_index
-    last_write_meta := write_meta(access_index)
-    last_write_data := write_data(access_index)
-  }
-  write_meta := DontCare
-  write_data := DontCare
+  val need_plru_write = Wire(Bool())
+  // val last_index = RegInit(0.U.asTypeOf(current_request.addr.index))
+  // val last_tag = RegInit(0.U.asTypeOf(current_request.addr.tag))
+  // val last_access_index = RegInit(0.U.asTypeOf(access_index))
+  // val last_write_meta = RegInit(0.U.asTypeOf(new DCacheMeta))
+  // val last_write_data = RegInit(0.U.asTypeOf(new DCacheData))
+  // when(need_bram_write) {
+  //   last_index := current_request.addr.index
+  //   last_tag := current_request.addr.tag
+  //   last_access_index := access_index
+  //   last_write_meta := write_meta(access_index)
+  //   last_write_data := write_data(access_index)
+  // }
+  // write_meta := DontCare
+  // write_data := DontCare
   need_bram_write := false.B
+  need_plru_write := false.B
 
-  val result = Wire(UInt(DATA_WIDTH.W))
   val fetched_vec_reg = RegInit(0.U.asTypeOf(new DCacheData))
   val fetched_vec = Wire(new DCacheData)
+  val new_data = Wire(new DCacheData)
   val new_meta = Wire(new DCacheMeta)
-  result := DontCare
-  new_meta := DontCare
+  val target_data = Mux(hit, cacheline_data, fetched_vec)
+  val access_block =
+    VecIndex(current_request.addr.line_offset, target_data.data(0), LINE_NUM, target_data.data)
+  val offset = current_request.addr.word_offset << 3
+  val mask = MuxLookupBi(
+    current_request.size,
+    Fill(32, 1.U(1.W)),
+    Array(
+      0.U -> (Fill(8, 1.U(1.W)) << offset),
+      1.U -> (Fill(16, 1.U(1.W)) << offset)
+    )
+  )
+  new_data := target_data
+  new_data.data(current_request.addr.line_offset) := Mux(
+    current_request.wr,
+    (current_request.din & mask) | (access_block & ~mask),
+    access_block
+  )
+  new_meta.valid := true.B
+  new_meta.dirty := Mux(current_request.wr, true.B, cacheline_meta.dirty)
+  new_meta.tag := current_request.addr.tag
   for (i <- 0 until (LINE_NUM - 1)) {
     fetched_vec.data(i) := fetched_vec_reg.data(i)
   }
   fetched_vec.data(LINE_NUM - 1) := lower.rdata
-
-  val target_data = Mux(hit, cacheline_data, fetched_vec)
+  val result = Mux(current_request.uncached, lower.rdata, access_block)
 
   when(state =/= s_idle) {
     when(hit || read_satisfy) {
       when(current_request.rd) {
-        result := Mux(
-          current_request.uncached,
-          lower.rdata,
-          target_data.data(current_request.addr.line_offset)
-        )
+        need_plru_write := true.B
         when(!current_request.uncached && !hit) {
           need_bram_write := true.B
-          new_meta := cacheline_meta
-          new_meta.valid := true.B
-          new_meta.tag := current_request.addr.tag
-          for (i <- 0 until WAY_NUM) {
-            write_meta(i) := Mux(access_vec(i), new_meta, read_meta(i))
-            write_data(i) := Mux(access_vec(i), target_data, read_data(i))
-          }
-          // update PLRU
-          plru_records(current_request.addr.index) := DCachePLRUPolicy
-            .update_meta(
-              plru_records(current_request.addr.index),
-              access_index
-            )
         }
       }.elsewhen(current_request.wr && !current_request.uncached) {
-        val new_data = Wire(new DCacheData)
-        val offset = current_request.addr.word_offset << 3
-        val mask = WireDefault(UInt(DATA_WIDTH.W), 0.U(DATA_WIDTH.W))
-        switch(current_request.size) {
-          is(0.U) {
-            mask := Fill(8, 1.U(1.W)) << offset
-          }
-          is(1.U) {
-            mask := Fill(16, 1.U(1.W)) << offset
-          }
-          is(2.U) {
-            mask := Fill(32, 1.U(1.W))
-          }
-        }
-        new_data := target_data
-        new_data.data(
-          current_request.addr.line_offset
-        ) := (current_request.din & mask) | (target_data.data(
-          current_request.addr.line_offset
-        ) & ~mask)
         need_bram_write := true.B
-        new_meta.valid := true.B
-        new_meta.dirty := true.B
-        new_meta.tag := current_request.addr.tag
-        for (i <- 0 until WAY_NUM) {
-          write_meta(i) := Mux(access_vec(i), new_meta, read_meta(i))
-          write_data(i) := Mux(access_vec(i), new_data, read_data(i))
-        }
-
-        // update PLRU
-        plru_records(current_request.addr.index) := DCachePLRUPolicy
-          .update_meta(plru_records(current_request.addr.index), access_index)
+        need_plru_write := true.B
       }
     }
+  }
+
+  for (i <- 0 until WAY_NUM) {
+    write_meta(i) := Mux(access_vec(i), new_meta, read_meta(i))
+    write_data(i) := Mux(access_vec(i), new_data, read_data(i))
+  }
+
+  when(need_plru_write) {
+    plru_records(current_request.addr.index) := DCachePLRUPolicy.update_meta(
+      this_plru,
+      access_index
+    )
   }
 
   // upper IO
@@ -448,7 +437,13 @@ class DCachePath extends DCachePathBase {
   lower.wdata := Mux(
     current_request.uncached,
     current_request.din,
-    cacheline_data.data(write_counter.value)
+    VecIndex(
+      write_counter.value,
+      cacheline_data.data(0),
+      LINE_NUM,
+      cacheline_data.data
+    )
+    // cacheline_data.data(write_counter.value)
   )
   lower.wstrb := Mux(current_request.uncached, current_request.strb, 0xf.U)
   lower.wlast := current_request.uncached || (write_counter.value === (LINE_NUM - 1).U)
