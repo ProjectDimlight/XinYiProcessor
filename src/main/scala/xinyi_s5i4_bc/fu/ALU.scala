@@ -53,7 +53,7 @@ trait ALUConfig {
 class ALUIO extends FUIO {
 }
 
-class ALU extends Module with ALUConfig with BALConfig {
+class ALU extends Module with ALUConfig with BALConfig with CP0Config {
   val io = IO(new ALUIO)
 
   io.out.is_delay_slot := io.in.is_delay_slot
@@ -220,8 +220,12 @@ class ALU extends Module with ALUConfig with BALConfig {
     (io.in.fu_ctrl === FU_BREAK) |
     (io.in.fu_ctrl === ALU_ERET) |
     ov
+  
   io.out.exc_meta := Mux(
-    io.in.fu_ctrl === ALU_ERET , io.in.a, io.in.pc
+    io.in.write_target === DCP0 &
+    io.in.rd === CP0_CAUSE_INDEX,
+    io.out.data,
+    Mux(io.in.fu_ctrl === ALU_ERET , io.in.a, io.in.pc)
   )
 }
 
