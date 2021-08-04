@@ -225,14 +225,22 @@ class DCachePath extends DCachePathBase {
   val read_index = inflight_request.addr.index
   val read_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
   val read_data = Wire(Vec(WAY_NUM, new DCacheData))
+  val write_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
+  val write_data = Wire(Vec(WAY_NUM, new DCacheData))
+  val need_bram_write = Wire(Bool())
+  val last_index = RegInit(0.U.asTypeOf(inflight_request.addr.index))
+  val last_tag = RegInit(0.U.asTypeOf(inflight_request.addr.tag))
+  // val last_access_index = RegInit(0.U.asTypeOf(access_index))
+  val last_write_meta = RegInit(0.U.asTypeOf(new DCacheMeta))
+  val last_write_data = RegInit(0.U.asTypeOf(new DCacheData))
 
   val invalid_vec = VecInit(read_meta.map(m => !m.valid)).asUInt
   val tag_vec = VecInit(
-    read_meta.map(m => m.tag === current_request.addr.tag)
+    read_meta.map(m => m.tag === inflight_request.addr.tag)
   ).asUInt
   val hit_vec = (~invalid_vec) & tag_vec
   // val hit_index = PriorityEncoder(hit_vec)
-  val hit = hit_vec.orR && !current_request.uncached
+  val hit = (state =/= s_idle && hit_vec.orR || state === s_idle && read_index === last_index && inflight_request.addr.tag === last_tag) && !inflight_request.uncached
 
   // random replacement
   // val victim_index = if (WAY_NUM == 1) { 0.U }
@@ -257,14 +265,14 @@ class DCachePath extends DCachePathBase {
 
   val read_satisfy = state === s_read_resp && lower.rvalid && lower.rlast
   val write_satisfy = state === s_write_resp && lower.bvalid
-  val cached_satisfy = (!current_request.uncached) && (hit || read_satisfy)
+  val cached_satisfy = (!inflight_request.uncached) && (hit || read_satisfy)
   val uncached_satisfy =
-    current_request.uncached && (read_satisfy || write_satisfy)
+    inflight_request.uncached && (read_satisfy || write_satisfy)
 
   // state machine
   switch(state) {
     is(s_idle) {
-      when(new_request) {
+      when(new_request && !hit) {
         state := Mux(
           upper_request.uncached,
           Mux(upper_request.wr, s_write_req, s_read_req),
@@ -319,18 +327,10 @@ class DCachePath extends DCachePathBase {
     }
   }
 
-  val write_meta = Wire(Vec(WAY_NUM, new DCacheMeta))
-  val write_data = Wire(Vec(WAY_NUM, new DCacheData))
-  val need_bram_write = Wire(Bool())
-  val last_index = RegInit(0.U.asTypeOf(current_request.addr.index))
-  val last_tag = RegInit(0.U.asTypeOf(current_request.addr.tag))
-  val last_access_index = RegInit(0.U.asTypeOf(access_index))
-  val last_write_meta = RegInit(0.U.asTypeOf(write_meta(access_index)))
-  val last_write_data = RegInit(0.U.asTypeOf(write_data(access_index)))
   when(need_bram_write) {
-    last_index := current_request.addr.index
-    last_tag := current_request.addr.tag
-    last_access_index := access_index
+    last_index := inflight_request.addr.index
+    last_tag := inflight_request.addr.tag
+    // last_access_index := access_index
     last_write_meta := write_meta(access_index)
     last_write_data := write_data(access_index)
   }
@@ -351,34 +351,34 @@ class DCachePath extends DCachePathBase {
 
   val target_data = Mux(hit, cacheline_data, fetched_vec)
 
-  when(state =/= s_idle) {
+  // when(state =/= s_idle) {
     when(hit || read_satisfy) {
-      when(current_request.rd) {
+      when(inflight_request.rd) {
         result := Mux(
-          current_request.uncached,
+          inflight_request.uncached,
           lower.rdata,
-          target_data.data(current_request.addr.line_offset)
+          target_data.data(inflight_request.addr.line_offset)
         )
-        when(!current_request.uncached) {
+        when(!inflight_request.uncached) {
           // update PLRU
-          plru_records(current_request.addr.index) := DCachePLRUPolicy
-            .update_meta(plru_records(current_request.addr.index), access_index)
+          plru_records(inflight_request.addr.index) := DCachePLRUPolicy
+            .update_meta(plru_records(inflight_request.addr.index), access_index)
           when(!hit) {
             need_bram_write := true.B
             new_meta := cacheline_meta
             new_meta.valid := true.B
-            new_meta.tag := current_request.addr.tag
+            new_meta.tag := inflight_request.addr.tag
             for (i <- 0 until WAY_NUM) {
               write_meta(i) := Mux(access_vec(i), new_meta, read_meta(i))
               write_data(i) := Mux(access_vec(i), target_data, read_data(i))
             }
           }
         }
-      }.elsewhen(current_request.wr && !current_request.uncached) {
+      }.elsewhen(inflight_request.wr && !inflight_request.uncached) {
         val new_data = Wire(new DCacheData)
-        val offset = current_request.addr.word_offset << 3
+        val offset = inflight_request.addr.word_offset << 3
         val mask = WireDefault(UInt(DATA_WIDTH.W), 0.U(DATA_WIDTH.W))
-        switch(current_request.size) {
+        switch(inflight_request.size) {
           is(0.U) {
             mask := Fill(8, 1.U(1.W)) << offset
           }
@@ -391,28 +391,28 @@ class DCachePath extends DCachePathBase {
         }
         new_data := target_data
         new_data.data(
-          current_request.addr.line_offset
-        ) := (current_request.din & mask) | (target_data.data(
-          current_request.addr.line_offset
+          inflight_request.addr.line_offset
+        ) := (inflight_request.din & mask) | (target_data.data(
+          inflight_request.addr.line_offset
         ) & ~mask)
         need_bram_write := true.B
         new_meta.valid := true.B
         new_meta.dirty := true.B
-        new_meta.tag := current_request.addr.tag
+        new_meta.tag := inflight_request.addr.tag
         for (i <- 0 until WAY_NUM) {
           write_meta(i) := Mux(access_vec(i), new_meta, read_meta(i))
           write_data(i) := Mux(access_vec(i), new_data, read_data(i))
         }
 
         // update PLRU
-        plru_records(current_request.addr.index) := DCachePLRUPolicy
-          .update_meta(plru_records(current_request.addr.index), access_index)
+        plru_records(inflight_request.addr.index) := DCachePLRUPolicy
+          .update_meta(plru_records(inflight_request.addr.index), access_index)
       }
     }
-  }
+  // }
 
   // upper IO
-  upper.stall_req := new_request || (state =/= s_idle && !(uncached_satisfy || cached_satisfy))
+  upper.stall_req := (new_request && !hit) || (state =/= s_idle && !(uncached_satisfy || cached_satisfy))
   upper.dout := result
 
   // lower IO
@@ -460,21 +460,21 @@ class DCachePath extends DCachePathBase {
     bram(i).meta_we := need_bram_write && i.U === access_index
     bram(i).meta_addr := inflight_request.addr.index
     bram(i).meta_din := write_meta(i).asTypeOf(UInt(META_WIDTH.W))
-    read_meta(i) := bram(i).meta_dout.asTypeOf(new DCacheMeta)
-    // read_meta(i) := Mux(
-    //   i.U === last_access_index && read_index === last_index && inflight_request.addr.tag === last_tag,
-    //   last_write_meta,
-    //   bram(i).meta_dout.asTypeOf(new DCacheMeta)
-    // )
+    // read_meta(i) := bram(i).meta_dout.asTypeOf(new DCacheMeta)
+    read_meta(i) := Mux(
+      new_request,
+      last_write_meta,
+      bram(i).meta_dout.asTypeOf(new DCacheMeta)
+    )
     bram(i).data_we := need_bram_write && i.U === access_index
     bram(i).data_addr := inflight_request.addr.index
     bram(i).data_din := write_data(i).asTypeOf(UInt(LINE_WIDTH.W))
-    read_data(i) := bram(i).data_dout.asTypeOf(new DCacheData)
-    // read_data(i) := Mux(
-    //   i.U === last_access_index && read_index === last_index && inflight_request.addr.tag === last_tag,
-    //   last_write_data,
-    //   bram(i).data_dout.asTypeOf(new DCacheData)
-    // )
+    // read_data(i) := bram(i).data_dout.asTypeOf(new DCacheData)
+    read_data(i) := Mux(
+      new_request,
+      last_write_data,
+      bram(i).data_dout.asTypeOf(new DCacheData)
+    )
   }
 
   // if (profiling) {
