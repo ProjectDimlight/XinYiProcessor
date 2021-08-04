@@ -145,8 +145,11 @@ class ICache extends Module with ICacheConfig {
   val uncache_valid = Wire(Bool())
   uncache_valid := false.B
 
+  // froward L1 Cache hit
+  val forward = state === s_fetch && hit
+
   // not valid
-  io.cpu_io.stall_req := !uncache_valid && (state =/= s_idle || io.cpu_io.uncached || cached_miss)
+  io.cpu_io.stall_req := !uncache_valid && (state =/= s_idle || io.cpu_io.uncached || cached_miss) && !forward
 
 
   //>>>>>>>>>>>>
@@ -167,7 +170,6 @@ class ICache extends Module with ICacheConfig {
 
 
   val inst_offset_index = io_addr.inst_offset(OFFSET_WIDTH - 1, 2)
-
   // select data
   val uncached_data = Cat(0.U(XLEN.W), io.axi_io.rdata)
 
@@ -178,7 +180,7 @@ class ICache extends Module with ICacheConfig {
   io.cpu_io.data := Mux(uncached, uncached_data, cached_data)
 
   // forward bram block to reduce hit latency
-  rd_block := Mux(last_hit, rd_block_vec(hit_access), l0_block)
+  rd_block := Mux(last_hit || forward, rd_block_vec(hit_access), l0_block)
 
 
   //>>>>>>>>>>>>>>>>>
@@ -315,12 +317,12 @@ class ICache extends Module with ICacheConfig {
 
     // port 1: write
     data_bram.io.wea := ram_we(i)
-    data_bram.io.addra := last_index
+    data_bram.io.addra := io_addr.index
     data_bram.io.dina := receive_buffer.asUInt()
 
     // port 2: read
     data_bram.io.web := false.B
-    data_bram.io.addrb := last_index
+    data_bram.io.addrb := io_addr.index
     rd_block_vec(i) := data_bram.io.doutb
 
     data_bram
@@ -337,11 +339,11 @@ class ICache extends Module with ICacheConfig {
 
     // port 1: write
     tag_valid_bram.io.wea := ram_we(i)
-    tag_valid_bram.io.addra := last_index
+    tag_valid_bram.io.addra := io_addr.index
     tag_valid_bram.io.dina := Cat(io_addr.tag, true.B)
 
     // port 2: read
-    tag_valid_bram.io.addrb := last_index
+    tag_valid_bram.io.addrb := io_addr.index
     rd_tag_valid_vec(i) := tag_valid_bram.io.doutb.asTypeOf(new ICacheTagValid)
 
     tag_valid_bram
