@@ -271,11 +271,13 @@ class DCachePath extends DCachePathBase {
   // state machine
   switch(state) {
     is(s_idle) {
-      state := Mux(
-        upper_request.uncached,
-        Mux(upper_request.wr, s_write_req, s_read_req),
-        s_fetch
-      )
+      when(new_request) {
+        state := Mux(
+          upper_request.uncached,
+          Mux(upper_request.wr, s_write_req, s_read_req),
+          s_fetch
+        )
+      }
     }
     is(s_fetch) {
       state := Mux(
@@ -348,7 +350,12 @@ class DCachePath extends DCachePathBase {
   val new_meta = Wire(new DCacheMeta)
   val target_data = Mux(hit, cacheline_data, fetched_vec)
   val access_block =
-    VecIndex(current_request.addr.line_offset, target_data.data(0), LINE_NUM, target_data.data)
+    VecIndex(
+      current_request.addr.line_offset,
+      target_data.data(0),
+      LINE_NUM,
+      target_data.data
+    )
   val offset = current_request.addr.word_offset << 3
   val mask = MuxLookupBi(
     current_request.size,
