@@ -241,7 +241,12 @@ class ISStage extends Module {
       io.forwarding(j).write_target === DReg  & io.inst(i).dec.param_a === AReg &           // Regs
       io.forwarding(j).rd === io.inst(i).dec.rs1 & io.inst(i).dec.rs1 =/= 0.U               // Same ID, Not 0
     ) {
-      io.forwarding_path_id(i).rs1 := j.U
+      if (j < ALU_PATH_NUM) {
+        io.forwarding_path_id(i).rs1 := j.U
+      }
+      else {
+        raw(i) := true.B
+      }
     }
     when (
       io.forwarding(j).write_target === io.inst(i).dec.param_a &                            // Same source (implicit not HiLo)
@@ -255,7 +260,12 @@ class ISStage extends Module {
       io.forwarding(j).rd === io.inst(i).dec.rs2 & // Same ID
       io.inst(i).dec.rs2 =/= 0.U                   // Not 0
     ) {
+      if (j < ALU_PATH_NUM) {
         io.forwarding_path_id(i).rs2 := j.U
+      }
+      else {
+        raw(i) := true.B
+      }
     }
   }
 

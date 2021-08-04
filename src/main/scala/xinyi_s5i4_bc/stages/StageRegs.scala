@@ -96,7 +96,7 @@ class IssueQueue extends Module {
     head_n,
     tail
   )
-  in_size := tail_b - head_n
+  in_size := tail_b - head
 
   // Input
   when(io.flush) {
