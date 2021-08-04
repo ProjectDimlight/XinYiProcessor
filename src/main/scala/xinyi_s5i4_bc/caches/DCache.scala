@@ -412,8 +412,8 @@ class DCachePath extends DCachePathBase {
   }
 
   // upper IO
-  upper.stall_req := new_request || (state =/= s_idle && !((uncached_satisfy || cached_satisfy) && current_request.wr))
-  upper.dout := RegNext(result)
+  upper.stall_req := new_request || (state =/= s_idle && !(uncached_satisfy || cached_satisfy))
+  upper.dout := result
 
   // lower IO
   lower <> DontCare
