@@ -591,8 +591,13 @@ class DCachePathFake extends DCachePathBase {
   }
   io.upper.dout := Mux(valid, data, data_reg)
   io.upper.stall_req := (state =/= s_valid) & (state =/= s_idle)
-
 }
+
+class newBRAMBundle extends Bundle with DCacheConfig {
+  val meta = UInt(META_WIDTH.W)
+  val data = UInt(LINE_WIDTH.W)
+}
+
 class DCache extends Module with DCacheConfig {
   val io = IO(new DCacheIO)
 
@@ -617,41 +622,64 @@ class DCache extends Module with DCacheConfig {
   if (hasDCache) {
     if (useBRAM) {
       if (LSU_PATH_NUM == 1) {
-        val meta = List.fill(WAY_NUM)(
+        val storage_width = (new newBRAMBundle).getWidth
+        val storage = List.fill(WAY_NUM)(
           Module(
             new SinglePortRAM(
-              DATA_WIDTH = META_WIDTH,
-              DEPTH = SET_NUM,
-              LATENCY = 1
-            )
-          )
-        )
-        val data = List.fill(WAY_NUM)(
-          Module(
-            new SinglePortRAM(
-              DATA_WIDTH = LINE_WIDTH,
+              DATA_WIDTH = storage_width,
               DEPTH = SET_NUM,
               LATENCY = 1
             )
           )
         )
         for (i <- 0 until WAY_NUM) {
-          meta(i).io <> DontCare
-          meta(i).io.clk := clock
-          meta(i).io.rst := reset
-          meta(i).io.we := path(0).io.bram(i).meta_we
-          meta(i).io.addr := path(0).io.bram(i).meta_addr
-          meta(i).io.din := path(0).io.bram(i).meta_din
-          path(0).io.bram(i).meta_dout := meta(i).io.dout
-
-          data(i).io <> DontCare
-          data(i).io.clk := clock
-          data(i).io.rst := reset
-          data(i).io.we := path(0).io.bram(i).data_we
-          data(i).io.addr := path(0).io.bram(i).data_addr
-          data(i).io.din := path(0).io.bram(i).data_din
-          path(0).io.bram(i).data_dout := data(i).io.dout
+          val bundle_in = Wire(new newBRAMBundle)
+          val bundle_out = storage(i).io.dout.asTypeOf(new newBRAMBundle)
+          bundle_in.meta := path(0).io.bram(i).meta_din
+          bundle_in.data := path(0).io.bram(i).data_din
+          storage(i).io.clk := clock
+          storage(i).io.rst := reset
+          storage(i).io.we := path(0).io.bram(i).meta_we
+          storage(i).io.addr := path(0).io.bram(i).meta_addr
+          storage(i).io.din := bundle_in.asTypeOf(UInt(storage_width.W))
+          path(0).io.bram(i).meta_dout := bundle_out.meta
+          path(0).io.bram(i).data_dout := bundle_out.data
         }
+        // val meta = List.fill(WAY_NUM)(
+        //   Module(
+        //     new SinglePortRAM(
+        //       DATA_WIDTH = META_WIDTH,
+        //       DEPTH = SET_NUM,
+        //       LATENCY = 1
+        //     )
+        //   )
+        // )
+        // val data = List.fill(WAY_NUM)(
+        //   Module(
+        //     new SinglePortRAM(
+        //       DATA_WIDTH = LINE_WIDTH,
+        //       DEPTH = SET_NUM,
+        //       LATENCY = 1
+        //     )
+        //   )
+        // )
+        // for (i <- 0 until WAY_NUM) {
+        //   meta(i).io <> DontCare
+        //   meta(i).io.clk := clock
+        //   meta(i).io.rst := reset
+        //   meta(i).io.we := path(0).io.bram(i).meta_we
+        //   meta(i).io.addr := path(0).io.bram(i).meta_addr
+        //   meta(i).io.din := path(0).io.bram(i).meta_din
+        //   path(0).io.bram(i).meta_dout := meta(i).io.dout
+
+        //   data(i).io <> DontCare
+        //   data(i).io.clk := clock
+        //   data(i).io.rst := reset
+        //   data(i).io.we := path(0).io.bram(i).data_we
+        //   data(i).io.addr := path(0).io.bram(i).data_addr
+        //   data(i).io.din := path(0).io.bram(i).data_din
+        //   path(0).io.bram(i).data_dout := data(i).io.dout
+        // }
       } else {
         val meta = List.fill(WAY_NUM)(
           Module(
