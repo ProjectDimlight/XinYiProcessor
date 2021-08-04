@@ -260,7 +260,12 @@ class ISStage extends Module {
       io.forwarding(j).rd === io.inst(i).dec.rs2 & // Same ID
       io.inst(i).dec.rs2 =/= 0.U                   // Not 0
     ) {
+      if (j < ALU_PATH_NUM) {
         io.forwarding_path_id(i).rs2 := j.U
+      }
+      else {
+        raw(i) := true.B
+      }
     }
   }
 
