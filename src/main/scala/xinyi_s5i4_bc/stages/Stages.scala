@@ -241,7 +241,12 @@ class ISStage extends Module {
       io.forwarding(j).write_target === DReg  & io.inst(i).dec.param_a === AReg &           // Regs
       io.forwarding(j).rd === io.inst(i).dec.rs1 & io.inst(i).dec.rs1 =/= 0.U               // Same ID, Not 0
     ) {
-      io.forwarding_path_id(i).rs1 := j.U
+      if (j < ALU_PATH_NUM) {
+        io.forwarding_path_id(i).rs1 := j.U
+      }
+      else {
+        raw(i) := true.B
+      }
     }
     when (
       io.forwarding(j).write_target === io.inst(i).dec.param_a &                            // Same source (implicit not HiLo)
@@ -326,7 +331,7 @@ class ISStage extends Module {
     // From path (issued)
     raw(i) := false.B
     waw(i) := false.B
-    for (j <- 0 until TOT_PATH_NUM) {
+    for (j <- 0 until ALU_PATH_NUM) {
       RAWPath(i, j)
     }
     // From queue (going to issue)
