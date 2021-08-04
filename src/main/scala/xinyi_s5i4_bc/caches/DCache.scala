@@ -17,7 +17,7 @@ object GTimer {
 
 trait DCacheConfig {
   // predefined parameters
-  val CACHE_SIZE = 16 * 1024 * 8 // 8KB
+  val CACHE_SIZE = 16 * 1024 * 8 // 16KB
   val LINE_NUM = 8
   val DATA_WIDTH = XLEN
   val WAY_NUM = 2
@@ -38,6 +38,7 @@ trait DCacheConfig {
   val hasDCache = true
   val hasDCacheOp = false
   val useBRAM = true
+  val profiling = true
 }
 
 class DCacheAddr extends Bundle with DCacheConfig {
@@ -411,7 +412,7 @@ class DCachePath extends DCachePathBase {
   }
 
   // upper IO
-  upper.stall_req := new_request || state =/= s_idle
+  upper.stall_req := new_request || (state =/= s_idle && !((uncached_satisfy || cached_satisfy) && current_request.wr))
   upper.dout := RegNext(result)
 
   // lower IO
@@ -475,6 +476,28 @@ class DCachePath extends DCachePathBase {
     //   bram(i).data_dout.asTypeOf(new DCacheData)
     // )
   }
+
+  // if (profiling) {
+  //   val read_misses = RegInit(UInt(64.W), 0.U)
+  //   val read_count = RegInit(UInt(64.W), 0.U)
+  //   val write_misses = RegInit(UInt(64.W), 0.U)
+  //   val write_count = RegInit(UInt(64.W), 0.U)
+  //   val last_request = RegNext(current_request)
+  //   val new_req = s3_valid && !s3_ismmio && (!last_s3_valid || last_s3_addr =/= s3_addr || last_s3_data =/= s3_data || last_s3_wen =/= s3_wen || last_s3_memtype =/= s3_memtype)
+  //   when(new_req) {
+  //     when(s3_wen) {
+  //       write_count := write_count + 1.U
+  //       when(!s3_hit) {
+  //         write_misses := write_misses + 1.U
+  //       }
+  //     }.otherwise {
+  //       read_count := read_count + 1.U
+  //       when(!s3_hit) {
+  //         read_misses := read_misses + 1.U
+  //       }
+  //     }
+  //   }
+  // }
 
   // printf(p"[${GTimer()}]: ${NAME} Debug Info----------\n")
   // printf(p"----------${NAME} inflight_request----------\n")
