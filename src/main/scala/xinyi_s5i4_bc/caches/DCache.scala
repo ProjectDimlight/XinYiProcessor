@@ -257,7 +257,7 @@ class DCachePath extends DCachePathBase {
 
   val read_satisfy = state === s_read_resp && lower.rvalid && lower.rlast
   val write_satisfy = state === s_write_resp && lower.bvalid
-  val cached_satisfy = (!current_request.uncached) && read_satisfy
+  val cached_satisfy = (!current_request.uncached) && (hit || read_satisfy)
   val uncached_satisfy =
     current_request.uncached && (read_satisfy || write_satisfy)
 

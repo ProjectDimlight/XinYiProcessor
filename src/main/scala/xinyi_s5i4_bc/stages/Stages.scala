@@ -336,7 +336,7 @@ class ISStage extends Module {
     // From path (issued)
     raw(i) := false.B
     waw(i) := false.B
-    for (j <- 0 until ALU_PATH_NUM) {
+    for (j <- 0 until TOT_PATH_NUM) {
       RAWPath(i, j)
     }
     // From queue (going to issue)
