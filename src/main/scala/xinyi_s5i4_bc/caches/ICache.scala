@@ -14,12 +14,12 @@ import config.config._
 trait ICacheConfig {
   // basic attributes
   val SET_ASSOCIATIVE = 2
-  val BLOCK_INST_NUM  = 8
+  val BLOCK_INST_NUM  = 16
 
   // width
   val BLOCK_WIDTH  = BLOCK_INST_NUM * XLEN // each cache block has 8 instructions
-  val INDEX_WIDTH  = 7
-  val OFFSET_WIDTH = log2Ceil(BLOCK_WIDTH >> 3)
+  val INDEX_WIDTH  = 6
+  val OFFSET_WIDTH = log2Ceil(BLOCK_INST_NUM) + 2
   val TAG_WIDTH    = XLEN - INDEX_WIDTH - OFFSET_WIDTH
 
   // derived number
@@ -166,14 +166,14 @@ class ICache extends Module with ICacheConfig {
   }
 
 
-  val inst_offset_index = io_addr.inst_offset(4, 2)
+  val inst_offset_index = io_addr.inst_offset(OFFSET_WIDTH - 1, 2)
 
   // select data
   val uncached_data = Cat(0.U(XLEN.W), io.axi_io.rdata)
 
   val cached_data = Mux(inst_offset_index(0),
     Cat(0.U(XLEN.W), (rd_block >> (inst_offset_index << 5)) (31, 0)), // read single instruction
-    (rd_block >> (inst_offset_index(2, 1) << 6)) (63, 0)) // read two instructions
+                     (rd_block >> (inst_offset_index << 5)) (63, 0)) // read two instructions
 
   io.cpu_io.data := Mux(uncached, uncached_data, cached_data)
 
@@ -193,12 +193,12 @@ class ICache extends Module with ICacheConfig {
         uncached := true.B
         state := s_axi_pending
       }
-      .elsewhen(io.cpu_io.rd && cached_miss) { // read request and cache miss
-        state := s_fetch
-        last_index := io_addr.index
-        last_tag := io_addr.tag
-        last_hit := false.B
-      }
+        .elsewhen(io.cpu_io.rd && cached_miss) { // read request and cache miss
+          state := s_fetch
+          last_index := io_addr.index
+          last_tag := io_addr.tag
+          last_hit := false.B
+        }
     }
 
     // when FSM fetches metadata from BRAM and LUTRAM
@@ -246,7 +246,7 @@ class ICache extends Module with ICacheConfig {
       state := s_idle
     }
 
-    is (s_valid) {
+    is(s_valid) {
       state := s_idle
     }
   }
