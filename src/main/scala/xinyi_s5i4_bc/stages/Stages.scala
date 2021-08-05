@@ -440,10 +440,14 @@ class FUStage extends Module with CP0Config {
   val issue_vec = Wire(Vec(ISSUE_NUM, new FUOut))
   for (i <- 0 until ISSUE_NUM) {
     issue_vec(i) := FUOutBubble()
-
-    when (i.U < io.fu_actual_issue_cnt) {
-      for (j <- 0 until TOT_PATH_NUM) {
-        when (io.fu_out(j).order === i.U) {
+    for (j <- 0 until TOT_PATH_NUM) {
+      if (i == 0) {
+        when (io.fu_out(j).order === 0.U && io.fu_actual_issue_cnt.orR()) {
+          issue_vec(i) := io.fu_out(j)
+        }
+      }
+      else {
+        when (io.fu_out(j).order === 1.U && io.fu_actual_issue_cnt(1)) {
           issue_vec(i) := io.fu_out(j)
         }
       }
@@ -479,7 +483,6 @@ class FUStage extends Module with CP0Config {
   // normal exception handling
   for (i <- ISSUE_NUM - 1 to 0 by -1) {
     when (issue_vec(i).exception) {
-      
       when (issue_vec(i).exc_code =/= EXC_CODE_ERET) {
         io.exc_info.pc := issue_vec(i).pc
         io.exc_info.exc_code := issue_vec(i).exc_code
@@ -502,11 +505,11 @@ class FUStage extends Module with CP0Config {
     }
     .elsewhen ((issue_vec(i).write_target === DCP0) &
                (issue_vec(i).rd === CP0_CAUSE_INDEX) &
-               (issue_vec(i).data(9, 8) =/= 0.U)) {
+               (issue_vec(i).exc_meta(9, 8) =/= 0.U)) {
        
       io.exc_info.pc := issue_vec(i).pc + 4.U
       io.exc_info.exc_code := EXC_CODE_INT
-      io.exc_info.data := Cat(Seq(0.U(16.W), 0.U(6.W), issue_vec(i).data(9, 8), 0.U(8.W)))
+      io.exc_info.data := Cat(Seq(0.U(16.W), 0.U(6.W), issue_vec(i).exc_meta(9, 8), 0.U(8.W)))
       io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
 
       io.fu_exception_order := i.U

@@ -91,11 +91,7 @@ class IssueQueue extends Module {
   val in_size  = Wire(UInt(QUEUE_LEN_W.W))
   val out_size = Wire(UInt(QUEUE_LEN_W.W))
 
-  tail_b := Mux(
-    io.bc.flush,
-    head_n,
-    tail
-  )
+  tail_b := Mux(io.bc.flush, Step(head, io.bc.keep_delay_slot), tail)
   in_size := tail_b - head
 
   // Input
