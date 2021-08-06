@@ -17,7 +17,7 @@ object GTimer {
 
 trait DCacheConfig {
   // predefined parameters
-  val CACHE_SIZE = 16 * 1024 * 8 // 16KB
+  val CACHE_SIZE = 8 * 1024 * 8 // 8KB
   val LINE_NUM = 8
   val DATA_WIDTH = XLEN
   val WAY_NUM = 2

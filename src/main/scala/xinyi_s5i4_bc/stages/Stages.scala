@@ -131,14 +131,16 @@ class IDStage extends Module with ALUConfig{
   for (i <- 0 until FETCH_NUM) {
     val decoder = Module(new MIPSDecoder)
     decoder.io.inst := io.in(i).inst
+    decoder.io.pc   := io.in(i).pc
 
+    io.out(i).pc := io.in(i).pc
+    /*
     val signed    = Wire(SInt(32.W))
     val signed_x4 = Wire(SInt(32.W))
 
     signed    := io.in(i).inst(15, 0).asSInt()
     signed_x4 := Cat(io.in(i).inst(15, 0), 0.U(2.W)).asSInt()
 
-    io.out(i).pc := io.in(i).pc
     val pc4 = io.in(i).pc + 4.U
     io.out(i).imm := MuxCase(
       io.in(i).inst(15, 0),
@@ -158,6 +160,8 @@ class IDStage extends Module with ALUConfig{
           decoder.io.dec.path    === PathLSU) -> signed.asUInt()
       )
     )
+    */
+    io.out(i).imm := decoder.io.imm
     io.out(i).dec := decoder.io.dec
   }
 }
