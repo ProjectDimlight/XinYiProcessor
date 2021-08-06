@@ -80,7 +80,7 @@ class ICache extends Module with ICacheConfig {
   val io_addr    = io.cpu_io.addr.asTypeOf(new ICacheAddr)
   val last_index = RegInit(0.U(INDEX_WIDTH.W)) // record the last req group index
   val last_tag   = RegInit(0.U(TAG_WIDTH.W)) // record the last req tag
-  val last_hit   = RegInit(false.B)
+  val last_offset= RegInit(0.U(OFFSET_WIDTH.W))
 
   // write-enable
   val replace     = Wire(Vec(SET_ASSOCIATIVE, Bool())) // indicate replace
@@ -94,24 +94,24 @@ class ICache extends Module with ICacheConfig {
   val rd_tag_valid_vec = Wire(Vec(SET_ASSOCIATIVE, new ICacheTagValid))
 
 
+  // ICache FSM state
+  val s_idle :: s_fetch :: s_axi_pending :: s_axi_wait :: s_fill :: s_valid :: Nil = Enum(6)
+  val state = RegInit(s_idle)
+
   // hit_vec: indicate the vector of hit in 4-way ICache
   val hit_vec = Wire(Vec(SET_ASSOCIATIVE, Bool()))
   for (i <- 0 until SET_ASSOCIATIVE) {
-    hit_vec(i) := rd_tag_valid_vec(i).valid && rd_tag_valid_vec(i).tag === io_addr.tag
+    hit_vec(i) := rd_tag_valid_vec(i).valid && 
+                  rd_tag_valid_vec(i).tag === Mux(state === s_idle, io_addr.tag, last_tag)
   }
 
 
   // hit access index
   val hit_access = hit_vec.indexWhere((x: Bool) => x === true.B)
-
+  val hit_access_reg = RegNext(hit_access)
 
   // get data from the hit set and from the offset
-  val l0_block = RegInit(0.U(BLOCK_WIDTH.W)) // block data
   val rd_block = Wire(UInt(BLOCK_WIDTH.W))
-
-  val rd_tag_valid = rd_tag_valid_vec(hit_access)
-
-  val cached_miss = io_addr.index =/= last_index || io_addr.tag =/= last_tag
 
   // miss
   val hit  = Wire(Bool())
@@ -123,14 +123,15 @@ class ICache extends Module with ICacheConfig {
   //  INNER LOGIC
   //<<<<<<<<<<<<<<<
 
-  // ICache FSM state
-  val s_idle :: s_fetch :: s_axi_pending :: s_axi_wait :: s_fill :: s_valid :: Nil = Enum(6)
-
   // state reg
-  val state = RegInit(s_idle)
+  val next_state = Wire(UInt(3.W))
+  next_state := state
+
+  val fill = Wire(Bool())
+  fill := false.B
 
   // select replace from selection vector
-  replace := replace_vec(io_addr.index).asBools()
+  replace := replace_vec(last_index).asBools()
   for (i <- 0 until SET_ASSOCIATIVE) {
     ram_we(i) := replace(i) && state === s_fill
   }
@@ -145,11 +146,8 @@ class ICache extends Module with ICacheConfig {
   val uncache_valid = Wire(Bool())
   uncache_valid := false.B
 
-  // froward L1 Cache hit
-  val forward = state === s_fetch && hit
-
   // not valid
-  io.cpu_io.stall_req := !uncache_valid && (state =/= s_idle || io.cpu_io.uncached || cached_miss) && !forward
+  io.cpu_io.stall_req := state =/= s_idle || next_state =/= s_idle
 
 
   //>>>>>>>>>>>>
@@ -169,19 +167,15 @@ class ICache extends Module with ICacheConfig {
   }
 
 
-  val inst_offset_index = io_addr.inst_offset(OFFSET_WIDTH - 1, 2)
+  val inst_offset_index = last_offset(OFFSET_WIDTH - 1, 3)
   // select data
   val uncached_data = Cat(0.U(XLEN.W), io.axi_io.rdata)
 
-  val cached_data = Mux(inst_offset_index(0),
-    Cat(0.U(XLEN.W), (rd_block >> (inst_offset_index << 5)) (31, 0)), // read single instruction
-                     (rd_block >> (inst_offset_index << 5)) (63, 0)) // read two instructions
+  val cached_data = (rd_block >> (inst_offset_index << 6)) (63, 0) // always read two instructions
 
   io.cpu_io.data := Mux(uncached, uncached_data, cached_data)
 
-  // forward bram block to reduce hit latency
-  rd_block := Mux(last_hit || forward, rd_block_vec(hit_access), l0_block)
-
+  rd_block := rd_block_vec(hit_access_reg)
 
   //>>>>>>>>>>>>>>>>>
   // STATE TRANSFER
@@ -191,33 +185,24 @@ class ICache extends Module with ICacheConfig {
     // when FSM is idle
     is(s_idle) {
       // new request arrives
-      when(io.cpu_io.rd && io.cpu_io.uncached) {
-        uncached := true.B
-        state := s_axi_pending
-      }
-        .elsewhen(io.cpu_io.rd && cached_miss) { // read request and cache miss
-          state := s_fetch
-          last_index := io_addr.index
-          last_tag := io_addr.tag
-          last_hit := false.B
+      when (io.cpu_io.rd) {
+        last_index := io_addr.index
+        last_tag := io_addr.tag
+        last_offset := io_addr.inst_offset
+        when (io.cpu_io.uncached) {
+          uncached := true.B
+          next_state := s_axi_pending
         }
-    }
-
-    // when FSM fetches metadata from BRAM and LUTRAM
-    is(s_fetch) {
-      when(hit) { // when hit, back to idle
-        state := s_idle
-        l0_block := rd_block_vec(hit_access)
-        last_hit := true.B
-      }.otherwise { // when miss, fetch data from AXI
-        state := s_axi_pending
+        .elsewhen(miss) { // read request and cache miss
+          next_state := s_axi_pending
+        }
       }
     }
 
     // when FSM is pending, waiting for AXI ready
     is(s_axi_pending) {
       when(io.axi_io.arready) {
-        state := s_axi_wait
+        next_state := s_axi_wait
         burst_count := 0.U
       }
     }
@@ -227,7 +212,7 @@ class ICache extends Module with ICacheConfig {
       // still receiving
       when(io.axi_io.rvalid) {
         when(uncached) {
-          state := s_idle
+          next_state := s_idle
           uncache_valid := true.B
           uncached := false.B
         }.otherwise {
@@ -237,21 +222,17 @@ class ICache extends Module with ICacheConfig {
           // the last received data
           when(io.axi_io.rlast) {
             // no further data transfer, back to IDLE
-            state := s_fill
-            l0_block := Cat(io.axi_io.rdata, receive_buffer.asUInt()(BLOCK_WIDTH - XLEN - 1, 0))
+            next_state := s_fill
           }
         }
       }
     }
 
-    is(s_fill) {
-      state := s_idle
-    }
-
-    is(s_valid) {
-      state := s_idle
+    is (s_fill) {
+      next_state := s_idle
     }
   }
+  state := next_state
 
 
   //>>>>>>>>>>>>>

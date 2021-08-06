@@ -35,37 +35,60 @@ class IFIDReg extends Module {
   val io = IO(new Bundle {
     val if_out = Flipped(new IFOut)
     val id_in  = Flipped(Vec(FETCH_NUM, new IDIn))
+    val unaligned = Output(Bool())
 
     val stall = Input(Bool())
     val flush = Input(Bool())
   })
 
-  var init = Wire(new IFOut)
-  init.pc := 0.U(LGC_ADDR_W.W)
-  init.inst := 0.U(XLEN.W)
-  
-  val reg = RegInit(init)
-  val flush_reg = RegInit(false.B)
+  val pc = RegInit(0.U(LGC_ADDR_W.W))
+  val inst = Wire(UInt((XLEN * FETCH_NUM).W))
+  val inst_reg = RegInit(0.U((XLEN * FETCH_NUM).W))
+  val flush_stall_reg = RegInit(false.B)
+  val flush_stall_reg_reg = RegNext(flush_stall_reg)
+  val stall_reg = RegNext(io.stall)
+  val flush_reg = RegNext(io.flush)
+  val unaligned = RegInit(false.B)
+
+  inst := inst_reg
+  when (io.flush) {
+    inst_reg := 0.U
+  }
+  .elsewhen (!stall_reg)
+  {
+    inst := Mux(flush_reg | flush_stall_reg_reg, 0.U, io.if_out.inst)
+    inst_reg := inst
+  }
 
   when (io.flush) {
-    flush_reg := io.stall
-    reg := init
+    flush_stall_reg := io.stall
+    unaligned := false.B
+    pc := 0.U
   }
   .elsewhen (!io.stall) {
-    reg := Mux(flush_reg, init, io.if_out)
-    flush_reg := false.B
+    flush_stall_reg := false.B
+    when (io.if_out.pc(2)) {
+      pc := Mux(flush_stall_reg, 0.U, Cat(io.if_out.pc(31, 3), 0.U(1.W), io.if_out.pc(1, 0)))
+      unaligned := true.B
+    }
+    .otherwise{
+      pc := Mux(flush_stall_reg, 0.U, io.if_out.pc)
+      unaligned := false.B
+    }
   }
-
+  
   for (i <- 0 until FETCH_NUM) {
-    io.id_in(i).pc := reg.pc + (i * 4).U(XLEN.W)
-    io.id_in(i).inst := reg.inst((i + 1) * XLEN - 1, i * XLEN)
+    io.id_in(i).pc := pc + (i * 4).U(XLEN.W)
+    io.id_in(i).inst := inst((i + 1) * XLEN - 1, i * XLEN)
   }
+  io.unaligned := unaligned
 }
 
 // Issue Queue
 class IssueQueue extends Module {
   val io = IO(new Bundle {
     val in               = Input(Vec(FETCH_NUM, Flipped(new Instruction)))
+    val unaligned        = Input(Bool())
     val bc               = Flipped(new BranchCacheOut)
     val actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
     val full             = Output(Bool())
@@ -103,9 +126,9 @@ class IssueQueue extends Module {
     when (!io.stall) {
       val inst = Mux(io.bc.overwrite, io.bc.inst, io.in)
       for (i <- 0 until FETCH_NUM) {
-        queue(tail_b + i.U(QUEUE_LEN_W.W)) := inst(i)
+        queue(tail_b + i.U(QUEUE_LEN_W.W)) := inst(io.unaligned | i.U)
       }
-      tail := Step(tail_b, Mux(inst(0).pc(2), 1.U, 2.U))
+      tail := Step(tail_b, Mux(io.unaligned, 1.U, ISSUE_NUM.U))
     }
     .otherwise {
       tail := tail_b

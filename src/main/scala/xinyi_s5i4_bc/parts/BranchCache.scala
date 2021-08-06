@@ -39,6 +39,7 @@ class BranchCache extends Module {
     val exception = Input(Bool())
     val branch_cached_en = Output(Bool())
     val branch_cached_pc = Output(UInt(LGC_ADDR_W.W))
+    val unaligned = Output(Bool())
   })
 
   def InitBranchCacheRecord() = {
@@ -60,6 +61,8 @@ class BranchCache extends Module {
   val index     = Wire(UInt(BC_INDEX_W.W))
   val hit_reg   = RegInit(false.B)
   val hit       = Wire(Bool())
+  val una_reg   = RegInit(false.B)
+  val una       = Wire(Bool())
 
   val write_pos = RegInit(BC_LINE_SIZE.U(BC_LINE_SIZE_W.W))
   val write_pc  = RegInit(0.U(XLEN.W))
@@ -71,7 +74,7 @@ class BranchCache extends Module {
   io.out.keep_delay_slot := false.B
   io.branch_cached_en := false.B
 
-  val id  = io.in.target(1 + BC_INDEX_W, 2)
+  val id  = io.in.target(2 + BC_INDEX_W, 3)
   val row = MuxLookupBi(
     index,
     record(0),
@@ -85,7 +88,7 @@ class BranchCache extends Module {
        7.U -> record(7)
     )
   )
-  val ht  = row.valid & !((io.in.target(XLEN - 1, 2 + BC_INDEX_W) ^ row.inst(0)(0).pc(XLEN - 1, 2 + BC_INDEX_W)).orR())
+  val ht  = row.valid & !((io.in.target(XLEN - 1, 3 + BC_INDEX_W) ^ row.inst(0)(0).pc(XLEN - 1, 3 + BC_INDEX_W)).orR())
   //val ht = false.B
 
   // As the dummy BC always misses, next PC of PC stage should be target
@@ -93,11 +96,14 @@ class BranchCache extends Module {
   index := index_reg
   hit   := hit_reg
   state := state_reg
+  una   := una_reg
   when (io.in.branch) {
     index     := id
     index_reg := id
     hit       := ht
     hit_reg   := ht
+    una       := io.in.target(2)
+    una_reg   := io.in.target(2)
 
     when (!io.stall_backend) {
       io.out.flush := true.B
@@ -110,27 +116,28 @@ class BranchCache extends Module {
         write_pc  := io.in.target;
       }
       .otherwise {
-        write_pos := 2.U;
+        write_pos := BC_LINE_SIZE.U;
       }
     }
   }
-  state_reg := Mux((state =/= 2.U) & !io.stall_frontend, state + 1.U, state)
+  state_reg := Mux((state =/= BC_LINE_SIZE.U) & !io.stall_frontend, state + 1.U, state)
   //io.branch_cached_pc := Mux(hit, io.in.target + (BC_LINE_SIZE * FETCH_NUM * 4).U, io.in.target)
   io.branch_cached_pc := Mux(hit, io.in.target_bc, io.in.target)
+  io.unaligned := (state === 0.U) & una
 
   when (state =/= BC_LINE_SIZE.U) {
     // If hit, the queue will be overwritten with the contents of the BC
     // If miss, it will be filled with NOPBubbles, by default
     io.out.overwrite := true.B
   }
-  io.out.inst      := Mux(hit, row.inst(state), VecInit(Seq.fill(BC_LINE_SIZE)(NOPBubble())))
+  io.out.inst      := Mux(hit, row.inst(state), VecInit(Seq.fill(FETCH_NUM)(NOPBubble())))
 
   // In
   when (io.wr.flush) {
     record := VecInit(Seq.fill(BC_INDEX)(InitBranchCacheRecord()))
   }
   .elsewhen (!io.out.overwrite & !io.wr.stall) {
-    val index = write_pc(1 + BC_INDEX_W, 2)
+    val index = write_pc(2 + BC_INDEX_W, 3)
 
     when (write_pos === 0.U) {
       record(index_reg).valid   := false.B

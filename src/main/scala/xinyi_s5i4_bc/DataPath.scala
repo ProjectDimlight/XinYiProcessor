@@ -106,6 +106,7 @@ class DataPath extends Module with ALUConfig {
   // Issue Queue
   issue_queue.io.in := id_stage.io.out
   issue_queue.io.bc := bc.io.out
+  issue_queue.io.unaligned := if_id_reg.io.unaligned | bc.io.unaligned
   issue_queue.io.actual_issue_cnt := is_stage.io.actual_issue_cnt
   issue_queue.io.stall_backend := stall_backend
 
