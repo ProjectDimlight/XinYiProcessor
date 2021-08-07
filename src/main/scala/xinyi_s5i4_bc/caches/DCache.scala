@@ -648,7 +648,7 @@ class DCache extends Module with DCacheConfig {
         val storage_width = (new newBRAMBundle).getWidth
         val storage = List.fill(WAY_NUM)(
           Module(
-            new SinglePortRAM(
+            new SinglePortBRAM(
               DATA_WIDTH = storage_width,
               DEPTH = SET_NUM,
               LATENCY = 1

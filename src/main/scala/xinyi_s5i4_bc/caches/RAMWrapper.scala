@@ -193,13 +193,13 @@ class DualPortLUTRAM(
 }
 
 // wrapper class for single_port_ram
-class SinglePortRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1)
+class SinglePortBRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1)
     extends BlackBox(
       Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH, "LATENCY" -> LATENCY)
     )
     with HasBlackBoxInline {
 
-  override val desiredName = "single_port_ram"
+  override val desiredName = "single_port_bram"
 
   val io = IO(new Bundle{
     val clk = Input(Clock())
@@ -211,7 +211,7 @@ class SinglePortRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1)
   })
 
   setInline(
-    "single_port_ram.v",
+    "single_port_bram.v",
     s"""
               |module single_port_ram # (
               | parameter DATA_WIDTH = 32,

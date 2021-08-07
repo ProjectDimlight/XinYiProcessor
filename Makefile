@@ -12,7 +12,7 @@ MYCPU_DIR 		?= src/main/verilog/mycpu
 MYCPU_V			?= $(MYCPU_DIR)/mycpu_top.v
 DP_BRAM_V		?= $(MYCPU_DIR)/dual_port_bram.v
 DP_LUTRAM_V		?= $(MYCPU_DIR)/dual_port_lutram.v
-SP_RAM_V		?= $(MYCPU_DIR)/single_port_ram.v
+SP_BRAM_V		?= $(MYCPU_DIR)/single_port_bram.v
 
 
 .PHONY: main no_ip_div verilator checkstyle clean
