@@ -100,7 +100,7 @@ class MIPSDecoder extends Module with ALUConfig with BJUConfig with LSUConfig wi
 
   // Decode
 
-val control_signal = ListLookup(io.inst,
+val control_signal = ListLookup1H(io.inst,
                     List(  PC4     ,  AXXX   ,  BXXX   ,  DXXX   , FU_XXX    ,  PathALU   , IXX , IXX , IXX, IImm),
     Array(         //   |   PC     |   A     |   B     |  D      | Operation |  Path id   | rs1 | rs2 | rd | IImm|
                    //   | Select   | use rs1 | use rs2 | write   |   Type    |   Select   |     |     |    |     |

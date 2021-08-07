@@ -122,7 +122,7 @@ class IssueQueue extends Module {
     tail := head_n
     io.full := false.B
   }
-  .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
+  .elsewhen (in_size <= (QUEUE_LEN - FETCH_NUM).U) {
     when (!io.stall) {
       val inst = Mux(io.bc.overwrite, io.bc.inst, io.in)
       for (i <- 0 until FETCH_NUM) {
