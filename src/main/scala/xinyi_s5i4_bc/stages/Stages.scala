@@ -93,10 +93,12 @@ class IFStage extends Module with TLBConfig {
   val addr = Mux(
     lgc_addr(31, 30) === 2.U,
     lgc_addr & 0x1FFFFFFF.U,
-    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
+    //Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
+    lgc_addr
   )
 
-  io.tlb_miss := (lgc_addr(31, 30) =/= 2.U) & io.tlb.miss
+  //io.tlb_miss := (lgc_addr(31, 30) =/= 2.U) & io.tlb.miss
+  io.tlb_miss := false.B
   io.tlb_addr := lgc_addr
 
   // ICache
@@ -104,6 +106,9 @@ class IFStage extends Module with TLBConfig {
   io.cache.addr := addr
   // TODO connect to real flush signal
   io.cache.flush := false.B
+  //io.cache.uncached := lgc_addr(31, 29) === "b101".U
+
+  io.cache.uncached := false.B
 
   // Output to IF-ID Regs
   io.out.pc := io.in.pc
@@ -126,14 +131,16 @@ class IDStage extends Module with ALUConfig{
   for (i <- 0 until FETCH_NUM) {
     val decoder = Module(new MIPSDecoder)
     decoder.io.inst := io.in(i).inst
+    decoder.io.pc   := io.in(i).pc
 
+    io.out(i).pc := io.in(i).pc
+    /*
     val signed    = Wire(SInt(32.W))
     val signed_x4 = Wire(SInt(32.W))
 
     signed    := io.in(i).inst(15, 0).asSInt()
     signed_x4 := Cat(io.in(i).inst(15, 0), 0.U(2.W)).asSInt()
 
-    io.out(i).pc := io.in(i).pc
     val pc4 = io.in(i).pc + 4.U
     io.out(i).imm := MuxCase(
       io.in(i).inst(15, 0),
@@ -153,6 +160,8 @@ class IDStage extends Module with ALUConfig{
           decoder.io.dec.path    === PathLSU) -> signed.asUInt()
       )
     )
+    */
+    io.out(i).imm := decoder.io.imm
     io.out(i).dec := decoder.io.dec
   }
 }
@@ -236,7 +245,12 @@ class ISStage extends Module {
       io.forwarding(j).write_target === DReg  & io.inst(i).dec.param_a === AReg &           // Regs
       io.forwarding(j).rd === io.inst(i).dec.rs1 & io.inst(i).dec.rs1 =/= 0.U               // Same ID, Not 0
     ) {
-      io.forwarding_path_id(i).rs1 := j.U
+      if (j < ALU_PATH_NUM) {
+        io.forwarding_path_id(i).rs1 := j.U
+      }
+      else {
+        raw(i) := true.B
+      }
     }
     when (
       io.forwarding(j).write_target === io.inst(i).dec.param_a &                            // Same source (implicit not HiLo)
@@ -250,7 +264,12 @@ class ISStage extends Module {
       io.forwarding(j).rd === io.inst(i).dec.rs2 & // Same ID
       io.inst(i).dec.rs2 =/= 0.U                   // Not 0
     ) {
+      if (j < ALU_PATH_NUM) {
         io.forwarding_path_id(i).rs2 := j.U
+      }
+      else {
+        raw(i) := true.B
+      }
     }
   }
 
@@ -425,10 +444,14 @@ class FUStage extends Module with CP0Config {
   val issue_vec = Wire(Vec(ISSUE_NUM, new FUOut))
   for (i <- 0 until ISSUE_NUM) {
     issue_vec(i) := FUOutBubble()
-
-    when (i.U < io.fu_actual_issue_cnt) {
-      for (j <- 0 until TOT_PATH_NUM) {
-        when (io.fu_out(j).order === i.U) {
+    for (j <- 0 until TOT_PATH_NUM) {
+      if (i == 0) {
+        when (io.fu_out(j).order === 0.U && io.fu_actual_issue_cnt.orR()) {
+          issue_vec(i) := io.fu_out(j)
+        }
+      }
+      else {
+        when (io.fu_out(j).order === 1.U && io.fu_actual_issue_cnt(1)) {
           issue_vec(i) := io.fu_out(j)
         }
       }
@@ -438,6 +461,7 @@ class FUStage extends Module with CP0Config {
   io.sorted_fu_out := issue_vec
 
   val exception_pc = Mux(io.fu_actual_issue_cnt === 0.U, io.incoming_epc, issue_vec(0).pc)
+  val exception_ds = (io.fu_actual_issue_cnt =/= 0.U) & issue_vec(0).is_delay_slot
   
   // generate exception order
   io.fu_exception_order := io.fu_actual_issue_cnt
@@ -453,7 +477,7 @@ class FUStage extends Module with CP0Config {
     io.exc_info.pc := exception_pc
     io.exc_info.exc_code := EXC_CODE_TLBL
     io.exc_info.data := io.if_tlb_addr
-    io.exc_info.in_branch_delay_slot := false.B
+    io.exc_info.in_branch_delay_slot := exception_ds
     
     io.fu_exception_order := 0.U
     io.fu_exception_handled := true.B
@@ -463,7 +487,6 @@ class FUStage extends Module with CP0Config {
   // normal exception handling
   for (i <- ISSUE_NUM - 1 to 0 by -1) {
     when (issue_vec(i).exception) {
-      
       when (issue_vec(i).exc_code =/= EXC_CODE_ERET) {
         io.exc_info.pc := issue_vec(i).pc
         io.exc_info.exc_code := issue_vec(i).exc_code
@@ -486,11 +509,11 @@ class FUStage extends Module with CP0Config {
     }
     .elsewhen ((issue_vec(i).write_target === DCP0) &
                (issue_vec(i).rd === CP0_CAUSE_INDEX) &
-               (issue_vec(i).data(9, 8) =/= 0.U)) {
+               (issue_vec(i).exc_meta(9, 8) =/= 0.U)) {
        
       io.exc_info.pc := issue_vec(i).pc + 4.U
       io.exc_info.exc_code := EXC_CODE_INT
-      io.exc_info.data := Cat(Seq(0.U(16.W), 0.U(6.W), issue_vec(i).data(9, 8), 0.U(8.W)))
+      io.exc_info.data := Cat(Seq(0.U(16.W), 0.U(6.W), issue_vec(i).exc_meta(9, 8), 0.U(8.W)))
       io.exc_info.in_branch_delay_slot := issue_vec(i).is_delay_slot
 
       io.fu_exception_order := i.U
@@ -504,7 +527,7 @@ class FUStage extends Module with CP0Config {
     io.exc_info.pc := exception_pc
     io.exc_info.exc_code := EXC_CODE_INT
     io.exc_info.data := Cat(Seq(0.U(16.W), io.incoming_interrupt.asUInt, 0.U(8.W)))
-    io.exc_info.in_branch_delay_slot := 0.U
+    io.exc_info.in_branch_delay_slot := exception_ds
     
     io.fu_exception_order := 0.U
     io.fu_exception_handled := true.B

@@ -65,12 +65,13 @@ class DataPath extends Module with ALUConfig {
   val forwarding    = Wire(Vec(TOT_PATH_NUM, new Forwarding))
 
   // Flush
-  pc_if_reg.  io.flush := flush
-  if_id_reg.  io.flush := flush
-  issue_queue.io.flush := flush
-  is_bju_reg. io.flush := flush
-  is_fu_reg.  io.flush := flush
-  fu_wb_reg.  io.flush := flush
+  pc_if_reg.    io.flush := flush
+  if_id_reg.    io.flush := flush
+  issue_queue.  io.flush := flush
+  is_bju_reg.   io.flush := flush
+  is_fu_reg.    io.flush := flush
+  fu_wb_reg.    io.flush := flush
+  interrupt_reg.io.flush := flush
 
   // PC Stage
   pc_stage.io.pc      <> pc_if_reg.io.if_in.pc
@@ -105,6 +106,7 @@ class DataPath extends Module with ALUConfig {
   // Issue Queue
   issue_queue.io.in := id_stage.io.out
   issue_queue.io.bc := bc.io.out
+  issue_queue.io.unaligned := if_id_reg.io.unaligned | bc.io.unaligned
   issue_queue.io.actual_issue_cnt := is_stage.io.actual_issue_cnt
   issue_queue.io.stall_backend := stall_backend
 
@@ -148,13 +150,9 @@ class DataPath extends Module with ALUConfig {
 
     when (is_stage.io.forwarding_path_id(i).rs1 =/= TOT_PATH_NUM.U) {
       val j = is_stage.io.forwarding_path_id(i).rs1
-      val fwd = MuxLookupBi(j(1, 0),
-        if (LSU_PATH_NUM == 1) forwarding(0) else forwarding(3),
-        Array(
-          0.U -> forwarding(0),
-          1.U -> forwarding(1),
-          2.U -> forwarding(2)
-        )
+      val fwd = Mux(j(0),
+        forwarding(1),
+        forwarding(0)
       )
       inst_params(i)(0) := Mux(inst.dec.param_a === AHi, fwd.hi, fwd.data)
     }
@@ -163,13 +161,9 @@ class DataPath extends Module with ALUConfig {
       !((inst.dec.param_b === BImm) & (inst.dec.path === PathALU))
     ) {
       val j = is_stage.io.forwarding_path_id(i).rs2
-      val fwd = MuxLookupBi(j(1, 0),
-        if (LSU_PATH_NUM == 1) forwarding(0) else forwarding(3),
-        Array(
-          0.U -> forwarding(0),
-          1.U -> forwarding(1),
-          2.U -> forwarding(2)
-        )
+      val fwd = Mux(j(0),
+        forwarding(1),
+        forwarding(0)
       )
       inst_params(i)(1) := fwd.data
     }
@@ -349,6 +343,7 @@ class DataPath extends Module with ALUConfig {
   interrupt_reg.io.fu_actual_issue_cnt := is_fu_reg.io.fu_actual_issue_cnt
   interrupt_reg.io.eret := fu_stage.io.exc_info.eret
   interrupt_reg.io.fu_epc := fu_stage.io.fu_exception_target
+  interrupt_reg.io.stall := stall_backend
   fu_stage.io.incoming_epc := interrupt_reg.io.wb_epc
 
   // FU TLBR Reg

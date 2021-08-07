@@ -15,7 +15,7 @@ class S5I4 extends RawModule with PortConfig {
   // ar
   val arid         = IO(Output(UInt(AXI_R_ID_WIDTH.W)))
   val araddr       = IO(Output(UInt(PHY_ADDR_W.W)))
-  val arlen        = IO(Output(UInt(8.W)))
+  val arlen        = IO(Output(UInt(4.W)))
   val arsize       = IO(Output(UInt(3.W)))
   val arburst      = IO(Output(UInt(2.W)))
   val arlock       = IO(Output(UInt(2.W)))
@@ -33,7 +33,7 @@ class S5I4 extends RawModule with PortConfig {
   //aw
   val awid         = IO(Output(UInt(AXI_W_ID_WIDTH.W)))
   val awaddr       = IO(Output(UInt(PHY_ADDR_W.W)))
-  val awlen        = IO(Output(UInt(8.W)))
+  val awlen        = IO(Output(UInt(4.W)))
   val awsize       = IO(Output(UInt(3.W)))
   val awburst      = IO(Output(UInt(2.W)))
   val awlock       = IO(Output(UInt(2.W)))

@@ -62,7 +62,7 @@ wire [7 :0] switch;
 wire [3 :0] btn_key_col;
 wire [3 :0] btn_key_row;
 wire [1 :0] btn_step;
-assign switch      = 8'hfc;
+assign switch      = 8'hf8;
 assign btn_key_row = 4'd0;
 assign btn_step    = 2'd3;
 
@@ -225,6 +225,7 @@ begin
 		//judge(pipe_wb[1]);
 		//write(pipe_wb[0]);
 		//write(pipe_wb[1]);
+		/*
 		if (soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr[31:8] == 24'h1fc26e && 
 		    (soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr[3:0] == 4'h0 ||
 		     soc_lite.u_cpu.datapath.dcache.io_lower_0_awaddr[3:0] == 4'h8) && 
@@ -248,6 +249,7 @@ begin
 		  soc_lite.u_cpu.datapath.dcache.io_lower_1_awaddr,
 		  soc_lite.u_cpu.datapath.dcache.io_lower_1_wdata);
 		end
+		*/
 	end
 end
 

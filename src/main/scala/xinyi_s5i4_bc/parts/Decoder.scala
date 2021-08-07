@@ -72,7 +72,9 @@ class ControlSet extends Bundle {
 
 class MIPSDecoder extends Module with ALUConfig with BJUConfig with LSUConfig with CP0Config {
   val io = IO(new Bundle{
+    val pc = Input(UInt(LGC_ADDR_W.W))
     val inst = Input(UInt(XLEN.W))
+    val imm = Output(UInt(32.W))
     val dec = Output(new ControlSet)
   })
 
@@ -84,86 +86,98 @@ class MIPSDecoder extends Module with ALUConfig with BJUConfig with LSUConfig wi
   val IRA   = 31.U(REG_ID_W.W)
   val IXX   = 0.U(REG_ID_W.W)
 
+  val signed    = Wire(SInt(32.W))
+  val signed_x4 = Wire(SInt(32.W))
+  signed    := io.inst(15, 0).asSInt()
+  signed_x4 := Cat(io.inst(15, 0), 0.U(2.W)).asSInt()
+
+  val pc4 = io.pc + 4.U
+  val IImm = io.inst(15, 0)
+  val ISImm = signed.asUInt()
+  val ISHT = io.inst(10, 6)
+  val IBr = signed_x4.asUInt() + pc4
+  val IJ = Cat(pc4(31, 28), io.inst(25, 0), 0.U(2.W))
+
   // Decode
 
 val control_signal = ListLookup(io.inst,
-                    List(  PC4     ,  AXXX   ,  BXXX   ,  DXXX   , FU_XXX    ,  PathALU   , IXX , IXX , IXX),
-    Array(         //   |   PC     |   A     |   B     |  D      | Operation |  Path id   | rs1 | rs2 | rd |
-                   //   | Select   | use rs1 | use rs2 | write   |   Type    |   Select   |     |     |    |
-                   //   | next_pc  | param_a | param_b | wrt_tgt | fu_ctrl   | MultiIssue |     |     |    |
-      NOP        -> List(  PC4     ,  AReg   ,  BReg   ,  DXXX   , ALU_XXX   ,  PathALU   , IRS , IRT , IXX),
-      ADD        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_ADD   ,  PathALU   , IRS , IRT , IRD),
-      ADDI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_ADD   ,  PathALU   , IRS , IXX , IRT),
-      ADDU       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_ADDU  ,  PathALU   , IRS , IRT , IRD),
-      ADDIU      -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_ADDU  ,  PathALU   , IRS , IXX , IRT),
-      SUB        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SUB   ,  PathALU   , IRS , IRT , IRD),
-      SUBU       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SUBU  ,  PathALU   , IRS , IRT , IRD),
-      SLT        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SLT   ,  PathALU   , IRS , IRT , IRD),
-      SLTI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SLT   ,  PathALU   , IRS , IXX , IRT),
-      SLTU       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SLTU  ,  PathALU   , IRS , IRT , IRD),
-      SLTIU      -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SLTU  ,  PathALU   , IRS , IXX , IRT),
-      DIV        -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_DIV   ,  PathALU   , IRS , IRT , IRD),
-      DIVU       -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_DIVU  ,  PathALU   , IRS , IRT , IRD),
-      MULT       -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_MUL   ,  PathALU   , IRS , IRT , IRD),
-      MULTU      -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_MULU  ,  PathALU   , IRS , IRT , IRD),
+                    List(  PC4     ,  AXXX   ,  BXXX   ,  DXXX   , FU_XXX    ,  PathALU   , IXX , IXX , IXX, IImm),
+    Array(         //   |   PC     |   A     |   B     |  D      | Operation |  Path id   | rs1 | rs2 | rd | IImm|
+                   //   | Select   | use rs1 | use rs2 | write   |   Type    |   Select   |     |     |    |     |
+                   //   | next_pc  | param_a | param_b | wrt_tgt | fu_ctrl   | MultiIssue |     |     |    |     |
+      NOP        -> List(  PC4     ,  AReg   ,  BReg   ,  DXXX   , ALU_XXX   ,  PathALU   , IRS , IRT , IXX, IImm),
+      ADD        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_ADD   ,  PathALU   , IRS , IRT , IRD, ISImm),
+      ADDI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_ADD   ,  PathALU   , IRS , IXX , IRT, ISImm),
+      ADDU       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_ADDU  ,  PathALU   , IRS , IRT , IRD, ISImm),
+      ADDIU      -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_ADDU  ,  PathALU   , IRS , IXX , IRT, ISImm),
+      SUB        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SUB   ,  PathALU   , IRS , IRT , IRD, ISImm),
+      SUBU       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SUBU  ,  PathALU   , IRS , IRT , IRD, IImm),
+      SLT        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SLT   ,  PathALU   , IRS , IRT , IRD, ISImm),
+      SLTI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SLT   ,  PathALU   , IRS , IXX , IRT, ISImm),
+      SLTU       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SLTU  ,  PathALU   , IRS , IRT , IRD, ISImm),
+      SLTIU      -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SLTU  ,  PathALU   , IRS , IXX , IRT, ISImm),
+      DIV        -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_DIV   ,  PathALU   , IRS , IRT , IRD, IImm),
+      DIVU       -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_DIVU  ,  PathALU   , IRS , IRT , IRD, IImm),
+      MULT       -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_MUL   ,  PathALU   , IRS , IRT , IRD, IImm),
+      MULTU      -> List(  PC4     ,  AReg   ,  BReg   ,  DHiLo  , ALU_MULU  ,  PathALU   , IRS , IRT , IRD, IImm),
 
-      MUL        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_MUL   ,  PathALU   , IRS,  IRT , IRD),
+      MUL        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_MUL   ,  PathALU   , IRS,  IRT , IRD, IImm),
            
-      AND        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_AND   ,  PathALU   , IRS , IRT , IRD),
-      ANDI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_AND   ,  PathALU   , IRS , IXX , IRT),
-      LUI        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_LUI   ,  PathALU   , IXX , IXX , IRT),
-      NOR        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_NOR   ,  PathALU   , IRS , IRT , IRD),
-      OR         -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_OR    ,  PathALU   , IRS , IRT , IRD),
-      ORI        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_OR    ,  PathALU   , IRS , IXX , IRT),
-      XOR        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_XOR   ,  PathALU   , IRS , IRT , IRD),
-      XORI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_XOR   ,  PathALU   , IRS , IXX , IRT),
+      AND        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_AND   ,  PathALU   , IRS , IRT , IRD, IImm),
+      ANDI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_AND   ,  PathALU   , IRS , IXX , IRT, IImm),
+      LUI        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_LUI   ,  PathALU   , IXX , IXX , IRT, IImm),
+      NOR        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_NOR   ,  PathALU   , IRS , IRT , IRD, IImm),
+      OR         -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_OR    ,  PathALU   , IRS , IRT , IRD, IImm),
+      ORI        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_OR    ,  PathALU   , IRS , IXX , IRT, IImm),
+      XOR        -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_XOR   ,  PathALU   , IRS , IRT , IRD, IImm),
+      XORI       -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_XOR   ,  PathALU   , IRS , IXX , IRT, IImm),
            
-      SLLV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SLL   ,  PathALU   , IRT , IRS , IRD),
-      SLL        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SLL   ,  PathALU   , IRT , IXX , IRD),
-      SRAV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SRA   ,  PathALU   , IRT , IRS , IRD),
-      SRA        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SRA   ,  PathALU   , IRT , IXX , IRD),
-      SRLV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SRL   ,  PathALU   , IRT , IRS , IRD),
-      SRL        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SRL   ,  PathALU   , IRT , IXX , IRD),
+      SLLV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SLL   ,  PathALU   , IRT , IRS , IRD, ISHT),
+      SLL        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SLL   ,  PathALU   , IRT , IXX , IRD, ISHT),
+      SRAV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SRA   ,  PathALU   , IRT , IRS , IRD, ISHT),
+      SRA        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SRA   ,  PathALU   , IRT , IXX , IRD, ISHT),
+      SRLV       -> List(  PC4     ,  AReg   ,  BReg   ,  DReg   , ALU_SRL   ,  PathALU   , IRT , IRS , IRD, ISHT),
+      SRL        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , ALU_SRL   ,  PathALU   , IRT , IXX , IRD, ISHT),
            
-      BEQ        -> List(  Branch  ,  AReg   ,  BReg   ,  DXXX   , BrEQ      ,  PathALU   , IRS , IRT , IXX),
-      BNE        -> List(  Branch  ,  AReg   ,  BReg   ,  DXXX   , BrNE      ,  PathALU   , IRS , IRT , IXX),
-      BGEZ       -> List(  Branch  ,  AReg   ,  BXXX   ,  DXXX   , BrGE      ,  PathALU   , IRS , IXX , IXX),
-      BGTZ       -> List(  Branch  ,  AReg   ,  BXXX   ,  DXXX   , BrGT      ,  PathALU   , IRS , IXX , IXX),
-      BLEZ       -> List(  Branch  ,  AReg   ,  BXXX   ,  DXXX   , BrLE      ,  PathALU   , IRS , IXX , IXX),
-      BLTZ       -> List(  Branch  ,  AReg   ,  BXXX   ,  DXXX   , BrLT      ,  PathALU   , IRS , IXX , IXX),
-      BGEZAL     -> List(  Branch  ,  AReg   ,  BXXX   ,  DReg   , BrGEPC    ,  PathALU   , IRS , IXX , IRA),
-      BLTZAL     -> List(  Branch  ,  AReg   ,  BXXX   ,  DReg   , BrLTPC    ,  PathALU   , IRS , IXX , IRA),
+      BEQ        -> List(  Branch  ,  AReg   ,  BReg   ,  DXXX   , BrEQ      ,  PathALU   , IRS , IRT , IXX, IBr),
+      BNE        -> List(  Branch  ,  AReg   ,  BReg   ,  DXXX   , BrNE      ,  PathALU   , IRS , IRT , IXX, IBr),
+      BGEZ       -> List(  Branch  ,  AReg   ,  BXXX   ,  DXXX   , BrGE      ,  PathALU   , IRS , IXX , IXX, IBr),
+      BGTZ       -> List(  Branch  ,  AReg   ,  BXXX   ,  DXXX   , BrGT      ,  PathALU   , IRS , IXX , IXX, IBr),
+      BLEZ       -> List(  Branch  ,  AReg   ,  BXXX   ,  DXXX   , BrLE      ,  PathALU   , IRS , IXX , IXX, IBr),
+      BLTZ       -> List(  Branch  ,  AReg   ,  BXXX   ,  DXXX   , BrLT      ,  PathALU   , IRS , IXX , IXX, IBr),
+      BGEZAL     -> List(  Branch  ,  AReg   ,  BXXX   ,  DReg   , BrGEPC    ,  PathALU   , IRS , IXX , IRA, IBr),
+      BLTZAL     -> List(  Branch  ,  AReg   ,  BXXX   ,  DReg   , BrLTPC    ,  PathALU   , IRS , IXX , IRA, IBr),
            
-      J          -> List(  Jump    ,  AXXX   ,  BXXX   ,  DXXX   , ALU_XXX   ,  PathALU   , IXX , IXX , IXX),
-      JAL        -> List(  Jump    ,  AXXX   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IXX , IXX , IRA),
-      JR         -> List(  PCReg   ,  AXXX   ,  BReg   ,  DXXX   , ALU_XXX   ,  PathALU   , IXX , IRS , IXX),
-      JALR       -> List(  PCReg   ,  AXXX   ,  BReg   ,  DReg   , JPC       ,  PathALU   , IXX , IRS , IRA),
+      J          -> List(  Jump    ,  AXXX   ,  BXXX   ,  DXXX   , ALU_XXX   ,  PathALU   , IXX , IXX , IXX, IJ),
+      JAL        -> List(  Jump    ,  AXXX   ,  BXXX   ,  DReg   , JPC       ,  PathALU   , IXX , IXX , IRA, IJ),
+      JR         -> List(  PCReg   ,  AXXX   ,  BReg   ,  DXXX   , ALU_XXX   ,  PathALU   , IXX , IRS , IXX, IImm),
+      JALR       -> List(  PCReg   ,  AXXX   ,  BReg   ,  DReg   , JPC       ,  PathALU   , IXX , IRS , IRA, IImm),
            
-      MFHI       -> List(  PC4     ,  AHi    ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IXX , IXX , IRD),
-      MFLO       -> List(  PC4     ,  ALo    ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IXX , IXX , IRD),
-      MTHI       -> List(  PC4     ,  AReg   ,  BXXX   ,  DHi    , ALU_OR    ,  PathALU   , IRS , IXX , IXX),
-      MTLO       -> List(  PC4     ,  AReg   ,  BXXX   ,  DLo    , ALU_OR    ,  PathALU   , IRS , IXX , IXX),
+      MFHI       -> List(  PC4     ,  AHi    ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IXX , IXX , IRD, IImm),
+      MFLO       -> List(  PC4     ,  ALo    ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IXX , IXX , IRD, IImm),
+      MTHI       -> List(  PC4     ,  AReg   ,  BXXX   ,  DHi    , ALU_OR    ,  PathALU   , IRS , IXX , IXX, IImm),
+      MTLO       -> List(  PC4     ,  AReg   ,  BXXX   ,  DLo    , ALU_OR    ,  PathALU   , IRS , IXX , IXX, IImm),
            
-      BREAK      -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , FU_BREAK  ,  PathALU   , IXX , IXX , IXX),
-      SYSCALL    -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , FU_SYSCALL,  PathALU   , IXX , IXX , IXX),
+      BREAK      -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , FU_BREAK  ,  PathALU   , IXX , IXX , IXX, IImm),
+      SYSCALL    -> List(  PC4     ,  AXXX   ,  BXXX   ,  DReg   , FU_SYSCALL,  PathALU   , IXX , IXX , IXX, IImm),
            
-      LB         -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemByte   ,  PathLSU   , IXX , IRS , IRT),
-      LBU        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemByteU  ,  PathLSU   , IXX , IRS , IRT),
-      LH         -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemHalf   ,  PathLSU   , IXX , IRS , IRT),
-      LHU        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemHalfU  ,  PathLSU   , IXX , IRS , IRT),
-      LW         -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemWord   ,  PathLSU   , IXX , IRS , IRT),
-      SB         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemByte   ,  PathLSU   , IRT , IRS , IXX),
-      SH         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemHalf   ,  PathLSU   , IRT , IRS , IXX),
-      SW         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemWord   ,  PathLSU   , IRT , IRS , IXX),
+      LB         -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemByte   ,  PathLSU   , IXX , IRS , IRT, ISImm),
+      LBU        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemByteU  ,  PathLSU   , IXX , IRS , IRT, ISImm),
+      LH         -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemHalf   ,  PathLSU   , IXX , IRS , IRT, ISImm),
+      LHU        -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemHalfU  ,  PathLSU   , IXX , IRS , IRT, ISImm),
+      LW         -> List(  PC4     ,  AReg   ,  BImm   ,  DReg   , MemWord   ,  PathLSU   , IXX , IRS , IRT, ISImm),
+      SB         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemByte   ,  PathLSU   , IRT , IRS , IXX, ISImm),
+      SH         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemHalf   ,  PathLSU   , IRT , IRS , IXX, ISImm),
+      SW         -> List(  PC4     ,  AReg   ,  BImm   ,  DMem   , MemWord   ,  PathLSU   , IRT , IRS , IXX, ISImm),
            
-      ERET       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DXXX   , ALU_ERET  ,  PathALU   , CP0_EPC_INDEX , IXX , IXX),
-      MFC0       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IRD , IXX , IRT),
-      MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_OR    ,  PathALU   , IRT , IXX , IRD),
+      ERET       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DXXX   , ALU_ERET  ,  PathALU   , CP0_EPC_INDEX , IXX , IXX, IImm),
+      MFC0       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DReg   , ALU_OR    ,  PathALU   , IRD , IXX , IRT, IImm),
+      MTC0       -> List(  PC4     ,  AReg   ,  BXXX   ,  DCP0   , ALU_OR    ,  PathALU   , IRT , IXX , IRD, IImm),
 
-      TLBP       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , TLBProbe  ,  PathLSU   , CP0_ENTRY_HI_INDEX , IXX , CP0_INDEX_INDEX),
-      TLBR       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , TLBRead   ,  PathLSU   , CP0_INDEX_INDEX    , IXX , CP0_ENTRY_HI_INDEX),
-      TLBWI      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX),
-      TLBWR      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX),
+      TLBP       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , TLBProbe  ,  PathLSU   , CP0_ENTRY_HI_INDEX , IXX , CP0_INDEX_INDEX, ISImm),
+      TLBR       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , TLBRead   ,  PathLSU   , CP0_INDEX_INDEX    , IXX , CP0_ENTRY_HI_INDEX, ISImm),
+      TLBWI      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX, ISImm),
+      TLBWR      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX, ISImm),
   ))
 
   io.dec.next_pc       := control_signal(0)
@@ -175,6 +189,8 @@ val control_signal = ListLookup(io.inst,
   io.dec.rs1           := control_signal(6)
   io.dec.rs2           := control_signal(7)
   io.dec.rd            := control_signal(8)
+
+  io.imm               := control_signal(9)
 }
 
 // Construct an NOP instruction
