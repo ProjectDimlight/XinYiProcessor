@@ -47,3 +47,28 @@ object VecIndex {
     MuxLookupBi(idx, default, Seq.tabulate(len)(i => (i.U, array(i))))
   }
 }
+
+object ListLookup1H {
+
+  def apply[T <: Data](addr: UInt, default: List[T], mapping: Array[(BitPat, List[T])]): List[T] = {
+    val hit  = mapping.map(m => (m._1 === addr))
+    val data = mapping.map(m => m._2)
+    val miss = !hit.foldLeft(false.B)((a, b) => (a | b))
+
+    val hit_d = miss +: hit
+    val data_d = default +: data
+
+    List(
+      Mux1H(hit_d, data_d.map(d => d(0))),
+      Mux1H(hit_d, data_d.map(d => d(1))),
+      Mux1H(hit_d, data_d.map(d => d(2))),
+      Mux1H(hit_d, data_d.map(d => d(3))),
+      Mux1H(hit_d, data_d.map(d => d(4))),
+      Mux1H(hit_d, data_d.map(d => d(5))),
+      Mux1H(hit_d, data_d.map(d => d(6))),
+      Mux1H(hit_d, data_d.map(d => d(7))),
+      Mux1H(hit_d, data_d.map(d => d(8))),
+      Mux1H(hit_d, data_d.map(d => d(9)))
+    )
+  }
+}

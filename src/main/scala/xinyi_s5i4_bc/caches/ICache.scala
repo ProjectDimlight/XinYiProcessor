@@ -14,11 +14,11 @@ import config.config._
 trait ICacheConfig {
   // basic attributes
   val SET_ASSOCIATIVE = 2
-  val BLOCK_INST_NUM  = 4
+  val BLOCK_INST_NUM  = 16
 
   // width
   val BLOCK_WIDTH  = BLOCK_INST_NUM * XLEN // each cache block has 8 instructions
-  val INDEX_WIDTH  = 8
+  val INDEX_WIDTH  = 6
   val OFFSET_WIDTH = log2Ceil(BLOCK_INST_NUM) + 2
   val TAG_WIDTH    = XLEN - INDEX_WIDTH - OFFSET_WIDTH
 
