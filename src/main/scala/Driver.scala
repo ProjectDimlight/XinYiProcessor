@@ -15,7 +15,7 @@ object Verilator extends App {
 
     (new ChiselStage).execute(
       default_args,
-      Seq(ChiselGeneratorAnnotation(() => new SimTop))
+      Seq(ChiselGeneratorAnnotation(() => new S5I4))
     )
   }
 
