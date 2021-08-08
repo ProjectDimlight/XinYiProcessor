@@ -21,7 +21,6 @@ object config {
 
   val PHY_ADDR_W = 32
   val LGC_ADDR_W = 32
-  val QUEUE_LEN  = 8
 
   val REG_ID_W = 5
 
@@ -55,6 +54,7 @@ object config {
 
   val PATH_NUM = Seq(0, ALU_PATH_NUM, BJU_PATH_NUM, LSU_PATH_NUM)
 
+  val QUEUE_LEN   = 8
   val QUEUE_LEN_W = 3
   val PATH_W      = 2
 

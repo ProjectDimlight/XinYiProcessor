@@ -135,18 +135,19 @@ class BranchCache extends Module {
   // In
   when (io.wr.flush) {
     record := VecInit(Seq.fill(BC_INDEX)(InitBranchCacheRecord()))
+    write_pos := BC_LINE_SIZE.U
   }
   .elsewhen (!io.out.overwrite & !io.wr.stall) {
     val index = write_pc(2 + BC_INDEX_W, 3)
 
     when (write_pos === 0.U) {
-      record(index_reg).valid   := false.B
-      record(index_reg).inst(0) := io.wr.inst
+      record(index).valid   := false.B
+      record(index).inst(0) := io.wr.inst
       write_pos := 1.U
     }
     when (write_pos === 1.U) {
-      record(index_reg).valid   := true.B
-      record(index_reg).inst(1) := io.wr.inst
+      record(index).valid   := true.B
+      record(index).inst(1) := io.wr.inst
       write_pos := 2.U
     }
   }
