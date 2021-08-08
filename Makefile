@@ -20,7 +20,7 @@ main:
 	$(SBT) $(SBT_FLAGS) "runMain Main"
 	cat $(DP_BRAM_V) >> $(MYCPU_V)
 	cat $(DP_LUTRAM_V) >> $(MYCPU_V)
-	cat $(SP_RAM_V) >> $(MYCPU_V)
+	cat $(SP_BRAM_V) >> $(MYCPU_V)
 
 # generate verilog code for verilator
 generate_verilator:
@@ -29,7 +29,7 @@ generate_verilator:
 	sed -i 's/\[64:0\]\s_div_res_T_2/\[63:0\] _div_res_T_2/g' $(MYCPU_V)
 	cat $(DP_BRAM_V) >> $(MYCPU_V)
 	cat $(DP_LUTRAM_V) >> $(MYCPU_V)
-	cat $(SP_RAM_V) >> $(MYCPU_V)
+	cat $(SP_BRAM_V) >> $(MYCPU_V)
 
 	
 verilator:

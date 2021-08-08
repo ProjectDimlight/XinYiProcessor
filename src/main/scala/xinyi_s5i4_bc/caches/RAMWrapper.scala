@@ -213,7 +213,7 @@ class SinglePortBRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1)
   setInline(
     "single_port_bram.v",
     s"""
-              |module single_port_ram # (
+              |module single_port_bram # (
               | parameter DATA_WIDTH = 32,
               |	parameter DEPTH      = 1024,
               |	parameter LATENCY    = 1
