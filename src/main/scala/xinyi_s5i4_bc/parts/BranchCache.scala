@@ -12,6 +12,7 @@ class BranchCacheRecord extends Bundle {
 class BranchCacheWriteIn extends Bundle {
   val flush = Input(Bool())
   val stall = Input(Bool())
+  val uncached = Input(Bool())
   val inst  = Input(Vec(FETCH_NUM, new Instruction))
 }
 
@@ -39,7 +40,7 @@ class BranchCache extends Module {
     val exception = Input(Bool())
     val branch_cached_en = Output(Bool())
     val branch_cached_pc = Output(UInt(LGC_ADDR_W.W))
-    val unaligned = Output(Bool())
+    val single_inst = Output(Bool())
   })
 
   def InitBranchCacheRecord() = {
@@ -123,7 +124,7 @@ class BranchCache extends Module {
   state_reg := Mux((state =/= BC_LINE_SIZE.U) & !io.stall_frontend, state + 1.U, state)
   //io.branch_cached_pc := Mux(hit, io.in.target + (BC_LINE_SIZE * FETCH_NUM * 4).U, io.in.target)
   io.branch_cached_pc := Mux(hit, io.in.target_bc, io.in.target)
-  io.unaligned := (state === 0.U) & una
+  io.single_inst := (state === 0.U) & una
 
   when (state =/= BC_LINE_SIZE.U) {
     // If hit, the queue will be overwritten with the contents of the BC
@@ -140,15 +141,19 @@ class BranchCache extends Module {
   .elsewhen (!io.out.overwrite & !io.wr.stall) {
     val index = write_pc(2 + BC_INDEX_W, 3)
 
-    when (write_pos === 0.U) {
-      record(index).valid   := false.B
-      record(index).inst(0) := io.wr.inst
-      write_pos := 1.U
-    }
-    when (write_pos === 1.U) {
-      record(index).valid   := true.B
-      record(index).inst(1) := io.wr.inst
-      write_pos := 2.U
+    when (io.wr.uncached) {
+      write_pos := BC_LINE_SIZE.U
+    }.otherwise{
+      when (write_pos === 0.U) {
+        record(index).valid   := false.B
+        record(index).inst(0) := io.wr.inst
+        write_pos := 1.U
+      }
+      when (write_pos === 1.U) {
+        record(index).valid   := true.B
+        record(index).inst(1) := io.wr.inst
+        write_pos := 2.U
+      }
     }
   }
 

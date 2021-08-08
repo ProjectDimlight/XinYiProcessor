@@ -19,6 +19,7 @@ class PCInterface extends Bundle {
 class PCStage extends Module {
   val io = IO(new Bundle {
     val pc = Input(UInt(LGC_ADDR_W.W))
+    val single_inst = Input(Bool())
     val branch = Input(new PCInterface)
     val exception = Input(new PCInterface)
     val stall = Input(Bool())
@@ -51,7 +52,7 @@ class PCStage extends Module {
   }
 
   io.next_pc := MuxCase(
-    (io.pc & 0xFFFFFFF8L.U) + 8.U,
+    io.pc + Mux(io.single_inst, 4.U, 8.U),
     Array(
       ex.enable -> ex.target,
       br.enable -> br.target
@@ -66,6 +67,8 @@ class IFIn extends Bundle {
 class IFOut extends Bundle {
   val pc = Output(UInt(LGC_ADDR_W.W))
   val inst = Output(UInt((XLEN * FETCH_NUM).W))
+  val uncached = Output(Bool())
+  val single_inst = Output(Bool())
 }
 
 // Load load_num instructions at a time
@@ -101,18 +104,21 @@ class IFStage extends Module with TLBConfig {
   io.tlb_miss := false.B
   io.tlb_addr := lgc_addr
 
+  val uncached = lgc_addr(31, 29) === "b101".U
+  val single_inst = lgc_addr(2) | uncached
+
   // ICache
   io.cache.rd := !io.full
   io.cache.addr := addr
-  // TODO connect to real flush signal
   io.cache.flush := false.B
-  //io.cache.uncached := lgc_addr(31, 29) === "b101".U
+  io.cache.uncached := uncached
 
-  io.cache.uncached := false.B
 
   // Output to IF-ID Regs
   io.out.pc := io.in.pc
   io.out.inst := io.cache.data
+  io.out.uncached := uncached
+  io.out.single_inst := single_inst
 }
 
 class IDIn extends Bundle {

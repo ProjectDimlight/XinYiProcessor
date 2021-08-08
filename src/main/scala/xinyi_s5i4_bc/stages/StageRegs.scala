@@ -35,20 +35,23 @@ class IFIDReg extends Module {
   val io = IO(new Bundle {
     val if_out = Flipped(new IFOut)
     val id_in  = Flipped(Vec(FETCH_NUM, new IDIn))
-    val unaligned = Output(Bool())
+    val single_inst = Output(Bool())
+    val uncached = Output(Bool())
 
     val stall = Input(Bool())
     val flush = Input(Bool())
   })
 
-  val pc = RegInit(0.U(LGC_ADDR_W.W))
+  val pc = RegInit(0.U((LGC_ADDR_W * FETCH_NUM).W))
   val inst = Wire(UInt((XLEN * FETCH_NUM).W))
   val inst_reg = RegInit(0.U((XLEN * FETCH_NUM).W))
   val flush_stall_reg = RegInit(false.B)
   val flush_stall_reg_reg = RegNext(flush_stall_reg)
   val stall_reg = RegNext(io.stall)
   val flush_reg = RegNext(io.flush)
-  val unaligned = RegInit(false.B)
+
+  val single_inst = RegInit(false.B)
+  val uncached = RegInit(false.B)
 
   inst := inst_reg
   when (io.flush) {
@@ -62,33 +65,34 @@ class IFIDReg extends Module {
 
   when (io.flush) {
     flush_stall_reg := io.stall
-    unaligned := false.B
+    single_inst := false.B
     pc := 0.U
   }
   .elsewhen (!io.stall) {
     flush_stall_reg := false.B
-    when (io.if_out.pc(2)) {
-      pc := Mux(flush_stall_reg, 0.U, Cat(io.if_out.pc(31, 3), 0.U(1.W), io.if_out.pc(1, 0)))
-      unaligned := true.B
-    }
-    .otherwise{
-      pc := Mux(flush_stall_reg, 0.U, io.if_out.pc)
-      unaligned := false.B
-    }
+
+    val apc  = Cat(io.if_out.pc(31, 3), 0.U(1.W), io.if_out.pc(1, 0))
+    val apc4 = Cat(io.if_out.pc(31, 3), 1.U(1.W), io.if_out.pc(1, 0))
+    pc := Mux(flush_stall_reg, 0.U, 
+      Mux(io.if_out.single_inst, Cat(io.if_out.pc, 0.U(LGC_ADDR_W.W)), Cat(apc4, apc)))
+    
+    single_inst := io.if_out.single_inst
+    uncached := io.if_out.uncached
   }
   
   for (i <- 0 until FETCH_NUM) {
-    io.id_in(i).pc := pc + (i * 4).U(XLEN.W)
+    io.id_in(i).pc := pc((i + 1) * XLEN - 1, i * XLEN)
     io.id_in(i).inst := inst((i + 1) * XLEN - 1, i * XLEN)
   }
-  io.unaligned := unaligned
+  io.single_inst := single_inst
+  io.uncached := uncached
 }
 
 // Issue Queue
 class IssueQueue extends Module {
   val io = IO(new Bundle {
     val in               = Input(Vec(FETCH_NUM, Flipped(new Instruction)))
-    val unaligned        = Input(Bool())
+    val single_inst        = Input(Bool())
     val bc               = Flipped(new BranchCacheOut)
     val actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
     val full             = Output(Bool())
@@ -122,13 +126,13 @@ class IssueQueue extends Module {
     tail := head_n
     io.full := false.B
   }
-  .elsewhen (in_size <= (QUEUE_LEN - FETCH_NUM).U) {
+  .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
     when (!io.stall) {
       val inst = Mux(io.bc.overwrite, io.bc.inst, io.in)
       for (i <- 0 until FETCH_NUM) {
-        queue(tail_b + i.U(QUEUE_LEN_W.W)) := inst(io.unaligned | i.U)
+        queue(tail_b + i.U(QUEUE_LEN_W.W)) := inst(io.single_inst | i.U)
       }
-      tail := Step(tail_b, Mux(io.unaligned, 1.U, ISSUE_NUM.U))
+      tail := Step(tail_b, Mux(io.single_inst, 1.U, ISSUE_NUM.U))
     }
     .otherwise {
       tail := tail_b

@@ -76,6 +76,7 @@ class DataPath extends Module with ALUConfig {
   // PC Stage
   pc_stage.io.pc      <> pc_if_reg.io.if_in.pc
   pc_stage.io.next_pc <> pc_if_reg.io.pc_out
+  pc_stage.io.single_inst <> if_stage.io.out.single_inst
 
   pc_stage.io.branch.enable    := bc.io.branch_cached_en
   pc_stage.io.branch.target    := bc.io.branch_cached_pc
@@ -106,7 +107,7 @@ class DataPath extends Module with ALUConfig {
   // Issue Queue
   issue_queue.io.in := id_stage.io.out
   issue_queue.io.bc := bc.io.out
-  issue_queue.io.unaligned := if_id_reg.io.unaligned | bc.io.unaligned
+  issue_queue.io.single_inst := if_id_reg.io.single_inst | bc.io.single_inst
   issue_queue.io.actual_issue_cnt := is_stage.io.actual_issue_cnt
   issue_queue.io.stall_backend := stall_backend
 
@@ -218,6 +219,7 @@ class DataPath extends Module with ALUConfig {
 
   bc.io.wr.flush := flush
   bc.io.wr.stall := stall_frontend
+  bc.io.wr.uncached := if_id_reg.io.uncached
   bc.io.wr.inst  := id_stage.io.out
 
   // FUs

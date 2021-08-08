@@ -95,7 +95,7 @@ class ICache extends Module with ICacheConfig {
 
 
   // ICache FSM state
-  val s_idle :: s_fetch :: s_axi_pending :: s_axi_wait :: s_fill :: s_valid :: Nil = Enum(6)
+  val s_idle :: s_axi_pending :: s_axi_wait :: s_fill :: s_valid :: Nil = Enum(5)
   val state = RegInit(s_idle)
 
   // hit_vec: indicate the vector of hit in 4-way ICache
@@ -127,9 +127,6 @@ class ICache extends Module with ICacheConfig {
   val next_state = Wire(UInt(3.W))
   next_state := state
 
-  val fill = Wire(Bool())
-  fill := false.B
-
   // select replace from selection vector
   replace := replace_vec(last_index).asBools()
   for (i <- 0 until SET_ASSOCIATIVE) {
@@ -142,12 +139,8 @@ class ICache extends Module with ICacheConfig {
   // buffer for received data from AXI
   val receive_buffer = RegInit(VecInit(Seq.fill(BLOCK_INST_NUM)(0.U(XLEN.W))))
 
-
-  val uncache_valid = Wire(Bool())
-  uncache_valid := false.B
-
   // not valid
-  io.cpu_io.stall_req := state =/= s_idle || next_state =/= s_idle
+  io.cpu_io.stall_req := next_state =/= s_idle
 
 
   //>>>>>>>>>>>>
@@ -169,7 +162,8 @@ class ICache extends Module with ICacheConfig {
 
   val inst_offset_index = last_offset(OFFSET_WIDTH - 1, 3)
   // select data
-  val uncached_data = Cat(0.U(XLEN.W), io.axi_io.rdata)
+  val uncached_inst = RegInit(0.U(XLEN.W))
+  val uncached_data = Cat(uncached_inst, 0.U(XLEN.W))
 
   val cached_data = (rd_block >> (inst_offset_index << 6)) (63, 0) // always read two instructions
 
@@ -194,6 +188,7 @@ class ICache extends Module with ICacheConfig {
           next_state := s_axi_pending
         }
         .elsewhen(miss) { // read request and cache miss
+          uncached := false.B
           next_state := s_axi_pending
         }
       }
@@ -212,9 +207,8 @@ class ICache extends Module with ICacheConfig {
       // still receiving
       when(io.axi_io.rvalid) {
         when(uncached) {
-          next_state := s_idle
-          uncache_valid := true.B
-          uncached := false.B
+          next_state := s_valid
+          uncached_inst := io.axi_io.rdata
         }.otherwise {
           receive_buffer(burst_count) := io.axi_io.rdata
           burst_count := burst_count + 1.U // increment burst count by 1
@@ -229,6 +223,10 @@ class ICache extends Module with ICacheConfig {
     }
 
     is (s_fill) {
+      next_state := s_valid
+    }
+
+    is (s_valid) {
       next_state := s_idle
     }
   }
@@ -238,38 +236,20 @@ class ICache extends Module with ICacheConfig {
   //>>>>>>>>>>>>>
   //  AXI LOGIC
   //<<<<<<<<<<<<<
+  
+  // don't care
+  io.axi_io := DontCare
+
   io.axi_io.arvalid := state === s_axi_pending
 
   // calculated
-  io.axi_io.arlen := (BLOCK_INST_NUM - 1).U
+  io.axi_io.arlen := Mux(io.cpu_io.uncached, 0.U, (BLOCK_INST_NUM - 1).U)
   io.axi_io.arsize := 2.U // 4 bytes per burst
-  io.axi_io.arburst := 1.U // INCR mode
+  io.axi_io.arburst := Mux(io.cpu_io.uncached, 0.U, 1.U) // INCR mode
   io.axi_io.rready := state === s_axi_wait
-  io.axi_io.araddr := Cat(io_addr.tag, io_addr.index, 0.U(OFFSET_WIDTH.W))
-
-  // zeros
-  io.axi_io.arid := 0.U
-  io.axi_io.arprot := 0.U
-  io.axi_io.arcache := 0.U
-  io.axi_io.arlock := 0.U
-
-  io.axi_io.awid := 0.U
-  io.axi_io.awlen := 0.U
-  io.axi_io.awaddr := 0.U
-  io.axi_io.awlock := 0.U
-  io.axi_io.awvalid := 0.U
-  io.axi_io.awsize := 0.U
-  io.axi_io.awcache := 0.U
-  io.axi_io.awburst := 0.U
-  io.axi_io.awprot := 0.U
-
-  io.axi_io.wid := 0.U
-  io.axi_io.wvalid := 0.U
-  io.axi_io.wstrb := 0.U
-  io.axi_io.wlast := 0.U
-  io.axi_io.wdata := 0.U
-
-  io.axi_io.bready := 0.U
+  io.axi_io.araddr := Mux(io.cpu_io.uncached, io_addr.asUInt(),
+    Cat(io_addr.tag, io_addr.index, 0.U(OFFSET_WIDTH.W))
+  )
 
 
 
