@@ -288,8 +288,7 @@ class ICache extends Module with ICacheConfig {
 
   // generate tag bram
   def CreateTagValidLUTRAM(i: Int) = {
-    var tag_valid_bram = Module(new DualPortLUTRAM(DATA_WIDTH = (new ICacheTagValid).getWidth,
-      LATENCY = 0, DEPTH = GROUP_NUM))
+    var tag_valid_bram = Module(new DualPortLUTRAM(DATA_WIDTH = (new ICacheTagValid).getWidth, DEPTH = GROUP_NUM))
 
     tag_valid_bram.io.clk := clock
     tag_valid_bram.io.rst := reset

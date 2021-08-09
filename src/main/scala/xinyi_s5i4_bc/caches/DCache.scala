@@ -650,8 +650,7 @@ class DCache extends Module with DCacheConfig {
           Module(
             new SinglePortBRAM(
               DATA_WIDTH = storage_width,
-              DEPTH = SET_NUM,
-              LATENCY = 1
+              DEPTH = SET_NUM
             )
           )
         )
@@ -708,8 +707,7 @@ class DCache extends Module with DCacheConfig {
           Module(
             new DualPortLUTRAM(
               DATA_WIDTH = META_WIDTH,
-              DEPTH = SET_NUM,
-              LATENCY = 1
+              DEPTH = SET_NUM
             )
           )
         )
@@ -717,8 +715,7 @@ class DCache extends Module with DCacheConfig {
           Module(
             new DualPortBRAM(
               DATA_WIDTH = LINE_WIDTH,
-              DEPTH = SET_NUM,
-              LATENCY = 1
+              DEPTH = SET_NUM
             )
           )
         )

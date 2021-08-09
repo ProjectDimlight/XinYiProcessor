@@ -6,23 +6,21 @@ import chisel3.util._
 import config.config._
 
 // wrapper class for dual_port_ram
-class DualPortBRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1)
-  extends BlackBox(
-    Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH, "LATENCY" -> LATENCY)
-  )
-    with HasBlackBoxInline {
+class DualPortBRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
+  Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH)
+) with HasBlackBoxInline {
 
   override val desiredName = "dual_port_bram"
 
   val io = IO(new Bundle {
-    val clk = Input(Clock())
-    val rst = Input(Reset())
-    val wea = Input(Bool())
-    val web = Input(Bool())
+    val clk   = Input(Clock())
+    val rst   = Input(Reset())
+    val wea   = Input(Bool())
+    val web   = Input(Bool())
     val addra = Input(UInt(log2Ceil(DEPTH).W))
     val addrb = Input(UInt(log2Ceil(DEPTH).W))
-    val dina = Input(UInt(DATA_WIDTH.W))
-    val dinb = Input(UInt(DATA_WIDTH.W))
+    val dina  = Input(UInt(DATA_WIDTH.W))
+    val dinb  = Input(UInt(DATA_WIDTH.W))
     val douta = Output(UInt(DATA_WIDTH.W))
     val doutb = Output(UInt(DATA_WIDTH.W))
   })
@@ -109,24 +107,19 @@ class DualPortBRAM(DATA_WIDTH: Int = XLEN, DEPTH: Int = 1024, LATENCY: Int = 1)
 }
 
 // wrapper class for dual_port_lutram
-class DualPortLUTRAM(
-                      DATA_WIDTH: Int = XLEN,
-                      DEPTH: Int = 1024,
-                      LATENCY: Int = 1
-                    ) extends BlackBox(
-  Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH, "LATENCY" -> LATENCY)
-)
-  with HasBlackBoxInline {
+class DualPortLUTRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
+  Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH)
+) with HasBlackBoxInline {
 
   override val desiredName = "dual_port_lutram"
 
   val io = IO(new Bundle {
-    val clk = Input(Clock())
-    val rst = Input(Reset())
-    val wea = Input(Bool())
+    val clk   = Input(Clock())
+    val rst   = Input(Reset())
+    val wea   = Input(Bool())
     val addra = Input(UInt(log2Ceil(DEPTH).W))
     val addrb = Input(UInt(log2Ceil(DEPTH).W))
-    val dina = Input(UInt(DATA_WIDTH.W))
+    val dina  = Input(UInt(DATA_WIDTH.W))
     val douta = Output(UInt(DATA_WIDTH.W))
     val doutb = Output(UInt(DATA_WIDTH.W))
   })
@@ -137,7 +130,7 @@ class DualPortLUTRAM(
        |module dual_port_lutram #(
        |	parameter DATA_WIDTH = 32,
        |	parameter DEPTH      = 1024,
-       |	parameter LATENCY    = 1,
+       |	parameter LATENCY    = 0,
        |	parameter LATENCY_A  = LATENCY,
        |	parameter LATENCY_B  = LATENCY
        |) (
@@ -194,20 +187,18 @@ class DualPortLUTRAM(
 }
 
 // wrapper class for single_port_ram
-class SinglePortBRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1)
-  extends BlackBox(
-    Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH, "LATENCY" -> LATENCY)
-  )
-    with HasBlackBoxInline {
+class SinglePortBRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
+  Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH)
+) with HasBlackBoxInline {
 
   override val desiredName = "single_port_bram"
 
-  val io = IO(new Bundle{
-    val clk = Input(Clock())
-    val rst = Input(Reset())
-    val we  = Input(Bool())
+  val io = IO(new Bundle {
+    val clk  = Input(Clock())
+    val rst  = Input(Reset())
+    val we   = Input(Bool())
     val addr = Input(UInt(log2Ceil(DEPTH).W))
-    val din = Input(UInt(DATA_WIDTH.W))
+    val din  = Input(UInt(DATA_WIDTH.W))
     val dout = Output(UInt(DATA_WIDTH.W))
   })
 
