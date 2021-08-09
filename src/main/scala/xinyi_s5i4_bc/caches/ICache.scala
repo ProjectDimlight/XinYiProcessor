@@ -183,12 +183,8 @@ class ICache extends Module with ICacheConfig {
         last_index := io_addr.index
         last_tag := io_addr.tag
         last_offset := io_addr.inst_offset
-        when (io.cpu_io.uncached) {
-          uncached := true.B
-          next_state := s_axi_pending
-        }
-        .elsewhen(miss) { // read request and cache miss
-          uncached := false.B
+        uncached := io.cpu_io.uncached
+        when (io.cpu_io.uncached | miss) {
           next_state := s_axi_pending
         }
       }
