@@ -5,7 +5,7 @@ import xinyi_s5i4_bc.fu._
 import xinyi_s5i4_bc.caches._
 
 object Verilator extends App {
-  DIV_IP_CORE = false
+  VERILATOR = true
   Main.prompt("mycpu_top (for verilator test)")
   Main.Gen()
 }

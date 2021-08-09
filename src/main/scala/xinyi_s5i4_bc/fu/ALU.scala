@@ -83,7 +83,7 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
   val div_res  = Wire(UInt((2 * XLEN).W))
   val divu_res = Wire(UInt((2 * XLEN).W))
 
-  if (DIV_IP_CORE) {
+  if (!VERILATOR) {
     // instantiate div
     val div    = Module(new DIV)
     val is_div = io.in.fu_ctrl === ALU_DIV
