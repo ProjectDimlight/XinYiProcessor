@@ -12,7 +12,7 @@ MYCPU_DIR 		?= src/main/verilog/mycpu
 MYCPU_V			?= $(MYCPU_DIR)/mycpu_top.v
 DP_BRAM_V		?= $(MYCPU_DIR)/dual_port_bram.v
 DP_LUTRAM_V		?= $(MYCPU_DIR)/dual_port_lutram.v
-SP_RAM_V		?= $(MYCPU_DIR)/single_port_ram.v
+SP_BRAM_V		?= $(MYCPU_DIR)/single_port_bram.v
 
 
 .PHONY: main no_ip_div verilator checkstyle clean
@@ -22,20 +22,17 @@ main:
 	$(SBT) $(SBT_FLAGS) "runMain Main"
 	cat $(DP_BRAM_V) >> $(MYCPU_V)
 	cat $(DP_LUTRAM_V) >> $(MYCPU_V)
-	cat $(SP_RAM_V) >> $(MYCPU_V)
+	cat $(SP_BRAM_V) >> $(MYCPU_V)
 
 # generate verilog code for verilator
-no_ip_div:
+verilator:
 	$(SBT) $(SBT_FLAGS) "runMain Verilator"
 	sed -i 's/\[32:0\]\sdiv_res_hi/\[31:0\] div_res_hi/g' $(MYCPU_V)
 	sed -i 's/\[64:0\]\s_div_res_T_2/\[63:0\] _div_res_T_2/g' $(MYCPU_V)
-	cat $(DP_BRAM_V) >> $(MYCPU_V)
-	cat $(DP_LUTRAM_V) >> $(MYCPU_V)
-	cat $(SP_RAM_V) >> $(MYCPU_V)
 
 	
-verilator:
-	$(VERILATOR) $(VERILATOR_FLAGS) $(MYCPU_V) $(AXI_V) 
+# verilator:
+# 	$(VERILATOR) $(VERILATOR_FLAGS) $(MYCPU_V) $(AXI_V)
 
 
 checkstyle:

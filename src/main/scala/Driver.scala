@@ -1,13 +1,30 @@
 import chisel3.stage.{ChiselGeneratorAnnotation, ChiselStage}
-import xinyi_s5i4_bc._
 import config.config._
-import xinyi_s5i4_bc.fu._
+import utils.SimAXI
+import xinyi_s5i4_bc._
 import xinyi_s5i4_bc.caches._
 
 object Verilator extends App {
-  DIV_IP_CORE = false
+  VERILATOR = true
   Main.prompt("mycpu_top (for verilator test)")
   Main.Gen()
+}
+
+object SimAXITest extends App {
+  VERILATOR = true
+  Main.prompt("SimAXI")
+
+
+  def Gen(): Unit = {
+    val default_args = Array("-X", "verilog", "-td", "src/main/verilog/simaxi")
+
+    (new ChiselStage).execute(
+      default_args,
+      Seq(ChiselGeneratorAnnotation(() => new SimAXI))
+    )
+  }
+
+  Gen()
 }
 
 

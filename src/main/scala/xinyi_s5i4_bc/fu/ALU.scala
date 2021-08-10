@@ -77,13 +77,13 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
   val mulu_ab_reg = RegNext(mulu_ab)
   val mul_ab_reg  = RegNext(mul_ab)
   val mul_valid_reg = RegInit(false.B)
-  
+
   mul_valid_reg := Mux(mul_valid_reg, false.B, is_mul)
 
   val div_res  = Wire(UInt((2 * XLEN).W))
   val divu_res = Wire(UInt((2 * XLEN).W))
 
-  if (DIV_IP_CORE) {
+  if (!VERILATOR) {
     // instantiate div
     val div    = Module(new DIV)
     val is_div = io.in.fu_ctrl === ALU_DIV
@@ -107,14 +107,14 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
     val divu    = Module(new DIVU)
     val is_divu = io.in.fu_ctrl === ALU_DIVU
     val is_divu_last = RegInit(false.B)
-    
+
     when (is_divu & divu.io.s_axis_dividend_tready) {
       is_divu_last := true.B
     }
     when (divu.io.m_axis_dout_tvalid) {
       is_divu_last := false.B
     }
-    
+
 
     divu.io.aclk := clock
     divu.io.s_axis_dividend_tvalid := is_divu & !is_divu_last
@@ -124,7 +124,7 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
     divu_res := divu.io.m_axis_dout_tdata
 
     // ready
-    io.out.ready := 
+    io.out.ready :=
       (!(is_divu || is_div) || (divu.io.m_axis_dout_tvalid) || (div.io.m_axis_dout_tvalid)) &&
       (!is_mul || mul_valid_reg)
   } else {
@@ -136,7 +136,7 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
 
     div_res := Cat(sign_a / sign_b, sign_a % sign_b)
     divu_res := Cat(io.in.a / io.in.b, io.in.a % io.in.b)
-    io.out.ready := true.B
+    io.out.ready := !is_mul || mul_valid_reg
   }
 
   //>>>>>>>>>>>>>>>>
@@ -183,7 +183,7 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
       3.U -> mulu_ab_reg(2 * XLEN - 1, XLEN)
     )
   )
-  
+
   io.out.hi := hi
 
   val ov =
@@ -213,14 +213,14 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
       ov -> EXC_CODE_OV
     )
   )
-  io.out.exception := 
+  io.out.exception :=
     (io.in.pc(1, 0) =/= 0.U) |
     (io.in.fu_ctrl === FU_XXX) |
     (io.in.fu_ctrl === FU_SYSCALL) |
     (io.in.fu_ctrl === FU_BREAK) |
     (io.in.fu_ctrl === ALU_ERET) |
     ov
-  
+
   io.out.exc_meta := Mux(
     io.in.write_target === DCP0 &
     io.in.rd === CP0_CAUSE_INDEX,
