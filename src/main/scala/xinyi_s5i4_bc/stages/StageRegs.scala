@@ -21,12 +21,10 @@ class PCIFReg extends Module {
 
   val pc_init = (if (DEBUG) DEBUG_BOOT_ADDR else BOOT_ADDR).U(LGC_ADDR_W.W)
   val pc = RegInit(pc_init)
-  val stall = RegInit(false.B)
 
-  when((!io.stall)) {
+  when(!io.stall) {
     pc := io.pc_out
   }
-  stall := io.stall
 
   io.if_in.pc := pc
 }
@@ -74,7 +72,7 @@ class IFIDReg extends Module {
     val apc  = Cat(io.if_out.pc(31, 3), 0.U(1.W), io.if_out.pc(1, 0))
     val apc4 = Cat(io.if_out.pc(31, 3), 1.U(1.W), io.if_out.pc(1, 0))
     pc := Mux(flush_stall_reg, 0.U, 
-      Mux(io.if_out.single_inst, Cat(io.if_out.pc, 0.U(LGC_ADDR_W.W)), Cat(apc4, apc)))
+      Mux(io.if_out.uncached, Cat(io.if_out.pc, 0.U(LGC_ADDR_W.W)), Cat(apc4, apc)))
     
     single_inst := io.if_out.single_inst
     uncached := io.if_out.uncached
@@ -92,7 +90,7 @@ class IFIDReg extends Module {
 class IssueQueue extends Module {
   val io = IO(new Bundle {
     val in               = Input(Vec(FETCH_NUM, Flipped(new Instruction)))
-    val single_inst        = Input(Bool())
+    val single_inst      = Input(Bool())
     val bc               = Flipped(new BranchCacheOut)
     val actual_issue_cnt = Input(UInt(ISSUE_NUM_W.W))
     val full             = Output(Bool())
@@ -127,7 +125,7 @@ class IssueQueue extends Module {
     io.full := false.B
   }
   .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
-    when (!io.stall) {
+    when (!io.stall & !io.bc.nop) {
       val inst = Mux(io.bc.overwrite, io.bc.inst, io.in)
       for (i <- 0 until FETCH_NUM) {
         queue(tail_b + i.U(QUEUE_LEN_W.W)) := inst(io.single_inst | i.U)

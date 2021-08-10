@@ -27,6 +27,7 @@ class BranchCacheOut extends Bundle {
   val inst = Output(Vec(FETCH_NUM, new Instruction))
   val overwrite = Output(new Bool)
   val flush = Output(new Bool)
+  val nop = Output(new Bool)
   val keep_delay_slot = Output(new Bool)
 }
 
@@ -72,6 +73,7 @@ class BranchCache extends Module {
   // Default
   io.out.overwrite := false.B
   io.out.flush := false.B
+  io.out.nop := false.B
   io.out.keep_delay_slot := false.B
   io.branch_cached_en := false.B
 
@@ -130,8 +132,9 @@ class BranchCache extends Module {
     // If hit, the queue will be overwritten with the contents of the BC
     // If miss, it will be filled with NOPBubbles, by default
     io.out.overwrite := true.B
+    io.out.nop       := !hit
   }
-  io.out.inst      := Mux(hit, row.inst(state), VecInit(Seq.fill(FETCH_NUM)(NOPBubble())))
+  io.out.inst      := row.inst(state)
 
   // In
   when (io.wr.flush) {

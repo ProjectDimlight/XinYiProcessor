@@ -90,21 +90,21 @@ class IFStage extends Module with TLBConfig {
   // TLB
   val lgc_addr = io.in.pc
   io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W)
-  
+  val tlb_en = lgc_addr(31, 30) =/= 2.U
+
   val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
   
   val addr = Mux(
-    lgc_addr(31, 30) === 2.U,
-    lgc_addr & 0x1FFFFFFF.U,
-    //Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
-    lgc_addr
+    tlb_en,
+    //lgc_addr,
+    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0)),
+    lgc_addr & 0x1FFFFFFF.U
   )
 
-  //io.tlb_miss := (lgc_addr(31, 30) =/= 2.U) & io.tlb.miss
-  io.tlb_miss := false.B
+  io.tlb_miss := tlb_en & io.tlb.miss
   io.tlb_addr := lgc_addr
 
-  val uncached = lgc_addr(31, 29) === "b101".U
+  val uncached = lgc_addr(31, 29) === "b101".U | (tlb_en & !item.c(0))
   val single_inst = lgc_addr(2) | uncached
 
   // ICache
