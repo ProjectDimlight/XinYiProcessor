@@ -25,17 +25,14 @@ main:
 	cat $(SP_BRAM_V) >> $(MYCPU_V)
 
 # generate verilog code for verilator
-no_ip_div:
+verilator:
 	$(SBT) $(SBT_FLAGS) "runMain Verilator"
 	sed -i 's/\[32:0\]\sdiv_res_hi/\[31:0\] div_res_hi/g' $(MYCPU_V)
 	sed -i 's/\[64:0\]\s_div_res_T_2/\[63:0\] _div_res_T_2/g' $(MYCPU_V)
-	cat $(DP_BRAM_V) >> $(MYCPU_V)
-	cat $(DP_LUTRAM_V) >> $(MYCPU_V)
-	cat $(SP_BRAM_V) >> $(MYCPU_V)
 
 	
-verilator:
-	$(VERILATOR) $(VERILATOR_FLAGS) $(MYCPU_V) $(AXI_V) 
+# verilator:
+# 	$(VERILATOR) $(VERILATOR_FLAGS) $(MYCPU_V) $(AXI_V)
 
 
 checkstyle:

@@ -1,29 +1,48 @@
 package xinyi_s5i4_bc.caches
 
-
 import chisel3._
 import chisel3.util._
 import config.config._
+import utils._
+
+
+class DualPortBRAMIO(DATA_WIDTH: Int, DEPTH: Int) extends Bundle {
+  val clk   = Input(Clock())
+  val rst   = Input(Reset())
+  val wea   = Input(Bool())
+  val web   = Input(Bool())
+  val addra = Input(UInt(log2Ceil(DEPTH).W))
+  val addrb = Input(UInt(log2Ceil(DEPTH).W))
+  val dina  = Input(UInt(DATA_WIDTH.W))
+  val dinb  = Input(UInt(DATA_WIDTH.W))
+  val douta = Output(UInt(DATA_WIDTH.W))
+  val doutb = Output(UInt(DATA_WIDTH.W))
+
+  override def cloneType = (new DualPortBRAMIO(DATA_WIDTH, DEPTH)).asInstanceOf[this.type]
+}
+
+
+class DualPortBRAM(DATA_WIDTH: Int, DEPTH: Int) extends Module {
+  val io = IO(new DualPortBRAMIO(DATA_WIDTH, DEPTH))
+
+  if (VERILATOR) {
+    val sim_dual_port_bram = Module(new SimDualPortBRAM(DATA_WIDTH, DEPTH))
+    sim_dual_port_bram.io <> io
+  } else {
+    val xpm_dual_port_bram = Module(new XPMDualPortBRAM(DATA_WIDTH, DEPTH))
+    xpm_dual_port_bram.io <> io
+  }
+}
+
 
 // wrapper class for dual_port_ram
-class DualPortBRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
+class XPMDualPortBRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
   Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH)
 ) with HasBlackBoxInline {
 
   override val desiredName = "dual_port_bram"
 
-  val io = IO(new Bundle {
-    val clk   = Input(Clock())
-    val rst   = Input(Reset())
-    val wea   = Input(Bool())
-    val web   = Input(Bool())
-    val addra = Input(UInt(log2Ceil(DEPTH).W))
-    val addrb = Input(UInt(log2Ceil(DEPTH).W))
-    val dina  = Input(UInt(DATA_WIDTH.W))
-    val dinb  = Input(UInt(DATA_WIDTH.W))
-    val douta = Output(UInt(DATA_WIDTH.W))
-    val doutb = Output(UInt(DATA_WIDTH.W))
-  })
+  val io = IO(new DualPortBRAMIO(DATA_WIDTH, DEPTH))
 
   setInline(
     "dual_port_bram.v",
@@ -106,23 +125,41 @@ class DualPortBRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
   )
 }
 
+///////////////////////////////////////////////////////////////////////
+
+class DualPortLUTRAMIO(DATA_WIDTH: Int, DEPTH: Int) extends Bundle {
+  val clk   = Input(Clock())
+  val rst   = Input(Reset())
+  val wea   = Input(Bool())
+  val addra = Input(UInt(log2Ceil(DEPTH).W))
+  val addrb = Input(UInt(log2Ceil(DEPTH).W))
+  val dina  = Input(UInt(DATA_WIDTH.W))
+  val douta = Output(UInt(DATA_WIDTH.W))
+  val doutb = Output(UInt(DATA_WIDTH.W))
+
+  override def cloneType = (new DualPortLUTRAMIO(DATA_WIDTH, DEPTH)).asInstanceOf[this.type]
+}
+
+class DualPortLUTRAM(DATA_WIDTH: Int, DEPTH: Int) extends Module {
+  val io = IO(new DualPortLUTRAMIO(DATA_WIDTH, DEPTH))
+
+  if (VERILATOR) {
+    val sim_dual_port_lutram = Module(new SimDualPortLUTRAM(DATA_WIDTH, DEPTH))
+    sim_dual_port_lutram.io <> io
+  } else {
+    val xpm_dual_port_lutram = Module(new XPMDualPortLUTRAM(DATA_WIDTH, DEPTH))
+    xpm_dual_port_lutram.io <> io
+  }
+}
+
 // wrapper class for dual_port_lutram
-class DualPortLUTRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
+class XPMDualPortLUTRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
   Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH)
 ) with HasBlackBoxInline {
 
   override val desiredName = "dual_port_lutram"
 
-  val io = IO(new Bundle {
-    val clk   = Input(Clock())
-    val rst   = Input(Reset())
-    val wea   = Input(Bool())
-    val addra = Input(UInt(log2Ceil(DEPTH).W))
-    val addrb = Input(UInt(log2Ceil(DEPTH).W))
-    val dina  = Input(UInt(DATA_WIDTH.W))
-    val douta = Output(UInt(DATA_WIDTH.W))
-    val doutb = Output(UInt(DATA_WIDTH.W))
-  })
+  val io = IO(new DualPortLUTRAMIO(DATA_WIDTH, DEPTH))
 
   setInline(
     "dual_port_lutram.v",
@@ -186,21 +223,40 @@ class DualPortLUTRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
   )
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+class SinglePortBRAMIO(DATA_WIDTH: Int, DEPTH: Int) extends Bundle {
+  val clk  = Input(Clock())
+  val rst  = Input(Reset())
+  val we   = Input(Bool())
+  val addr = Input(UInt(log2Ceil(DEPTH).W))
+  val din  = Input(UInt(DATA_WIDTH.W))
+  val dout = Output(UInt(DATA_WIDTH.W))
+
+  override def cloneType = (new SinglePortBRAMIO(DATA_WIDTH, DEPTH)).asInstanceOf[this.type]
+}
+
+class SinglePortBRAM(DATA_WIDTH: Int, DEPTH: Int) extends Module {
+  val io = IO(new SinglePortBRAMIO(DATA_WIDTH, DEPTH))
+
+  if (VERILATOR) {
+    val sim_single_port_bram = Module(new SimSinglePortBRAM(DATA_WIDTH, DEPTH))
+    sim_single_port_bram.io <> io
+  } else {
+    val xpm_single_port_bram = Module(new XPMSinglePortBRAM(DATA_WIDTH, DEPTH))
+    xpm_single_port_bram.io <> io
+  }
+}
+
+
 // wrapper class for single_port_ram
-class SinglePortBRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
+class XPMSinglePortBRAM(DATA_WIDTH: Int, DEPTH: Int) extends BlackBox(
   Map("DATA_WIDTH" -> DATA_WIDTH, "DEPTH" -> DEPTH)
 ) with HasBlackBoxInline {
 
   override val desiredName = "single_port_bram"
 
-  val io = IO(new Bundle {
-    val clk  = Input(Clock())
-    val rst  = Input(Reset())
-    val we   = Input(Bool())
-    val addr = Input(UInt(log2Ceil(DEPTH).W))
-    val din  = Input(UInt(DATA_WIDTH.W))
-    val dout = Output(UInt(DATA_WIDTH.W))
-  })
+  val io = IO(new SinglePortBRAMIO(DATA_WIDTH, DEPTH))
 
   setInline(
     "single_port_bram.v",

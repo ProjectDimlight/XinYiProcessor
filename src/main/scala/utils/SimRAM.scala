@@ -2,20 +2,10 @@ package utils
 
 import chisel3._
 import chisel3.util._
+import xinyi_s5i4_bc.caches._
 
 class SimDualPortBRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1) extends Module {
-  val io = IO(new Bundle {
-    val clk   = Input(Clock())
-    val rst   = Input(Reset())
-    val wea   = Input(Bool())
-    val web   = Input(Bool())
-    val addra = Input(UInt(log2Ceil(DEPTH).W))
-    val addrb = Input(UInt(log2Ceil(DEPTH).W))
-    val dina  = Input(UInt(DATA_WIDTH.W))
-    val dinb  = Input(UInt(DATA_WIDTH.W))
-    val douta = Output(UInt(DATA_WIDTH.W))
-    val doutb = Output(UInt(DATA_WIDTH.W))
-  })
+  val io = IO(new DualPortBRAMIO(DATA_WIDTH, DEPTH))
 
   val mem = RegInit(VecInit(Seq.fill(DEPTH)(0.U(DATA_WIDTH.W))))
 
@@ -32,16 +22,7 @@ class SimDualPortBRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1) extends Mod
 
 
 class SimDualPortLUTRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1) extends Module {
-  val io  = IO(new Bundle {
-    val clk   = Input(Clock())
-    val rst   = Input(Reset())
-    val wea   = Input(Bool())
-    val addra = Input(UInt(log2Ceil(DEPTH).W))
-    val addrb = Input(UInt(log2Ceil(DEPTH).W))
-    val dina  = Input(UInt(DATA_WIDTH.W))
-    val douta = Output(UInt(DATA_WIDTH.W))
-    val doutb = Output(UInt(DATA_WIDTH.W))
-  })
+  val io  = IO(new DualPortLUTRAMIO(DATA_WIDTH, DEPTH))
   val mem = RegInit(VecInit(Seq.fill(DEPTH)(0.U(DATA_WIDTH.W))))
 
   io.douta := (mem(io.addra))
@@ -54,14 +35,7 @@ class SimDualPortLUTRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1) extends M
 
 
 class SimSinglePortBRAM(DATA_WIDTH: Int, DEPTH: Int, LATENCY: Int = 1) extends Module {
-  val io = IO(new Bundle {
-    val clk  = Input(Clock())
-    val rst  = Input(Reset())
-    val we   = Input(Bool())
-    val addr = Input(UInt(log2Ceil(DEPTH).W))
-    val din  = Input(UInt(DATA_WIDTH.W))
-    val dout = Output(UInt(DATA_WIDTH.W))
-  })
+  val io = IO(new SinglePortBRAMIO(DATA_WIDTH, DEPTH))
 
   val mem = RegInit(VecInit(Seq.fill(DEPTH)(0.U(DATA_WIDTH.W))))
 

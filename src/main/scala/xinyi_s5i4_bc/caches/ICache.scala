@@ -267,7 +267,7 @@ class ICache extends Module with ICacheConfig {
 
   // generate data bram
   def CreateDataBRAM(i: Int) = {
-    var data_bram = Module(new DualPortBRAM(DATA_WIDTH = BLOCK_WIDTH, DEPTH = GROUP_NUM))
+    val data_bram = Module(new DualPortBRAM(DATA_WIDTH = BLOCK_WIDTH, DEPTH = GROUP_NUM))
 
     data_bram.io.clk := clock
     data_bram.io.rst := reset
@@ -280,6 +280,7 @@ class ICache extends Module with ICacheConfig {
     // port 2: read
     data_bram.io.web := false.B
     data_bram.io.addrb := io_addr.index
+    data_bram.io.dinb := DontCare
     rd_block_vec(i) := data_bram.io.doutb
 
     data_bram
@@ -288,7 +289,7 @@ class ICache extends Module with ICacheConfig {
 
   // generate tag bram
   def CreateTagValidLUTRAM(i: Int) = {
-    var tag_valid_bram = Module(new DualPortLUTRAM(DATA_WIDTH = (new ICacheTagValid).getWidth, DEPTH = GROUP_NUM))
+    val tag_valid_bram = Module(new DualPortLUTRAM(DATA_WIDTH = (new ICacheTagValid).getWidth, DEPTH = GROUP_NUM))
 
     tag_valid_bram.io.clk := clock
     tag_valid_bram.io.rst := reset
