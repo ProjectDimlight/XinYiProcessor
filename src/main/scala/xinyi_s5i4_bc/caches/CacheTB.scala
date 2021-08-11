@@ -52,6 +52,4 @@ class CacheTB extends Module {
 
   io.cpu <> cache.io.upper(0)
   io.last_stall <> cache.io.last_stall
-  cache.io.stall := false.B
-  cache.io.flush := false.B  
 }

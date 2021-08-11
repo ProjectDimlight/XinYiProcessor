@@ -220,9 +220,7 @@ class DataPath extends Module with ALUConfig {
 
   // FUs
   dcache.io.lower <> io.dcache_axi
-  dcache.io.flush <> flush
   dcache.io.last_stall <> is_fu_reg.io.stalled
-  dcache.io.stall <> stall_backend
 
   val exception_by_path = Wire(Vec(TOT_PATH_NUM, Bool()))
 

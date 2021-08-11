@@ -139,8 +139,7 @@ class DCacheIO extends Bundle with DCacheConfig {
   val lower = Vec(LSU_PATH_NUM, new AXIIO)
 
   val last_stall = Input(Bool())
-  val stall = Input(Bool())
-  val flush = Input(Bool())
+//  val flush = Input(Bool())
   // val stall_req = Output(Vec(LSU_PATH_NUM, Bool()))
 }
 
@@ -168,8 +167,7 @@ class DCachePathIO extends Bundle with DCacheConfig {
   val bram = Flipped(Vec(WAY_NUM, new PathBRAMIO))
 
   val last_stall = Input(Bool()) // 上一拍stall，意味着这一拍没有新的请求，以免重复发送读写请求
-  val stall = Input(Bool()) // 用来同步ytz的状态机，当前版本无效
-  val flush = Input(Bool()) // 流水线要求刷洗；dummy cache无效
+//  val flush = Input(Bool()) // 流水线要求刷洗；dummy cache无效
 }
 
 // define a base class to suppress deprecation warning
@@ -232,7 +230,7 @@ class DCachePath extends DCachePathBase {
   ).asUInt
   val hit_vec = (~invalid_vec) & tag_vec
   // val hit_index = PriorityEncoder(hit_vec)
-  val hit = hit_vec.orR && !current_request.uncached
+  val hit = hit_vec.orR() && !current_request.uncached
 
   // random replacement
   // val victim_index = if (WAY_NUM == 1) { 0.U }
@@ -631,8 +629,7 @@ class DCache extends Module with DCacheConfig {
     path(i).io.upper <> io.upper(i)
     path(i).io.lower <> io.lower(i)
     path(i).io.last_stall := io.last_stall
-    path(i).io.stall := io.stall
-    path(i).io.flush := io.flush
+//    path(i).io.flush := io.flush
   }
 
   // connect to RAM
@@ -697,7 +694,6 @@ class DCache extends Module with DCacheConfig {
         //   data(i).io <> DontCare
         //   data(i).io.clk := clock
         //   data(i).io.rst := reset
-        //   data(i).io.we := path(0).io.bram(i).data_we
         //   data(i).io.addr := path(0).io.bram(i).data_addr
         //   data(i).io.din := path(0).io.bram(i).data_din
         //   path(0).io.bram(i).data_dout := data(i).io.dout
