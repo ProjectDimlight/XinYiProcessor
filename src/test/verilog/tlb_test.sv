@@ -204,8 +204,8 @@ begin
     if(!resetn) begin
         debug_wb_err <= 1'b0;
     end else begin
-		judge(pipe_wb[0]);
-		judge(pipe_wb[1]);
+		//judge(pipe_wb[0]);
+		//judge(pipe_wb[1]);
 	end
 end
 
@@ -228,6 +228,7 @@ begin
             $display("[%t] Error(%d)!!! Occurred in number 8'd%02d Functional Test Point!",$time, err_count, confreg_num_reg[31:24]);
             $display("--------------------------------------------------------------");
             err_count <= err_count + 1'b1;
+            $finish;
         end
         else if(confreg_num_reg[31:24]!=confreg_num_reg_r[31:24]+1'b1)
         begin
@@ -236,6 +237,7 @@ begin
             $display("--------------------------------------------------------------");
             $display("==============================================================");
             err_count <= err_count + 1'b1;
+            $finish;
         end
         else
         begin

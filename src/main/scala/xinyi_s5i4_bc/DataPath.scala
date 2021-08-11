@@ -9,7 +9,7 @@ import xinyi_s5i4_bc.parts.ControlConst._
 import xinyi_s5i4_bc.parts._
 import xinyi_s5i4_bc.stages._
 
-class DataPath extends Module with ALUConfig {
+class DataPath extends Module with ALUConfig with LSUConfig {
   //val io = IO(new DataPathIO)
   val io = IO(new Bundle{
     val interrupt   = Input(Vec(6, Bool()))
@@ -177,7 +177,7 @@ class DataPath extends Module with ALUConfig {
     is_out(j).a             := inst_params(is_stage.io.path(j).order)(0)
     is_out(j).b             := inst_params(is_stage.io.path(j).order)(1)
     if (j >= ALU_PATH_NUM)
-      is_out(j).imm         := issue_queue.io.inst(is_stage.io.path(j).order).imm + is_out(j).b
+      is_out(j).imm         := Mux(is_stage.io.path(j).fu_ctrl === TLBProbe, is_out(j).a, issue_queue.io.inst(is_stage.io.path(j).order).imm + is_out(j).b)
     else
       is_out(j).imm         := issue_queue.io.inst(is_stage.io.path(j).order).imm
       // Precalculate add or sub
@@ -291,6 +291,7 @@ class DataPath extends Module with ALUConfig {
   tlb.io.wen             := tlbw
   tlb.io.read .index     := cp0.io.write_tlb.index
   tlb.io.write.index     := cp0.io.write_tlb.index
+  tlb.io.write.mask      := cp0.io.write_tlb.mask
   tlb.io.write.entry_hi  := cp0.io.write_tlb.entry_hi
   tlb.io.write.entry_lo0 := cp0.io.write_tlb.entry_lo0
   tlb.io.write.entry_lo1 := cp0.io.write_tlb.entry_lo1
@@ -347,12 +348,14 @@ class DataPath extends Module with ALUConfig {
   // FU TLBR Reg
   tlb_read_reg.io.fu_tlbp      := tlbp
   tlb_read_reg.io.fu_wen       := tlbr
+  tlb_read_reg.io.fu_mask      := tlb.io.read.mask
   tlb_read_reg.io.fu_entry_hi  := tlb.io.read.entry_hi
   tlb_read_reg.io.fu_entry_lo0 := tlb.io.read.entry_lo0
   tlb_read_reg.io.fu_entry_lo1 := tlb.io.read.entry_lo1
 
   cp0.io.read_tlb_en        := tlb_read_reg.io.wb_wen
   cp0.io.tlb_probe_en       := tlb_read_reg.io.wb_tlbp
+  cp0.io.read_tlb.mask      := tlb_read_reg.io.wb_mask
   cp0.io.read_tlb.entry_hi  := tlb_read_reg.io.wb_entry_hi
   cp0.io.read_tlb.entry_lo0 := tlb_read_reg.io.wb_entry_lo0
   cp0.io.read_tlb.entry_lo1 := tlb_read_reg.io.wb_entry_lo1

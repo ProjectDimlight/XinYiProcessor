@@ -45,17 +45,18 @@ class LSU extends Module with LSUConfig with TLBConfig {
   io.out.is_delay_slot := io.in.is_delay_slot
 
   val lgc_addr = io.in.imm
-  io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W)
+  io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W + 1)
+  val tlb_en = lgc_addr(31, 30) =/= 2.U
 
   val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
   val addr = Mux(
-    lgc_addr(31, 30) === 2.U,
-    lgc_addr & 0x1FFFFFFF.U,
-    //Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0))
-    lgc_addr
+    tlb_en,
+    //lgc_addr,
+    Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0)),
+    lgc_addr & 0x1FFFFFFF.U
   )
-  //val tlb_miss = (lgc_addr(31, 30) =/= 2.U) & (io.tlb.miss | !item.v)
-  val tlb_miss = false.B
+  val tlb_miss = tlb_en & (io.tlb.miss | !item.v)
+  //val tlb_miss = false.B
 
   io.tlbw := io.in.fu_ctrl === TLBWrite
   io.tlbr := io.in.fu_ctrl === TLBRead
@@ -113,12 +114,16 @@ class LSU extends Module with LSUConfig with TLBConfig {
   )
 
   io.out.hi        := 0.U
-  io.out.data      := MuxLookupBi(
-    io.in.fu_ctrl(2, 1),
-    io.cache.dout,
-    Array(
-      0.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_byte( 7), 0xffffff.U(24.W) , 0.U(24.W)), o_byte),
-      1.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_half(15),   0xffff.U(16.W) , 0.U(16.W)), o_half)
+  io.out.data      := Mux(
+    io.in.fu_ctrl === TLBProbe,
+    Cat(io.tlb.miss, 0.U((XLEN - 1 - TLB_INDEX_W).W), io.tlb.index(TLB_INDEX_W-1, 0)),
+    MuxLookupBi(
+      io.in.fu_ctrl(2, 1),
+      io.cache.dout,
+      Array(
+        0.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_byte( 7), 0xffffff.U(24.W) , 0.U(24.W)), o_byte),
+        1.U -> Cat(Mux(!io.in.fu_ctrl(0) & o_half(15),   0xffff.U(16.W) , 0.U(16.W)), o_half)
+      )
     )
   )
   io.out.ready     := !io.cache.stall_req
@@ -140,7 +145,9 @@ class LSU extends Module with LSUConfig with TLBConfig {
   )
   io.out.exception := 
     (io.in.pc(1, 0) =/= 0.U) |
-    (io.in.fu_ctrl === FU_XXX) |
+    (io.in.fu_ctrl === FU_XXX) | 
+    (rd & tlb_miss) |
+    (wr & tlb_miss) |
     (rd & exception) |
     (wr & exception)
   io.out.exc_meta  := lgc_addr

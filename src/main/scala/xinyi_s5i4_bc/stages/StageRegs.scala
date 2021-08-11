@@ -347,11 +347,13 @@ class TLBReadReg extends Module {
   val io = IO(new Bundle{
     val fu_tlbp      = Input(Bool())
     val fu_wen       = Input(Bool())
+    val fu_mask      = Input(UInt(XLEN.W))
     val fu_entry_hi  = Input(UInt(XLEN.W))
     val fu_entry_lo0 = Input(UInt(XLEN.W))
     val fu_entry_lo1 = Input(UInt(XLEN.W))
     val wb_tlbp      = Output(Bool())
     val wb_wen       = Output(Bool())
+    val wb_mask      = Output(UInt(XLEN.W))
     val wb_entry_hi  = Output(UInt(XLEN.W))
     val wb_entry_lo0 = Output(UInt(XLEN.W))
     val wb_entry_lo1 = Output(UInt(XLEN.W))
@@ -359,6 +361,7 @@ class TLBReadReg extends Module {
 
   val reg_wen  = RegInit(false.B)
   val reg_tlbp = RegInit(false.B)
+  val reg_mask = RegNext(io.fu_mask)
   val reg_hi   = RegNext(io.fu_entry_hi)
   val reg_lo0  = RegNext(io.fu_entry_lo0)
   val reg_lo1  = RegNext(io.fu_entry_lo1)
@@ -368,6 +371,7 @@ class TLBReadReg extends Module {
 
   io.wb_wen       := reg_wen
   io.wb_tlbp      := reg_tlbp
+  io.wb_mask      := reg_mask
   io.wb_entry_hi  := reg_hi
   io.wb_entry_lo0 := reg_lo0
   io.wb_entry_lo1 := reg_lo1

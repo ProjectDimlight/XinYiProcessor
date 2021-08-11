@@ -16,6 +16,7 @@ trait CP0Config {
   val CP0_INDEX_INDEX     = 0.U(CP0_INDEX_WIDTH.W)
   val CP0_ENTRY_LO0_INDEX = 2.U(CP0_INDEX_WIDTH.W)
   val CP0_ENTRY_LO1_INDEX = 3.U(CP0_INDEX_WIDTH.W)
+  val CP0_PAGE_MASK_INDEX = 5.U(CP0_INDEX_WIDTH.W)
   val CP0_BADVADDR_INDEX  = 8.U(CP0_INDEX_WIDTH.W)
   val CP0_COUNT_INDEX     = 9.U(CP0_INDEX_WIDTH.W)
   val CP0_ENTRY_HI_INDEX  = 10.U(CP0_INDEX_WIDTH.W)
@@ -55,13 +56,14 @@ class ExceptionInfo extends Bundle {
 
 class CP0IndexBundle extends Bundle with TLBConfig {
   val P = Bool()
-  val IGNORE1 = UInt((XLEN - 1- TLB_INDEX_W).W)
+  val IGNORE1 = UInt((XLEN - 1 - TLB_INDEX_W).W)
   val Index = UInt(TLB_INDEX_W.W)
 }
 
 class CP0EntryLoBundle extends Bundle {
   val FILL = UInt(2.W)
-  val PFN  = UInt(24.W)
+  val IGNORE = UInt(4.W)
+  val PFN  = UInt(20.W)
   val C    = UInt(3.W)
   val D    = Bool()
   val V    = Bool()
@@ -74,6 +76,13 @@ class CP0EntryHiBundle extends Bundle {
   val EHINV = Bool()
   val ASIDX = UInt(2.W)
   val ASID  = UInt(8.W)
+}
+
+class CP0PageMaskBundle extends Bundle {
+  val IGNORE1 = UInt(3.W)
+  val MASK  = UInt(16.W)
+  val MASKX = UInt(2.W)
+  val IGNORE2 = UInt(11.W)
 }
 
 class CP0StatusBundle extends Bundle {
@@ -169,6 +178,13 @@ class CP0 extends Module with CP0Config with TLBConfig {
 
   val cp0_reg_entry_hi = RegInit(CP0EntryHiInit)
 
+  def CP0PageMaskInit: CP0PageMaskBundle = {
+    val initial_value = WireDefault(0.U.asTypeOf(new CP0PageMaskBundle))
+    initial_value
+  }
+
+  val cp0_reg_page_mask = RegInit(CP0PageMaskInit)
+
   def CP0CauseInit: CP0CauseBundle = {
     val initial_value = WireDefault(0.U.asTypeOf(new CP0CauseBundle))
     initial_value.IGNORE1 := 0.U(1.W)
@@ -238,6 +254,8 @@ class CP0 extends Module with CP0Config with TLBConfig {
         CP0_STATUS_INDEX -> cp0_reg_status.asUInt(),
         CP0_CAUSE_INDEX -> cp0_reg_cause.asUInt(),
         CP0_EPC_INDEX -> cp0_reg_epc,
+        CP0_INDEX_INDEX -> cp0_reg_index.asUInt(),
+        CP0_PAGE_MASK_INDEX -> cp0_reg_page_mask.asUInt()
       )
     )
   }
@@ -259,14 +277,16 @@ class CP0 extends Module with CP0Config with TLBConfig {
           }
         }
         is(CP0_ENTRY_LO0_INDEX) {
-          cp0_reg_entry_lo0.PFN := io.write(i).data(29, 6)
+          cp0_reg_entry_lo0.IGNORE := 0.U
+          cp0_reg_entry_lo0.PFN := io.write(i).data(25, 6)
           cp0_reg_entry_lo0.C := io.write(i).data(5, 3)
           cp0_reg_entry_lo0.D := io.write(i).data(2)
           cp0_reg_entry_lo0.V := io.write(i).data(1)
           cp0_reg_entry_lo0.G := io.write(i).data(0)
         }
         is(CP0_ENTRY_LO1_INDEX) {
-          cp0_reg_entry_lo1.PFN := io.write(i).data(29, 6)
+          cp0_reg_entry_lo1.IGNORE := 0.U
+          cp0_reg_entry_lo1.PFN := io.write(i).data(25, 6)
           cp0_reg_entry_lo1.C := io.write(i).data(5, 3)
           cp0_reg_entry_lo1.D := io.write(i).data(2)
           cp0_reg_entry_lo1.V := io.write(i).data(1)
@@ -277,10 +297,13 @@ class CP0 extends Module with CP0Config with TLBConfig {
         }
         is(CP0_ENTRY_HI_INDEX) {
           cp0_reg_entry_hi.VPN2 := io.write(i).data(31, 13)
-          cp0_reg_entry_hi.VPN2X := io.write(i).data(12, 11)
-          cp0_reg_entry_hi.EHINV := io.write(i).data(10)
-          cp0_reg_entry_hi.ASIDX := io.write(i).data(9, 8)
+          cp0_reg_entry_hi.VPN2X := 0.U //io.write(i).data(12, 11)
+          cp0_reg_entry_hi.EHINV := 0.U //io.write(i).data(10)
+          cp0_reg_entry_hi.ASIDX := 0.U //io.write(i).data(9, 8)
           cp0_reg_entry_hi.ASID := io.write(i).data(7, 0)
+        }
+        is(CP0_PAGE_MASK_INDEX) {
+          cp0_reg_page_mask.MASK := io.write(i).data(28, 13)
         }
         is(CP0_COMPARE_INDEX) {
           cp0_reg_compare := io.write(i).data
@@ -377,6 +400,8 @@ class CP0 extends Module with CP0Config with TLBConfig {
   //<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
   when (io.read_tlb_en) {
+    cp0_reg_page_mask.MASK := io.read_tlb.mask(28, 13)
+
     cp0_reg_entry_hi.VPN2  := io.read_tlb.entry_hi(31, 13)
     cp0_reg_entry_hi.VPN2X := io.read_tlb.entry_hi(12, 11)
     cp0_reg_entry_hi.EHINV := io.read_tlb.entry_hi(10)
@@ -399,6 +424,7 @@ class CP0 extends Module with CP0Config with TLBConfig {
   }
   io.read_tlb.index      := cp0_reg_index.asUInt()
   io.write_tlb.index     := cp0_reg_index.asUInt()
+  io.write_tlb.mask      := cp0_reg_page_mask.asUInt()
   io.write_tlb.entry_hi  := cp0_reg_entry_hi.asUInt()
   io.write_tlb.entry_lo0 := cp0_reg_entry_lo0.asUInt()
   io.write_tlb.entry_lo1 := cp0_reg_entry_lo1.asUInt()
