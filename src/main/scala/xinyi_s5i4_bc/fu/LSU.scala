@@ -46,16 +46,18 @@ class LSU extends Module with LSUConfig with TLBConfig {
 
   val lgc_addr = io.in.imm
   io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W + 1)
-  val tlb_en = lgc_addr(31, 30) =/= 2.U
+  //val tlb_en = lgc_addr(31, 30) =/= 2.U
+  val tlb_en = false.B
 
   val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
-  val addr = Mux(
+  val mapped_addr = Mux(
     tlb_en,
-    //lgc_addr,
     Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0)),
-    lgc_addr & 0x1FFFFFFF.U
+    lgc_addr
   )
+  val addr = Mux(mapped_addr(31, 30) =/= 2.U, mapped_addr, mapped_addr & 0x1FFFFFFF.U)
   val tlb_miss = tlb_en & (io.tlb.miss | !item.v)
+  val clean = tlb_en & !item.d
   //val tlb_miss = false.B
 
   io.tlbw := io.in.fu_ctrl === TLBWrite
@@ -88,7 +90,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
   )
   io.cache.addr := addr
   // kseg1 0xA0000000-0xBFFFFFFF VA[31-29]==0b101 uncached
-  io.cache.uncached := lgc_addr(31, 29) === "b101".U
+  io.cache.uncached := lgc_addr(31, 29) === "b101".U | (tlb_en & !item.c(0)) 
   io.cache.din  := MuxLookupBi(
     io.in.fu_ctrl(2, 1),
     io.in.a,
@@ -139,6 +141,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
       (io.in.fu_ctrl === FU_XXX) -> EXC_CODE_RI,
       (rd & tlb_miss) -> EXC_CODE_TLBL,
       (wr & tlb_miss) -> EXC_CODE_TLBS,
+      (wr & clean) -> EXC_CODE_MOD,
       (rd & exception) -> EXC_CODE_ADEL,
       (wr & exception) -> EXC_CODE_ADES
     )
@@ -148,6 +151,7 @@ class LSU extends Module with LSUConfig with TLBConfig {
     (io.in.fu_ctrl === FU_XXX) | 
     (rd & tlb_miss) |
     (wr & tlb_miss) |
+    (wr & clean) |
     (rd & exception) |
     (wr & exception)
   io.out.exc_meta  := lgc_addr

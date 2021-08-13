@@ -78,19 +78,7 @@ class BranchCache extends Module {
   io.branch_cached_en := false.B
 
   val id  = io.in.target(2 + BC_INDEX_W, 3)
-  val row = MuxLookupBi(
-    index,
-    record(0),
-    Array(
-       1.U -> record(1),
-       2.U -> record(2),
-       3.U -> record(3),
-       4.U -> record(4),
-       5.U -> record(5),
-       6.U -> record(6),
-       7.U -> record(7)
-    )
-  )
+  val row = record(index)
   val ht  = row.valid & !((io.in.target(XLEN - 1, 3 + BC_INDEX_W) ^ row.inst(0)(0).pc(XLEN - 1, 3 + BC_INDEX_W)).orR())
   //val ht = false.B
 

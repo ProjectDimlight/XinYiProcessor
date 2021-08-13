@@ -94,12 +94,12 @@ class IFStage extends Module with TLBConfig {
 
   val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
   
-  val addr = Mux(
+  val mapped_addr = Mux(
     tlb_en,
-    //lgc_addr,
     Cat(item.pfn, lgc_addr(PAGE_SIZE_W-1, 0)),
-    lgc_addr & 0x1FFFFFFF.U
+    lgc_addr
   )
+  val addr = Mux(mapped_addr(31, 30) =/= 2.U, mapped_addr, mapped_addr & 0x1FFFFFFF.U)
 
   io.tlb_miss := tlb_en & (io.tlb.miss | !item.v)
   io.tlb_addr := lgc_addr
@@ -239,7 +239,7 @@ class ISStage extends Module {
 
   issue_cnt := Mux(
     io.branch_cache_out.flush,
-    io.branch_cache_out.keep_delay_slot,
+    (io.issue_cnt =/= 0.U) & io.branch_cache_out.keep_delay_slot,
     io.issue_cnt
   )
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
@@ -480,7 +480,7 @@ class FUStage extends Module with CP0Config {
 
   // IF stage tlb miss exception
   when (io.if_tlb_miss) {
-    io.exc_info.pc := exception_pc
+    io.exc_info.pc := io.if_tlb_addr
     io.exc_info.exc_code := EXC_CODE_TLBL
     io.exc_info.data := io.if_tlb_addr
     io.exc_info.in_branch_delay_slot := exception_ds

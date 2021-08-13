@@ -386,8 +386,8 @@ class CP0 extends Module with CP0Config with TLBConfig {
     // handle all kind exception
     when(io.exc_info.exc_code === EXC_CODE_ADEL || io.exc_info.exc_code === EXC_CODE_ADES) {
       cp0_reg_badvaddr := io.exc_info.data
-    }.elsewhen(io.exc_info.exc_code === EXC_CODE_TLBL || io.exc_info.exc_code === EXC_CODE_TLBS) { // instruction fetch exception & load exception
-      cp0_reg_entry_hi.VPN2 := io.exc_info.data // put VA[31:13] into
+    }.elsewhen(io.exc_info.exc_code === EXC_CODE_MOD || io.exc_info.exc_code === EXC_CODE_TLBL || io.exc_info.exc_code === EXC_CODE_TLBS) { // instruction fetch exception & load exception
+      cp0_reg_entry_hi.VPN2 := io.exc_info.data(31, 13) // put VA[31:13] into
     }
   }
 
