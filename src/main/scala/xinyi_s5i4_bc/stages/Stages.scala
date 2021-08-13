@@ -239,7 +239,7 @@ class ISStage extends Module {
 
   issue_cnt := Mux(
     io.branch_cache_out.flush,
-    (io.issue_cnt =/= 0.U) & io.branch_cache_out.keep_delay_slot,
+    io.branch_cache_out.keep_delay_slot,
     io.issue_cnt
   )
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)

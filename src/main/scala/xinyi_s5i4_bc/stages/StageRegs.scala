@@ -119,32 +119,10 @@ class IssueQueue extends Module {
   tail_b := Mux(io.bc.flush, Step(head, io.bc.keep_delay_slot), tail)
   in_size := tail_b - head
 
-  // delay slot reading
-  val delay_slot_reading_reg = RegInit(false.B)
-  val delay_slot_reading_next = (io.issue_cnt =/= 0.U) & (io.inst(io.issue_cnt - 1.U).dec.next_pc =/= PC4) & !io.stall_backend
-  val delay_slot_reading = (delay_slot_reading_reg | delay_slot_reading_next)
-  val bc_flush_reg = RegInit(false.B)
-  val bc_flush = io.bc.flush | bc_flush_reg
-
-  when (delay_slot_reading_next) {
-    delay_slot_reading_reg := true.B
-  }
-  when (io.bc.flush) {
-    bc_flush_reg := true.B
-  }
-  when (!io.stall) {
-    delay_slot_reading_reg := false.B
-    bc_flush_reg := false.B
-    when (delay_slot_reading & bc_flush) {
-      queue(head) := io.in(io.single_inst)
-    }
-  }
-
   // Input
   when(io.flush) {
     tail := head_n
     io.full := false.B
-    delay_slot_reading_reg := false.B
   }
   .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
     when (!io.stall & !io.bc.nop) {
@@ -161,17 +139,34 @@ class IssueQueue extends Module {
   }
   .otherwise {
     tail := tail_b
-    io.full := !delay_slot_reading
+    io.full := true.B
   }
 
   // Output 
   out_size := tail - head
 
-  io.issue_cnt := Mux(delay_slot_reading_reg, 0.U, out_size)
+  io.issue_cnt := out_size
   for (i <- 0 until ISSUE_NUM) {
     // If i > issue_cnt, the instruction path will be 0 (Stall)
     // So there is no need to clear the inst Vec here
     io.inst(i) := queue(head + i.U(QUEUE_LEN_W.W))
+
+    // Issue until Delay Slot
+    // If the Branch itself is not issued, it will be re-issued in the next cycle.
+    // If the Branch is issued but the Delay Slot is not, 
+    // The BJU would generate a branch_cache_overwrite signal along with a keep_delay_slot, 
+    // Ensuring that the rest of the queue will be cleared while the Delay Slot works as is.
+    when(io.inst(i).dec.next_pc =/= PC4) {
+      // If the delay slot is already fetched (into the queue)
+      when((i + 2).U <= out_size) {
+        io.issue_cnt := (i + 2).U
+      }
+      // The delay slot is not in the queue yet
+      // Stall
+      .otherwise {
+        io.issue_cnt := 0.U
+      }
+    }
   }
 
   head_n := Step(head, io.actual_issue_cnt)
