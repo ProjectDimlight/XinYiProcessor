@@ -100,6 +100,7 @@ class IssueQueue extends Module {
     val stall = Input(Bool())
     val stall_backend = Input(Bool())
     val flush = Input(Bool())
+    val frontend_input_available = Output(Bool())
   })
 
   def Step(base: UInt, offset: UInt) = {
@@ -118,8 +119,18 @@ class IssueQueue extends Module {
 
   tail_b := Mux(io.bc.flush, Step(head, io.bc.keep_delay_slot), tail)
   in_size := tail_b - head
-  val inst = Mux(io.bc.overwrite, io.bc.inst, io.in)
-  val incoming = (!io.stall & !io.bc.nop)
+  val inst = Mux(!io.bc.nop, io.bc.inst, io.in)
+
+  val cnt = RegInit(0.U(BC_LINE_SIZE.W))
+  when (io.bc.flush) {
+    cnt := Mux(io.stall, ((1 << BC_LINE_SIZE) - 1).U, ((1 << (BC_LINE_SIZE - 1)) - 1).U)
+  }
+  .elsewhen (!io.stall) {
+    cnt := cnt(BC_LINE_SIZE-1, 1)
+  }
+
+  io.frontend_input_available := !io.stall & !cnt(0) & !io.bc.flush
+  val incoming = (io.frontend_input_available | !io.bc.nop)
 
   // Input
   when(io.flush) {
@@ -153,7 +164,7 @@ class IssueQueue extends Module {
   for (i <- 0 until ISSUE_NUM) {
     // If i > issue_cnt, the instruction path will be 0 (Stall)
     // So there is no need to clear the inst Vec here
-    when ((io.bc.flush & !io.bc.keep_delay_slot | (tail - head === 0.U)) & io.bc.overwrite & incoming) {
+    when (((io.bc.flush & !io.bc.keep_delay_slot) | (tail - head === 0.U)) & !io.bc.nop) {
       io.inst(i) := io.bc.inst(i.U | io.single_inst)
       out_size := Mux(io.single_inst, 1.U, 2.U)
     } .otherwise {

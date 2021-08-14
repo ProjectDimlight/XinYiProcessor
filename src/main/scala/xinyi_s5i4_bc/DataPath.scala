@@ -214,7 +214,7 @@ class DataPath extends Module with ALUConfig with LSUConfig {
   bc.io.exception := fu_wb_reg.io.wb_exception_handled
 
   bc.io.wr.flush := flush
-  bc.io.wr.stall := stall_frontend
+  bc.io.wr.frontend_input_available := issue_queue.io.frontend_input_available
   bc.io.wr.uncached := if_id_reg.io.uncached
   bc.io.wr.inst  := id_stage.io.out
 

@@ -11,7 +11,7 @@ class BranchCacheRecord extends Bundle {
 
 class BranchCacheWriteIn extends Bundle {
   val flush = Input(Bool())
-  val stall = Input(Bool())
+  val frontend_input_available = Input(Bool())
   val uncached = Input(Bool())
   val inst  = Input(Vec(FETCH_NUM, new Instruction))
 }
@@ -66,6 +66,8 @@ class BranchCache extends Module {
   val una_reg   = RegInit(false.B)
   val una       = Wire(Bool())
 
+  val stall_reg = RegNext(io.stall_backend)
+
   val write_pos = RegInit(BC_LINE_SIZE.U(BC_LINE_SIZE_W.W))
   val write_pc  = RegInit(0.U(XLEN.W))
 
@@ -73,12 +75,34 @@ class BranchCache extends Module {
   // Default
   io.out.overwrite := false.B
   io.out.flush := false.B
-  io.out.nop := false.B
+  io.out.nop := true.B
   io.out.keep_delay_slot := false.B
   io.branch_cached_en := false.B
 
   val id  = io.in.target(2 + BC_INDEX_W, 3)
-  val row = record(index)
+  //val row = record(index)
+  val row = MuxLookupBi(
+    index,
+    record(0),
+    Array(
+      1.U -> record(1),
+      2.U -> record(2),
+      3.U -> record(3),
+      4.U -> record(4),
+      5.U -> record(5),
+      6.U -> record(6),
+      7.U -> record(7),
+      8.U -> record(8),
+      9.U -> record(9),
+      10.U -> record(10),
+      11.U -> record(11),
+      12.U -> record(12),
+      13.U -> record(13),
+      14.U -> record(14),
+      15.U -> record(15),
+    )
+
+  )
   val ht  = row.valid & !((io.in.target(XLEN - 1, 3 + BC_INDEX_W) ^ row.inst(0)(0).pc(XLEN - 1, 3 + BC_INDEX_W)).orR())
   //val ht = false.B
 
@@ -96,7 +120,7 @@ class BranchCache extends Module {
     una       := io.in.target(2)
     una_reg   := io.in.target(2)
 
-    when (!io.stall_backend) {
+    when (!stall_reg) {
       io.out.flush := true.B
       io.out.keep_delay_slot := io.in.delay_slot_pending
       io.branch_cached_en := true.B
@@ -111,7 +135,7 @@ class BranchCache extends Module {
       }
     }
   }
-  state_reg := Mux((state =/= BC_LINE_SIZE.U) & !io.stall_frontend, state + 1.U, state)
+  state_reg := Mux((state =/= BC_LINE_SIZE.U), state + 1.U, state)
   //io.branch_cached_pc := Mux(hit, io.in.target + (BC_LINE_SIZE * FETCH_NUM * 4).U, io.in.target)
   io.branch_cached_pc := Mux(hit, io.in.target_bc, io.in.target)
   io.single_inst := (state === 0.U) & una
@@ -129,7 +153,7 @@ class BranchCache extends Module {
     record := VecInit(Seq.fill(BC_INDEX)(InitBranchCacheRecord()))
     write_pos := BC_LINE_SIZE.U
   }
-  .elsewhen (!io.out.overwrite & !io.wr.stall) {
+  .elsewhen (io.wr.frontend_input_available) {
     val index = write_pc(2 + BC_INDEX_W, 3)
 
     when (io.wr.uncached) {

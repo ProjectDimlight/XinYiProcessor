@@ -104,7 +104,8 @@ class IFStage extends Module with TLBConfig {
   io.tlb_miss := tlb_en & (io.tlb.miss | !item.v)
   io.tlb_addr := lgc_addr
 
-  val uncached = lgc_addr(31, 29) === "b101".U | (tlb_en & !item.c(0))
+  //val uncached = lgc_addr(31, 29) === "b101".U | (tlb_en & !item.c(0))
+  val uncached = false.B
   val single_inst = lgc_addr(2) | uncached
 
   // ICache
