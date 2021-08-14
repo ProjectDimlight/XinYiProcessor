@@ -118,6 +118,8 @@ class IssueQueue extends Module {
 
   tail_b := Mux(io.bc.flush, Step(head, io.bc.keep_delay_slot), tail)
   in_size := tail_b - head
+  val inst = Mux(io.bc.overwrite, io.bc.inst, io.in)
+  val incoming = (!io.stall & !io.bc.nop)
 
   // Input
   when(io.flush) {
@@ -125,8 +127,7 @@ class IssueQueue extends Module {
     io.full := false.B
   }
   .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
-    when (!io.stall & !io.bc.nop) {
-      val inst = Mux(io.bc.overwrite, io.bc.inst, io.in)
+    when (incoming) {
       for (i <- 0 until FETCH_NUM) {
         queue(tail_b + i.U(QUEUE_LEN_W.W)) := inst(io.single_inst | i.U)
       }
@@ -143,13 +144,21 @@ class IssueQueue extends Module {
   }
 
   // Output 
-  out_size := tail - head
-
+  out_size := Mux(
+    io.bc.flush,
+    io.bc.keep_delay_slot,
+    tail - head
+  )
   io.issue_cnt := out_size
   for (i <- 0 until ISSUE_NUM) {
     // If i > issue_cnt, the instruction path will be 0 (Stall)
     // So there is no need to clear the inst Vec here
-    io.inst(i) := queue(head + i.U(QUEUE_LEN_W.W))
+    when ((io.bc.flush & !io.bc.keep_delay_slot | (tail - head === 0.U)) & io.bc.overwrite & incoming) {
+      io.inst(i) := io.bc.inst(i.U | io.single_inst)
+      out_size := Mux(io.single_inst, 1.U, 2.U)
+    } .otherwise {
+      io.inst(i) := queue(head + i.U(QUEUE_LEN_W.W))
+    }
 
     // Issue until Delay Slot
     // If the Branch itself is not issued, it will be re-issued in the next cycle.

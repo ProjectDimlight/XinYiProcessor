@@ -236,12 +236,7 @@ class ISStage extends Module {
   val issue_cnt = Wire(UInt(QUEUE_LEN_W.W))
 
   // Begin
-
-  issue_cnt := Mux(
-    io.branch_cache_out.flush,
-    io.branch_cache_out.keep_delay_slot,
-    io.issue_cnt
-  )
+  issue_cnt := io.issue_cnt
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
   def RAWPath(i: Int, j: Int) {
