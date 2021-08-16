@@ -6,10 +6,12 @@ VERILATOR_FLAGS	?= --cc --exe --top-module mycpu_top --threads 1 --assert --x-as
 
 # directories
 VERILOG_DIR 	?= src/main/verilog
-MYCPU_DIR 		?= src/main/verilog/mycpu
+MYCPU_DIR 		?= $(VERILOG_DIR)/mycpu
+SIM_DIR         ?= $(VERILOG_DIR)/sim
 
 # source codes
 MYCPU_V			?= $(MYCPU_DIR)/mycpu_top.v
+SIM_V           ?= $(SIM_DIR)/SimDataPath.v
 DP_BRAM_V		?= $(MYCPU_DIR)/dual_port_bram.v
 DP_LUTRAM_V		?= $(MYCPU_DIR)/dual_port_lutram.v
 SP_BRAM_V		?= $(MYCPU_DIR)/single_port_bram.v
@@ -27,8 +29,8 @@ main:
 # generate verilog code for verilator
 verilator:
 	$(SBT) $(SBT_FLAGS) "runMain Verilator"
-	sed -i 's/\[32:0\]\sdiv_res_hi/\[31:0\] div_res_hi/g' $(MYCPU_V)
-	sed -i 's/\[64:0\]\s_div_res_T_2/\[63:0\] _div_res_T_2/g' $(MYCPU_V)
+	sed -i 's/\[32:0\]\sdiv_res_hi/\[31:0\] div_res_hi/g' $(SIM_V)
+	sed -i 's/\[64:0\]\s_div_res_T_2/\[63:0\] _div_res_T_2/g' $(SIM_V)
 
 	
 # verilator:
@@ -41,6 +43,7 @@ checkstyle:
 
 clean:
 	-@rm -rf $(MYCPU_DIR)
+	-@rm -rf $(SIM_DIR)
 	# -@find $(VERILOG_DIR)/AXICrossbar/. ! -name 'AXICrossbar.xci' -exec rm -r {} \;
 	# -@find $(VERILOG_DIR)/DIVU/. ! -name 'DIVU.xci' -exec rm -r {} \;
 	# -@find $(VERILOG_DIR)/DIV/. ! -name 'DIV.xci' -exec rm -r {} \;

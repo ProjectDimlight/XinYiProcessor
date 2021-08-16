@@ -20,9 +20,11 @@ class SimAXI extends Module {
   val ram_mask  = "h3ffffff".U
 
 
-  // AXI FSM for read and write channel
+  // AXI FSM for read channel
   val r_idle :: r_ready :: r_process :: Nil = Enum(3)
 
+  // AXI FSM for write channel
+  val w_idle :: w_aready :: w_ready :: w_process :: Nil = Enum(4)
 
   // icache read FSM
   val ir_state = RegInit(r_idle)
@@ -36,7 +38,7 @@ class SimAXI extends Module {
 
   switch(ir_state) {
     is(r_idle) {
-      when(io.icache_axi.rready) {
+      when(io.icache_axi.arvalid) {
         ir_state := r_ready
       }
     }
@@ -76,7 +78,7 @@ class SimAXI extends Module {
 
   switch(dr_state) {
     is(r_idle) {
-      when(io.dcache_axi.rready) {
+      when(io.dcache_axi.arvalid) {
         dr_state := r_ready
       }
     }
@@ -105,6 +107,37 @@ class SimAXI extends Module {
       }.otherwise {
         dr_state := r_idle
       }
+    }
+  }
+
+  // dcache write FSM
+  val dw_state = RegInit(w_idle)
+
+  val dcache_awlen = Reg(UInt(4.W))
+
+  io.dcache_axi.awready := dw_state === w_aready
+  io.dcache_axi.wready := dw_state === w_ready
+  io.dcache_axi.bready := dw_state === w_process
+
+
+  switch(dw_state) {
+    is(w_idle) {
+      when(io.dcache_axi.awvalid) {
+        dw_state := w_aready
+      }
+    }
+
+    is(w_aready) {
+      dw_state := w_ready
+      dcache_awlen := io.dcache_axi.awlen + 1.U
+    }
+
+    is(w_ready) {
+      dw_state := w_process
+    }
+
+    is(w_process) {
+
     }
   }
 
