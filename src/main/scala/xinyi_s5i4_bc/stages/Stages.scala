@@ -90,7 +90,8 @@ class IFStage extends Module with TLBConfig {
   // TLB
   val lgc_addr = io.in.pc
   io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W + 1)
-  val tlb_en = lgc_addr(31, 30) =/= 2.U
+  //val tlb_en = lgc_addr(31, 30) =/= 2.U
+  val tlb_en = false.B
 
   val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
   
@@ -124,6 +125,7 @@ class IFStage extends Module with TLBConfig {
 
 class IDIn extends Bundle {
   val pc = Input(UInt(LGC_ADDR_W.W))
+  val pc4 = Input(UInt(LGC_ADDR_W.W))
   val inst = Input(UInt(XLEN.W))
 }
 
@@ -139,6 +141,7 @@ class IDStage extends Module with ALUConfig{
     val decoder = Module(new MIPSDecoder)
     decoder.io.inst := io.in(i).inst
     decoder.io.pc   := io.in(i).pc
+    decoder.io.pc4  := io.in(i).pc4
 
     io.out(i).pc := io.in(i).pc
     /*
@@ -237,7 +240,11 @@ class ISStage extends Module {
   val issue_cnt = Wire(UInt(QUEUE_LEN_W.W))
 
   // Begin
-  issue_cnt := io.issue_cnt
+  issue_cnt := Mux(
+    io.branch_cache_out.flush,
+    io.branch_cache_out.keep_delay_slot,
+    io.issue_cnt
+  )
   io.actual_issue_cnt := ISSUE_NUM.U(ISSUE_NUM_W.W)
 
   def RAWPath(i: Int, j: Int) {

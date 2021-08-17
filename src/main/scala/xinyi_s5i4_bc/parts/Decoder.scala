@@ -73,6 +73,7 @@ class ControlSet extends Bundle {
 class MIPSDecoder extends Module with ALUConfig with BJUConfig with LSUConfig with CP0Config {
   val io = IO(new Bundle{
     val pc = Input(UInt(LGC_ADDR_W.W))
+    val pc4 = Input(UInt(LGC_ADDR_W.W))
     val inst = Input(UInt(XLEN.W))
     val imm = Output(UInt(32.W))
     val dec = Output(new ControlSet)
@@ -91,7 +92,7 @@ class MIPSDecoder extends Module with ALUConfig with BJUConfig with LSUConfig wi
   signed    := io.inst(15, 0).asSInt()
   signed_x4 := Cat(io.inst(15, 0), 0.U(2.W)).asSInt()
 
-  val pc4 = io.pc + 4.U
+  val pc4 = io.pc4
   val IImm = io.inst(15, 0)
   val ISImm = signed.asUInt()
   val ISHT = io.inst(10, 6)

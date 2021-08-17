@@ -41,6 +41,7 @@ class IFIDReg extends Module {
   })
 
   val pc = RegInit(0.U((LGC_ADDR_W * FETCH_NUM).W))
+  val pc4 = RegInit(0.U((LGC_ADDR_W * FETCH_NUM).W))
   val inst = Wire(UInt((XLEN * FETCH_NUM).W))
   val inst_reg = RegInit(0.U((XLEN * FETCH_NUM).W))
   val flush_stall_reg = RegInit(false.B)
@@ -73,6 +74,7 @@ class IFIDReg extends Module {
     val apc4 = Cat(io.if_out.pc(31, 3), 1.U(1.W), io.if_out.pc(1, 0))
     pc := Mux(flush_stall_reg, 0.U, 
       Mux(io.if_out.uncached, Cat(io.if_out.pc, 0.U(LGC_ADDR_W.W)), Cat(apc4, apc)))
+    pc4 := Cat(pc(63, 32) + 4.U, pc(31, 0) + 4.U)
     
     single_inst := io.if_out.single_inst
     uncached := io.if_out.uncached
@@ -80,6 +82,7 @@ class IFIDReg extends Module {
   
   for (i <- 0 until FETCH_NUM) {
     io.id_in(i).pc := pc((i + 1) * XLEN - 1, i * XLEN)
+    io.id_in(i).pc4 := pc4((i + 1) * XLEN - 1, i * XLEN)
     io.id_in(i).inst := inst((i + 1) * XLEN - 1, i * XLEN)
   }
   io.single_inst := single_inst
@@ -137,7 +140,7 @@ class IssueQueue extends Module {
     tail := head_n
     io.full := false.B
   }
-  .elsewhen (in_size < (QUEUE_LEN - FETCH_NUM).U) {
+  .elsewhen ((in_size < (QUEUE_LEN - FETCH_NUM).U)) {
     when (incoming) {
       for (i <- 0 until FETCH_NUM) {
         queue(tail_b + i.U(QUEUE_LEN_W.W)) := inst(io.single_inst | i.U)
@@ -155,21 +158,10 @@ class IssueQueue extends Module {
   }
 
   // Output 
-  out_size := Mux(
-    io.bc.flush,
-    io.bc.keep_delay_slot,
-    tail - head
-  )
+  out_size := tail - head
   io.issue_cnt := out_size
   for (i <- 0 until ISSUE_NUM) {
-    // If i > issue_cnt, the instruction path will be 0 (Stall)
-    // So there is no need to clear the inst Vec here
-    when (((io.bc.flush & !io.bc.keep_delay_slot) | (tail - head === 0.U)) & !io.bc.nop) {
-      io.inst(i) := io.bc.inst(i.U | io.single_inst)
-      out_size := Mux(io.single_inst, 1.U, 2.U)
-    } .otherwise {
-      io.inst(i) := queue(head + i.U(QUEUE_LEN_W.W))
-    }
+    io.inst(i) := queue(head + i.U(QUEUE_LEN_W.W))
 
     // Issue until Delay Slot
     // If the Branch itself is not issued, it will be re-issued in the next cycle.

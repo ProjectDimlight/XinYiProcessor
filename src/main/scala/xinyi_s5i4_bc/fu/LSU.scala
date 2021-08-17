@@ -46,8 +46,8 @@ class LSU extends Module with LSUConfig with TLBConfig {
 
   val lgc_addr = io.in.imm
   io.tlb.vpn2 := lgc_addr(LGC_ADDR_W-1, PAGE_SIZE_W + 1)
-  val tlb_en = lgc_addr(31, 30) =/= 2.U
-  //val tlb_en = false.B
+  //val tlb_en = lgc_addr(31, 30) =/= 2.U
+  val tlb_en = false.B
 
   val item = Mux(lgc_addr(PAGE_SIZE_W), io.tlb.entry.i1, io.tlb.entry.i0)
   val mapped_addr = Mux(
@@ -58,7 +58,6 @@ class LSU extends Module with LSUConfig with TLBConfig {
   val addr = Mux(mapped_addr(31, 30) =/= 2.U, mapped_addr, mapped_addr & 0x1FFFFFFF.U)
   val tlb_miss = tlb_en & (io.tlb.miss | !item.v)
   val clean = tlb_en & !item.d
-  //val tlb_miss = false.B
 
   io.tlbw := io.in.fu_ctrl === TLBWrite
   io.tlbr := io.in.fu_ctrl === TLBRead
