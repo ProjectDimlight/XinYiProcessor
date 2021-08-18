@@ -283,6 +283,12 @@ class ISStage extends Module {
   }
 
   def RAWInst(i: Int, k: Int) {
+    if (i != 0) {
+      when ((io.inst(i).dec.fu_ctrl === ALU_FILTER_RESET) || (io.inst(i).dec.fu_ctrl === ALU_FILTER)) {
+        raw(i) := true.B
+      }
+    }
+
     when (
       io.inst(k).dec.write_target === 5.U & io.inst(i).dec.param_a === BitPat("b01?") | // HiLo
       io.inst(k).dec.write_target === io.inst(i).dec.param_a &                          // Same source
