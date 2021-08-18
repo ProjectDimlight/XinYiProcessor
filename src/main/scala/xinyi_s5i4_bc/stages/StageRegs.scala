@@ -72,9 +72,10 @@ class IFIDReg extends Module {
 
     val apc  = Cat(io.if_out.pc(31, 3), 0.U(1.W), io.if_out.pc(1, 0))
     val apc4 = Cat(io.if_out.pc(31, 3), 1.U(1.W), io.if_out.pc(1, 0))
-    pc := Mux(flush_stall_reg, 0.U, 
-      Mux(io.if_out.uncached, Cat(io.if_out.pc, 0.U(LGC_ADDR_W.W)), Cat(apc4, apc)))
-    pc4 := Cat(pc(63, 32) + 4.U, pc(31, 0) + 4.U)
+    val next_pc = Mux(flush_stall_reg, 0.U,
+                      Mux(io.if_out.uncached, Cat(io.if_out.pc, 0.U(LGC_ADDR_W.W)), Cat(apc4, apc)))
+    pc := next_pc
+    pc4 := Cat(next_pc(63, 32) + 4.U, next_pc(31, 0) + 4.U)
     
     single_inst := io.if_out.single_inst
     uncached := io.if_out.uncached
