@@ -72,6 +72,7 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
 
   val filter_ready = (cnt >= 4.U)
 
+  sum := next_sum
   next_sum := sum
   when (!io.stall) {
     when (io.in.fu_ctrl === ALU_FILTER_RESET) {

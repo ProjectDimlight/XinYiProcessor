@@ -180,7 +180,7 @@ val control_signal = ListLookup1H(io.inst,
       TLBWI      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX, ISImm),
       TLBWR      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX, ISImm),
 
-      FILTER_R   -> List(  PC4     ,  AReg   ,  BXXX   ,  DReg   , ALU_FILTER_RESET  ,  PathALU   , IXX , IXX , IXX, ISImm),
+//      FILTER_R   -> List(  PC4     ,  AReg   ,  BXXX   ,  DReg   , ALU_FILTER_RESET  ,  PathALU   , IXX , IXX , IXX, ISImm),
       FILTER     -> List(  PC4     ,  AReg   ,  BXXX   ,  DReg   , ALU_FILTER        ,  PathALU   , IRS , IXX , IRD, ISImm),
   ))
 
@@ -188,7 +188,8 @@ val control_signal = ListLookup1H(io.inst,
   io.dec.param_a       := control_signal(1)
   io.dec.param_b       := control_signal(2)
   io.dec.write_target  := control_signal(3)
-  io.dec.fu_ctrl       := control_signal(4)
+  io.dec.fu_ctrl       := Mux(control_signal(4) === ALU_FILTER && io.dec.rs1 === 0.U && io.dec.rd === 0.U,
+    0xe.U, control_signal(4))
   io.dec.path          := control_signal(5)
   io.dec.rs1           := control_signal(6)
   io.dec.rs2           := control_signal(7)
