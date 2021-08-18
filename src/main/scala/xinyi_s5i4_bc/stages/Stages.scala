@@ -205,7 +205,7 @@ class ISOut extends Path {
 }
 
 // Issue Stage
-class ISStage extends Module {
+class ISStage extends Module with ALUConfig {
   val io = IO(new Bundle {
     val issue_cnt = Input(UInt(QUEUE_LEN_W.W))
     val inst = Input(Vec(ISSUE_NUM, new Instruction))
