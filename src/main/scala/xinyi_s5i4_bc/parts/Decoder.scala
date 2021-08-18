@@ -179,6 +179,9 @@ val control_signal = ListLookup1H(io.inst,
       TLBR       -> List(  PC4     ,  ACP0   ,  BXXX   ,  DCP0   , TLBRead   ,  PathLSU   , CP0_INDEX_INDEX    , IXX , CP0_ENTRY_HI_INDEX, ISImm),
       TLBWI      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX, ISImm),
       TLBWR      -> List(  PC4     ,  ACP0   ,  BXXX   ,  DMem   , TLBWrite  ,  PathLSU   , CP0_INDEX_INDEX    , IXX , IXX, ISImm),
+
+      FILTER_R   -> List(  PC4     ,  AReg   ,  BXXX   ,  DReg   , ALU_FILTER_RESET  ,  PathALU   , IXX , IXX , IXX, ISImm),
+      FILTER     -> List(  PC4     ,  AReg   ,  BXXX   ,  DReg   , ALU_FILTER        ,  PathALU   , IRS , IXX , IRD, ISImm),
   ))
 
   io.dec.next_pc       := control_signal(0)

@@ -42,6 +42,9 @@ trait ALUConfig {
   val ALU_SUB  = 12.U(FU_CTRL_W.W)
   val ALU_SUBU = 13.U(FU_CTRL_W.W)
 
+  val ALU_FILTER_RESET = 14.U(FU_CTRL_W.W)
+  val ALU_FILTER       = 15.U(FU_CTRL_W.W)
+
   val ALU_DIV  = 24.U(FU_CTRL_W.W)
   val ALU_DIVU = 25.U(FU_CTRL_W.W)
   val ALU_MUL  = 26.U(FU_CTRL_W.W)
@@ -55,6 +58,68 @@ class ALUIO extends FUIO {
 
 class ALU extends Module with ALUConfig with BALConfig with CP0Config {
   val io = IO(new ALUIO)
+
+  // Filter
+
+  val min1 = RegInit(0.U(32.W))
+  val min2 = RegInit(0.U(32.W))
+  val max1 = RegInit(0.U(32.W))
+  val max2 = RegInit(0.U(32.W))
+  val sum  = RegInit(0.U(32.W))
+  val cnt  = RegInit(0.U(32.W))
+  val next_sum = Wire(UInt(32.W))
+
+  val filter_ready = (cnt >= 4.U)
+
+  next_sum := sum
+  when (io.in.fu_ctrl === ALU_FILTER_RESET) {
+    sum := 0.U
+    next_sum := 0.U
+    min1 := 0.U
+    min2 := 0.U
+    max1 := 0.U
+    max2 := 0.U
+    cnt := 0.U
+  } .elsewhen (io.in.fu_ctrl === ALU_FILTER) {
+    val data = io.in.a
+    cnt := Mux(filter_ready, cnt, cnt + 1.U)
+    
+    when (cnt === 0.U) {
+      min1 := data
+      min2 := data
+      max1 := data
+      max2 := data
+    }
+    .elsewhen (data < min1) {
+      min1 := data
+      min2 := min1
+      when (filter_ready) {
+        next_sum := sum + min2
+      }
+    }
+    .elsewhen (max1 < data) {
+      max1 := data
+      max2 := max1
+      when (filter_ready) {
+        next_sum := sum + max2
+      }
+    }.elsewhen (data < min2) {
+      min2 := data
+      when (filter_ready) {
+        next_sum := sum + min2
+      }
+    }.elsewhen (max2 < data) {
+      max2 := data
+      when (filter_ready) {
+        next_sum := sum + max2
+      }
+    }.elsewhen(filter_ready) {
+      next_sum := sum + data
+    }
+  }
+
+  /////////////////////////////////////////////////////////////
+  
 
   io.out.is_delay_slot := io.in.is_delay_slot
 
@@ -168,7 +233,9 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
       JPC -> (io.in.pc + 8.U),
       BrGEPC -> (io.in.pc + 8.U),
       BrLTPC -> (io.in.pc + 8.U),
-      ALU_ERET -> 0.U
+      ALU_ERET -> 0.U,
+      ALU_FILTER -> next_sum,
+      ALU_FILTER_RESET -> next_sum
     )
   )
 
