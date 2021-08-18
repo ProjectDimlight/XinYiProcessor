@@ -280,6 +280,8 @@ class DataPath extends Module with ALUConfig with LSUConfig {
       
       fu_stage.io.fu_out(j) := fu.io.out
 
+      fu.io.stall := stall_backend
+
       exception_by_path(j) := fu.io.out.exception
 
       fu
