@@ -54,6 +54,7 @@ trait ALUConfig {
 }
 
 class ALUIO extends FUIO {
+  val stall = Input(Bool())
 }
 
 class ALU extends Module with ALUConfig with BALConfig with CP0Config {
@@ -72,49 +73,51 @@ class ALU extends Module with ALUConfig with BALConfig with CP0Config {
   val filter_ready = (cnt >= 4.U)
 
   next_sum := sum
-  when (io.in.fu_ctrl === ALU_FILTER_RESET) {
-    sum := 0.U
-    next_sum := 0.U
-    min1 := 0.U
-    min2 := 0.U
-    max1 := 0.U
-    max2 := 0.U
-    cnt := 0.U
-  } .elsewhen (io.in.fu_ctrl === ALU_FILTER) {
-    val data = io.in.a
-    cnt := Mux(filter_ready, cnt, cnt + 1.U)
-    
-    when (cnt === 0.U) {
-      min1 := data
-      min2 := data
-      max1 := data
-      max2 := data
-    }
-    .elsewhen (data < min1) {
-      min1 := data
-      min2 := min1
-      when (filter_ready) {
-        next_sum := sum + min2
+  when (!io.stall) {
+    when (io.in.fu_ctrl === ALU_FILTER_RESET) {
+      sum := 0.U
+      next_sum := 0.U
+      min1 := 0.U
+      min2 := 0.U
+      max1 := 0.U
+      max2 := 0.U
+      cnt := 0.U
+    } .elsewhen (io.in.fu_ctrl === ALU_FILTER) {
+      val data = io.in.a
+      cnt := Mux(filter_ready, cnt, cnt + 1.U)
+      
+      when (cnt === 0.U) {
+        min1 := data
+        min2 := data
+        max1 := data
+        max2 := data
       }
-    }
-    .elsewhen (max1 < data) {
-      max1 := data
-      max2 := max1
-      when (filter_ready) {
-        next_sum := sum + max2
+      .elsewhen (data < min1) {
+        min1 := data
+        min2 := min1
+        when (filter_ready) {
+          next_sum := sum + min2
+        }
       }
-    }.elsewhen (data < min2) {
-      min2 := data
-      when (filter_ready) {
-        next_sum := sum + min2
+      .elsewhen (max1 < data) {
+        max1 := data
+        max2 := max1
+        when (filter_ready) {
+          next_sum := sum + max2
+        }
+      }.elsewhen (data < min2) {
+        min2 := data
+        when (filter_ready) {
+          next_sum := sum + min2
+        }
+      }.elsewhen (max2 < data) {
+        max2 := data
+        when (filter_ready) {
+          next_sum := sum + max2
+        }
+      }.elsewhen(filter_ready) {
+        next_sum := sum + data
       }
-    }.elsewhen (max2 < data) {
-      max2 := data
-      when (filter_ready) {
-        next_sum := sum + max2
-      }
-    }.elsewhen(filter_ready) {
-      next_sum := sum + data
     }
   }
 
